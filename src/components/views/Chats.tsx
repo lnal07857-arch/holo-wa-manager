@@ -2,16 +2,18 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
+  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
   const [messages, setMessages] = useState([
     { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
     { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
@@ -67,11 +69,26 @@ const Chats = () => {
   };
 
   const chats = [
-    { id: 0, name: "Max Mustermann", account: "Account 1", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2 },
-    { id: 1, name: "Anna Schmidt", account: "Account 2", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0 },
-    { id: 2, name: "Peter Wagner", account: "Account 1", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1 },
-    { id: 3, name: "Lisa Müller", account: "Account 3", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0 },
+    { id: 0, name: "Max Mustermann", account: "Account 1", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false },
+    { id: 1, name: "Anna Schmidt", account: "Account 2", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false },
+    { id: 2, name: "Peter Wagner", account: "Account 1", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false },
+    { id: 3, name: "Lisa Müller", account: "Account 3", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false },
+    { id: 4, name: "Team Verkauf", account: "Account 1", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true },
   ];
+
+  // Filter chats based on selected filter
+  const filteredChats = chats.filter(chat => {
+    switch (chatFilter) {
+      case "unread":
+        return chat.unread > 0;
+      case "favorites":
+        return chat.isFavorite;
+      case "groups":
+        return chat.isGroup;
+      default:
+        return true;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -155,18 +172,28 @@ const Chats = () => {
 
             {/* Chat List */}
             <div className="border-r flex flex-col relative">
-              <div className="p-4 border-b">
+              <div className="p-4 border-b space-y-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Chats durchsuchen..." className="pl-9" />
                 </div>
+                
+                {/* Filter Tabs */}
+                <Tabs value={chatFilter} onValueChange={(v) => setChatFilter(v as any)} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 h-9">
+                    <TabsTrigger value="all" className="text-xs">Alle</TabsTrigger>
+                    <TabsTrigger value="unread" className="text-xs">Ungelesen</TabsTrigger>
+                    <TabsTrigger value="favorites" className="text-xs">Favoriten</TabsTrigger>
+                    <TabsTrigger value="groups" className="text-xs">Gruppen</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
               {!showTemplates && (
                 <Button
                   variant="default"
                   size="sm"
                   onClick={() => setShowTemplates(true)}
-                  className="absolute top-[72px] left-2 z-10 gap-2"
+                  className="absolute top-[120px] left-2 z-10 gap-2"
                   title="Vorlagen anzeigen"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -174,8 +201,13 @@ const Chats = () => {
                 </Button>
               )}
               <ScrollArea className="flex-1">
-                {chats.map((chat) => (
-                  <div
+                {filteredChats.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8 text-sm">
+                    Keine Chats gefunden
+                  </div>
+                 ) : (
+                   filteredChats.map((chat) => (
+                   <div
                     key={chat.id}
                     className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
                       selectedChat === chat.id ? "bg-muted" : ""
@@ -188,7 +220,12 @@ const Chats = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="font-semibold truncate">{chat.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold truncate">{chat.name}</p>
+                            {chat.isFavorite && (
+                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                            )}
+                          </div>
                           <span className="text-xs text-muted-foreground">{chat.time}</span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -202,8 +239,9 @@ const Chats = () => {
                         </Badge>
                       </div>
                     </div>
-                  </div>
-                ))}
+                   </div>
+                 ))
+                 )}
               </ScrollArea>
             </div>
 
