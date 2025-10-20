@@ -10,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTemplates } from "@/hooks/useTemplates";
 
 const Templates = () => {
-  const { templates, isLoading, createTemplate, deleteTemplate } = useTemplates();
+  const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [category, setCategory] = useState("");
   const [templateText, setTemplateText] = useState("");
@@ -35,6 +37,37 @@ const Templates = () => {
     setCategory("");
     setTemplateText("");
     setOpen(false);
+  };
+
+  const handleEdit = (templateId: string) => {
+    const template = templates.find((t) => t.id === templateId);
+    if (template) {
+      setEditingTemplate(templateId);
+      setTemplateName(template.template_name);
+      setCategory(template.category);
+      setTemplateText(template.template_text);
+      setEditOpen(true);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTemplate) return;
+    const placeholders = extractPlaceholders(templateText);
+    await updateTemplate.mutateAsync({
+      templateId: editingTemplate,
+      template: {
+        template_name: templateName,
+        category,
+        template_text: templateText,
+        placeholders,
+      },
+    });
+    setTemplateName("");
+    setCategory("");
+    setTemplateText("");
+    setEditingTemplate(null);
+    setEditOpen(false);
   };
 
   if (isLoading) {
@@ -113,6 +146,64 @@ const Templates = () => {
         </Dialog>
       </div>
 
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vorlage bearbeiten</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editTemplateName">Vorlagen-Name</Label>
+                  <Input
+                    id="editTemplateName"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="z.B. Terminbestätigung"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editCategory">Kategorie</Label>
+                  <Input
+                    id="editCategory"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="z.B. Termine"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editTemplateText">Nachrichtentext</Label>
+                <Textarea
+                  id="editTemplateText"
+                  value={templateText}
+                  onChange={(e) => setTemplateText(e.target.value)}
+                  placeholder="Verwenden Sie {Platzhalter} für dynamische Inhalte"
+                  className="min-h-[200px]"
+                  required
+                />
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-2">Erkannte Platzhalter:</p>
+                <div className="flex flex-wrap gap-2">
+                  {extractPlaceholders(templateText).map((placeholder) => (
+                    <Badge key={placeholder} variant="secondary">
+                      {`{${placeholder}}`}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <Button type="submit" className="w-full">
+                Vorlage aktualisieren
+              </Button>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {templates.map((template) => (
           <Card key={template.id} className="hover:shadow-lg transition-all">
@@ -142,7 +233,12 @@ const Templates = () => {
                     <Copy className="w-3 h-3" />
                     Kopieren
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => handleEdit(template.id)}
+                  >
                     <Edit className="w-3 h-3" />
                   </Button>
                   <Button

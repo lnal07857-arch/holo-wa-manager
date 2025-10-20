@@ -62,6 +62,38 @@ export const useTemplates = () => {
     },
   });
 
+  const updateTemplate = useMutation({
+    mutationFn: async ({
+      templateId,
+      template,
+    }: {
+      templateId: string;
+      template: {
+        template_name: string;
+        category: string;
+        template_text: string;
+        placeholders: string[];
+      };
+    }) => {
+      const { data, error } = await supabase
+        .from("message_templates")
+        .update(template)
+        .eq("id", templateId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+      toast.success("Vorlage aktualisiert");
+    },
+    onError: (error: Error) => {
+      toast.error(`Fehler: ${error.message}`);
+    },
+  });
+
   const deleteTemplate = useMutation({
     mutationFn: async (templateId: string) => {
       const { error } = await supabase
@@ -81,6 +113,7 @@ export const useTemplates = () => {
     templates,
     isLoading,
     createTemplate,
+    updateTemplate,
     deleteTemplate,
   };
 };
