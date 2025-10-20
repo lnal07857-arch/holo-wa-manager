@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Send, FileText, AlertCircle, X } from "lucide-react";
@@ -34,6 +34,13 @@ const BulkSender = () => {
   const [textRotation, setTextRotation] = useState(true);
   const [delay, setDelay] = useState("2-5");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Automatisch alle verfügbaren Accounts auswählen
+  useEffect(() => {
+    if (accounts.length > 0) {
+      setSelectedAccounts(accounts.map(acc => acc.id));
+    }
+  }, [accounts]);
 
   const sanitizePhone = (phone: string) => {
     // Entfernt führende Apostrophe, Leerzeichen und gängige Trenner, behält '+' und Ziffern
@@ -161,13 +168,13 @@ const BulkSender = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>WhatsApp-Accounts</Label>
+              <Label>WhatsApp-Accounts (Automatisch alle ausgewählt)</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     {selectedAccounts.length > 0
-                      ? `${selectedAccounts.length} Account(s) ausgewählt`
-                      : "Accounts auswählen..."}
+                      ? `${selectedAccounts.length} Account(s) ausgewählt (rotierend)`
+                      : "Keine Accounts verfügbar"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
@@ -183,6 +190,9 @@ const BulkSender = () => {
                           <p className="text-sm font-medium">{account.account_name}</p>
                           <p className="text-xs text-muted-foreground">{account.phone_number}</p>
                         </div>
+                        {account.status === 'disconnected' && (
+                          <Badge variant="secondary" className="text-xs">Getrennt</Badge>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -259,6 +269,11 @@ const BulkSender = () => {
                     <>
                       Die Nachrichten werden rotierend über <strong>{selectedAccounts.length}</strong>{" "}
                       Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
+                      <br />
+                      <span className="text-muted-foreground mt-1 block">
+                        Hinweis: Nachrichten werden auch bei gesperrten Accounts gespeichert und können
+                        nach Reaktivierung fortgesetzt werden.
+                      </span>
                     </>
                   ) : (
                     "Wählen Sie mindestens einen Account und eine Vorlage aus."
@@ -332,6 +347,7 @@ const BulkSender = () => {
                       continue;
                     }
 
+                    // Nachrichten werden immer gespeichert, auch bei gesperrten Accounts
                     const { error } = await supabase.from("messages").insert({
                       account_id: accountId,
                       contact_phone,
@@ -340,8 +356,11 @@ const BulkSender = () => {
                       direction: "outgoing",
                     });
 
-                    if (!error) created += 1;
-                    else console.error("Fehler beim Anlegen der Nachricht:", error);
+                    if (!error) {
+                      created += 1;
+                    } else {
+                      console.error("Fehler beim Anlegen der Nachricht:", error);
+                    }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
                   }
