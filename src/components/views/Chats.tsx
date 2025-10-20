@@ -474,59 +474,61 @@ const Chats = () => {
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}
-                      >
+                <div className="flex-1 overflow-hidden">
+                  <ScrollArea className="h-full p-4">
+                    <div className="space-y-4">
+                      {messages.map((message) => (
                         <div
-                          className={`max-w-[70%] rounded-lg p-3 ${
-                            message.sender === "me"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"
-                          }`}
+                          key={message.id}
+                          className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}
                         >
-                          {(() => {
-                            const LONG_THRESHOLD = 400;
-                            const key = `${selectedChat}-${message.id}`;
-                            const isExpanded = expandedMessageKeys.has(key);
-                            const isLong = message.text.length > LONG_THRESHOLD;
-                            const displayText = !isExpanded && isLong
-                              ? message.text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
-                              : message.text;
-                            return (
-                              <>
-                                <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
-                                {!isExpanded && isLong && (
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      "mt-2 text-xs font-medium underline underline-offset-2",
-                                      message.sender === "me" ? "text-primary-foreground" : "text-primary"
-                                    )}
-                                    onClick={() =>
-                                      setExpandedMessageKeys((prev) => {
-                                        const next = new Set(prev);
-                                        next.add(key);
-                                        return next;
-                                      })
-                                    }
-                                  >
-                                    Mehr lesen
-                                  </button>
-                                )}
-                                <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
-                              </>
-                            );
-                          })()}
+                          <div
+                            className={`max-w-[70%] rounded-lg p-3 ${
+                              message.sender === "me"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted"
+                            }`}
+                          >
+                            {(() => {
+                              const LONG_THRESHOLD = 400;
+                              const key = `${selectedChat}-${message.id}`;
+                              const isExpanded = expandedMessageKeys.has(key);
+                              const isLong = message.text.length > LONG_THRESHOLD;
+                              const displayText = !isExpanded && isLong
+                                ? message.text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
+                                : message.text;
+                              return (
+                                <>
+                                  <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
+                                  {!isExpanded && isLong && (
+                                    <button
+                                      type="button"
+                                      className={cn(
+                                        "mt-2 text-xs font-medium underline underline-offset-2",
+                                        message.sender === "me" ? "text-primary-foreground" : "text-primary"
+                                      )}
+                                      onClick={() =>
+                                        setExpandedMessageKeys((prev) => {
+                                          const next = new Set(prev);
+                                          next.add(key);
+                                          return next;
+                                        })
+                                      }
+                                    >
+                                      Mehr lesen
+                                    </button>
+                                  )}
+                                  <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
+                                </>
+                              );
+                            })()}
 
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
 
                 {/* Input */}
                 <div className="p-4 border-t">
