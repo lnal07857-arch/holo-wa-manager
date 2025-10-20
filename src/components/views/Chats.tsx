@@ -1,24 +1,35 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
+  const [chats, setChats] = useState([
+    { id: 0, name: "Max Mustermann", account: "Account 1", phone: "+49 151 12345678", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false },
+    { id: 1, name: "Anna Schmidt", account: "Account 2", phone: "+49 160 98765432", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false },
+    { id: 2, name: "Peter Wagner", account: "Account 1", phone: "+49 170 55555555", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false },
+    { id: 3, name: "Lisa Müller", account: "Account 3", phone: "+49 175 44444444", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false },
+    { id: 4, name: "Team Verkauf", account: "Account 1", phone: "", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true },
+  ]);
   const [messages, setMessages] = useState([
     { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
     { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
     { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
   ]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { templates, isLoading } = useTemplates();
 
   // Filter templates for chats only
@@ -68,13 +79,25 @@ const Chats = () => {
     e.dataTransfer.dropEffect = "copy";
   };
 
-  const chats = [
-    { id: 0, name: "Max Mustermann", account: "Account 1", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false },
-    { id: 1, name: "Anna Schmidt", account: "Account 2", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false },
-    { id: 2, name: "Peter Wagner", account: "Account 1", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false },
-    { id: 3, name: "Lisa Müller", account: "Account 3", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false },
-    { id: 4, name: "Team Verkauf", account: "Account 1", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true },
-  ];
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      toast.success(`${files.length} Datei(en) ausgewählt`);
+      // Hier später die Datei-Upload-Logik implementieren
+    }
+  };
+
+  const toggleFavorite = (chatId: number) => {
+    setChats(chats.map(chat => 
+      chat.id === chatId ? { ...chat, isFavorite: !chat.isFavorite } : chat
+    ));
+  };
+
+  const toggleGroup = (chatId: number) => {
+    setChats(chats.map(chat => 
+      chat.id === chatId ? { ...chat, isGroup: !chat.isGroup } : chat
+    ));
+  };
 
   // Filter chats based on selected filter
   const filteredChats = chats.filter(chat => {
@@ -171,11 +194,25 @@ const Chats = () => {
             )}
 
             {/* Chat List */}
-            <div className="border-r flex flex-col relative">
+            <div className="border-r flex flex-col">
               <div className="p-4 border-b space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="Chats durchsuchen..." className="pl-9" />
+                <div className="flex gap-2">
+                  {!showTemplates && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setShowTemplates(true)}
+                      className="gap-2 shrink-0"
+                      title="Vorlagen anzeigen"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                      Vorlagen
+                    </Button>
+                  )}
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Chats durchsuchen..." className="pl-9" />
+                  </div>
                 </div>
                 
                 {/* Filter Tabs */}
@@ -188,18 +225,6 @@ const Chats = () => {
                   </TabsList>
                 </Tabs>
               </div>
-              {!showTemplates && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setShowTemplates(true)}
-                  className="absolute top-[120px] left-2 z-10 gap-2"
-                  title="Vorlagen anzeigen"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  Vorlagen
-                </Button>
-              )}
               <ScrollArea className="flex-1">
                 {filteredChats.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8 text-sm">
@@ -209,35 +234,79 @@ const Chats = () => {
                    filteredChats.map((chat) => (
                    <div
                     key={chat.id}
-                    className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
-                      selectedChat === chat.id ? "bg-muted" : ""
-                    }`}
-                    onClick={() => setSelectedChat(chat.id)}
+                    className="group relative"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="font-semibold text-primary">{chat.name.charAt(0)}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold truncate">{chat.name}</p>
-                            {chat.isFavorite && (
-                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                    <div
+                      className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
+                        selectedChat === chat.id ? "bg-muted" : ""
+                      }`}
+                      onClick={() => setSelectedChat(chat.id)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <span className="font-semibold text-primary">{chat.name.charAt(0)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold truncate">{chat.name}</p>
+                              {chat.isFavorite && (
+                                <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                              )}
+                              {chat.isGroup && (
+                                <Users className="w-3 h-3 text-muted-foreground" />
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">{chat.time}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                            {chat.unread > 0 && (
+                              <Badge className="ml-2 rounded-full">{chat.unread}</Badge>
                             )}
                           </div>
-                          <span className="text-xs text-muted-foreground">{chat.time}</span>
+                          <Badge variant="secondary" className="mt-1 text-xs">
+                            {chat.account}
+                          </Badge>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
-                          {chat.unread > 0 && (
-                            <Badge className="ml-2 rounded-full">{chat.unread}</Badge>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="mt-1 text-xs">
-                          {chat.account}
-                        </Badge>
                       </div>
+                    </div>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <span className="text-lg">⋮</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => toggleFavorite(chat.id)}>
+                            {chat.isFavorite ? (
+                              <>
+                                <StarOff className="w-4 h-4 mr-2" />
+                                Aus Favoriten entfernen
+                              </>
+                            ) : (
+                              <>
+                                <Star className="w-4 h-4 mr-2" />
+                                Als Favorit markieren
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toggleGroup(chat.id)}>
+                            {chat.isGroup ? (
+                              <>
+                                <UserCheck className="w-4 h-4 mr-2" />
+                                Als Einzelchat markieren
+                              </>
+                            ) : (
+                              <>
+                                <Users className="w-4 h-4 mr-2" />
+                                Als Gruppe markieren
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                    </div>
                  ))
@@ -250,19 +319,75 @@ const Chats = () => {
               <div className="flex flex-col h-full">
                 {/* Header */}
                 <div className="p-4 border-b flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="font-semibold text-primary">
-                        {chats[selectedChat].name.charAt(0)}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">{chats[selectedChat].name}</p>
-                      <Badge variant="secondary" className="text-xs">
-                        {chats[selectedChat].account}
-                      </Badge>
-                    </div>
-                  </div>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <div className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -ml-2 transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="font-semibold text-primary">
+                            {chats[selectedChat].name.charAt(0)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold">{chats[selectedChat].name}</p>
+                          <Badge variant="secondary" className="text-xs">
+                            {chats[selectedChat].account}
+                          </Badge>
+                        </div>
+                      </div>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Kontaktdetails</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="font-semibold text-primary text-2xl">
+                              {chats[selectedChat].name.charAt(0)}
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg">{chats[selectedChat].name}</h3>
+                            {chats[selectedChat].isGroup && (
+                              <Badge variant="outline" className="mt-1">
+                                <Users className="w-3 h-3 mr-1" />
+                                Gruppe
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {chats[selectedChat].phone && (
+                            <div>
+                              <p className="text-sm text-muted-foreground">Telefonnummer</p>
+                              <p className="font-medium">{chats[selectedChat].phone}</p>
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm text-muted-foreground">Account</p>
+                            <p className="font-medium">{chats[selectedChat].account}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Status</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {chats[selectedChat].isFavorite && (
+                                <Badge variant="secondary">
+                                  <Star className="w-3 h-3 mr-1 fill-yellow-500 text-yellow-500" />
+                                  Favorit
+                                </Badge>
+                              )}
+                              {chats[selectedChat].isGroup && (
+                                <Badge variant="secondary">
+                                  <Users className="w-3 h-3 mr-1" />
+                                  Gruppe
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   <div className="flex gap-2">
                     <Button variant="ghost" size="icon">
                       <Phone className="w-4 h-4" />
@@ -299,7 +424,19 @@ const Chats = () => {
                 {/* Input */}
                 <div className="p-4 border-t">
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      multiple
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                    />
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       <Paperclip className="w-4 h-4" />
                     </Button>
                     <Input
