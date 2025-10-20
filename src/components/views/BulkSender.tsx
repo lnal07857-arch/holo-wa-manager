@@ -56,8 +56,8 @@ const BulkSender = () => {
   const replacePlaceholders = (text: string, contact: Contact): string => {
     let result = text;
     
-    // Ersetze alle Platzhalter im Format {field_name}
-    const placeholderRegex = /\{([^}]+)\}/g;
+    // Ersetze alle Platzhalter im Format {{field_name}}
+    const placeholderRegex = /\{\{([^}]+)\}\}/g;
     result = result.replace(placeholderRegex, (match, fieldName) => {
       // Suche den Wert im Contact-Objekt
       const value = contact[fieldName];

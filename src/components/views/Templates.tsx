@@ -80,7 +80,7 @@ const SortableTemplate = ({ template, onEdit, onDelete, onToggleForChats }: any)
             <div className="flex flex-wrap gap-1">
               {template.placeholders.map((placeholder: string) => (
                 <Badge key={placeholder} variant="outline" className="text-xs">
-                  {`{${placeholder}}`}
+                  {`{{${placeholder}}}`}
                 </Badge>
               ))}
             </div>
@@ -184,9 +184,9 @@ const Templates = () => {
   };
 
   const extractPlaceholders = (text: string): string[] => {
-    const matches = text.match(/\{([^}]+)\}/g);
+    const matches = text.match(/\{\{([^}]+)\}\}/g);
     if (!matches) return [];
-    return [...new Set(matches.map((m) => m.slice(1, -1)))];
+    return [...new Set(matches.map((m) => m.slice(2, -2)))];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -287,7 +287,7 @@ const Templates = () => {
                     id="templateText"
                     value={templateText}
                     onChange={(e) => setTemplateText(e.target.value)}
-                    placeholder="Verwenden Sie {Platzhalter} für dynamische Inhalte"
+                    placeholder="Verwenden Sie {{Platzhalter}} für dynamische Inhalte"
                     className="min-h-[200px]"
                     required
                   />
@@ -297,7 +297,7 @@ const Templates = () => {
                   <div className="flex flex-wrap gap-2">
                     {extractPlaceholders(templateText).map((placeholder) => (
                       <Badge key={placeholder} variant="secondary">
-                        {`{${placeholder}}`}
+                        {`{{${placeholder}}}`}
                       </Badge>
                     ))}
                   </div>
@@ -346,7 +346,7 @@ const Templates = () => {
                   id="editTemplateText"
                   value={templateText}
                   onChange={(e) => setTemplateText(e.target.value)}
-                  placeholder="Verwenden Sie {Platzhalter} für dynamische Inhalte"
+                  placeholder="Verwenden Sie {{Platzhalter}} für dynamische Inhalte"
                   className="min-h-[200px]"
                   required
                 />
@@ -356,7 +356,7 @@ const Templates = () => {
                 <div className="flex flex-wrap gap-2">
                   {extractPlaceholders(templateText).map((placeholder) => (
                     <Badge key={placeholder} variant="secondary">
-                      {`{${placeholder}}`}
+                      {`{{${placeholder}}}`}
                     </Badge>
                   ))}
                 </div>
