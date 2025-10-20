@@ -231,6 +231,10 @@ export type Database = {
           created_at: string
           email: string
           full_name: string | null
+          global_profile_address: string | null
+          global_profile_image: string | null
+          global_profile_name: string | null
+          global_profile_website: string | null
           id: string
           updated_at: string
         }
@@ -238,6 +242,10 @@ export type Database = {
           created_at?: string
           email: string
           full_name?: string | null
+          global_profile_address?: string | null
+          global_profile_image?: string | null
+          global_profile_name?: string | null
+          global_profile_website?: string | null
           id: string
           updated_at?: string
         }
@@ -245,6 +253,10 @@ export type Database = {
           created_at?: string
           email?: string
           full_name?: string | null
+          global_profile_address?: string | null
+          global_profile_image?: string | null
+          global_profile_name?: string | null
+          global_profile_website?: string | null
           id?: string
           updated_at?: string
         }
