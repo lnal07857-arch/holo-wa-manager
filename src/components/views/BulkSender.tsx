@@ -1,18 +1,40 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Send, FileText, AlertCircle } from "lucide-react";
+import { Upload, Send, FileText, AlertCircle, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
+import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useTemplates } from "@/hooks/useTemplates";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const BulkSender = () => {
+  const { accounts } = useWhatsAppAccounts();
+  const { templates } = useTemplates();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
+  const [textRotation, setTextRotation] = useState(true);
+  const [delay, setDelay] = useState("2-5");
+
+  const toggleAccount = (accountId: string) => {
+    setSelectedAccounts((prev) =>
+      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+    );
+  };
+
+  const toggleTemplate = (templateId: string) => {
+    setSelectedTemplates((prev) =>
+      prev.includes(templateId) ? prev.filter((id) => id !== templateId) : [...prev, templateId]
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -59,44 +81,115 @@ const BulkSender = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>2. Vorlage auswählen</CardTitle>
-            <CardDescription>Wählen Sie eine Nachrichtenvorlage</CardDescription>
+            <CardTitle>2. Konten & Vorlagen auswählen</CardTitle>
+            <CardDescription>Wählen Sie mehrere Accounts und Vorlagen für optimale Rotation</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Nachrichtenvorlage</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Vorlage auswählen..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Terminbestätigung</SelectItem>
-                  <SelectItem value="2">Rechnungserinnerung</SelectItem>
-                  <SelectItem value="3">Willkommensnachricht</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>WhatsApp-Accounts</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    {selectedAccounts.length > 0
+                      ? `${selectedAccounts.length} Account(s) ausgewählt`
+                      : "Accounts auswählen..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <div className="max-h-64 overflow-auto p-2">
+                    {accounts.map((account) => (
+                      <div
+                        key={account.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleAccount(account.id)}
+                      >
+                        <Checkbox checked={selectedAccounts.includes(account.id)} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{account.account_name}</p>
+                          <p className="text-xs text-muted-foreground">{account.phone_number}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedAccounts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedAccounts.map((id) => {
+                    const account = accounts.find((a) => a.id === id);
+                    return (
+                      <Badge key={id} variant="secondary" className="gap-1">
+                        {account?.account_name}
+                        <X
+                          className="w-3 h-3 cursor-pointer"
+                          onClick={() => toggleAccount(id)}
+                        />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>WhatsApp-Account</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Account auswählen..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Account 1 (+49 170 1234567)</SelectItem>
-                  <SelectItem value="2">Account 2 (+49 171 2345678)</SelectItem>
-                  <SelectItem value="3">Account 3 (+49 172 3456789)</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Nachrichtenvorlagen</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    {selectedTemplates.length > 0
+                      ? `${selectedTemplates.length} Vorlage(n) ausgewählt`
+                      : "Vorlagen auswählen..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <div className="max-h-64 overflow-auto p-2">
+                    {templates.map((template) => (
+                      <div
+                        key={template.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleTemplate(template.id)}
+                      >
+                        <Checkbox checked={selectedTemplates.includes(template.id)} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{template.template_name}</p>
+                          <p className="text-xs text-muted-foreground">{template.category}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedTemplates.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedTemplates.map((id) => {
+                    const template = templates.find((t) => t.id === id);
+                    return (
+                      <Badge key={id} variant="secondary" className="gap-1">
+                        {template?.template_name}
+                        <X
+                          className="w-3 h-3 cursor-pointer"
+                          onClick={() => toggleTemplate(id)}
+                        />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="preview">Vorschau</Label>
-              <Textarea
-                id="preview"
-                placeholder="Die Vorschau wird hier angezeigt..."
-                className="min-h-[150px] font-mono text-sm"
-                readOnly
-              />
+              <Label htmlFor="preview">Rotation-Info</Label>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  {selectedAccounts.length > 0 && selectedTemplates.length > 0 ? (
+                    <>
+                      Die Nachrichten werden rotierend über <strong>{selectedAccounts.length}</strong>{" "}
+                      Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
+                    </>
+                  ) : (
+                    "Wählen Sie mindestens einen Account und eine Vorlage aus."
+                  )}
+                </AlertDescription>
+              </Alert>
             </div>
           </CardContent>
         </Card>
@@ -111,26 +204,19 @@ const BulkSender = () => {
             <div className="space-y-0.5">
               <Label>Textrotation aktivieren</Label>
               <p className="text-sm text-muted-foreground">
-                Variiert den Text automatisch, um Spam-Erkennung zu vermeiden
+                Variiert den Text automatisch zwischen den ausgewählten Vorlagen
               </p>
             </div>
-            <Switch />
+            <Switch checked={textRotation} onCheckedChange={setTextRotation} />
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Verzögerung zwischen Nachrichten</Label>
-              <p className="text-sm text-muted-foreground">2-5 Sekunden pro Nachricht (empfohlen)</p>
+              <Label>Account-Rotation</Label>
+              <p className="text-sm text-muted-foreground">
+                Versendet abwechselnd über alle ausgewählten Accounts
+              </p>
             </div>
-            <Select defaultValue="2-5">
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1-2">1-2 Sek.</SelectItem>
-                <SelectItem value="2-5">2-5 Sek.</SelectItem>
-                <SelectItem value="5-10">5-10 Sek.</SelectItem>
-              </SelectContent>
-            </Select>
+            <Switch checked={selectedAccounts.length > 1} disabled />
           </div>
         </CardContent>
       </Card>
@@ -144,6 +230,7 @@ const BulkSender = () => {
             <Button
               size="lg"
               className="w-full gap-2"
+              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0}
               onClick={() => {
                 setSending(true);
                 // Simulate sending
