@@ -6,82 +6,74 @@ import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star,
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useMessages } from "@/hooks/useMessages";
+import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 
 const Chats = () => {
-  const [selectedChat, setSelectedChat] = useState<number | null>(0);
+  const [selectedChatKey, setSelectedChatKey] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
-  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
-  const [chats, setChats] = useState([
-    { id: 0, name: "Max Mustermann", account: "Account 1", phone: "+49 151 12345678", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false, accountStatus: "connected" },
-    { id: 1, name: "Anna Schmidt", account: "Account 2", phone: "+49 160 98765432", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false, accountStatus: "blocked" },
-    { id: 2, name: "Peter Wagner", account: "Account 1", phone: "+49 170 55555555", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false, accountStatus: "connected" },
-    { id: 3, name: "Lisa Müller", account: "Account 3", phone: "+49 175 44444444", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false, accountStatus: "connected" },
-    { id: 4, name: "Team Verkauf", account: "Account 1", phone: "", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true, accountStatus: "connected" },
-  ]);
-  
-  // Store messages per chat
-  const [chatMessages, setChatMessages] = useState<Record<number, Array<{ id: number; text: string; sender: string; time: string }>>>({
-    0: [
-      { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
-      { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
-      { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
-    ],
-    1: [
-      { id: 1, text: "Hallo Anna!", sender: "me", time: "09:10" },
-      { id: 2, text: "Wann können wir uns treffen?", sender: "contact", time: "09:15" },
-    ],
-  });
-  
-  // Track expanded state for long messages per chat/message
+  const [chatFilter, setChatFilter] = useState<"all" | "unread">("all");
   const [expandedMessageKeys, setExpandedMessageKeys] = useState<Set<string>>(new Set());
   
-  const messages = selectedChat !== null ? (chatMessages[selectedChat] || []) : [];
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { templates, isLoading } = useTemplates();
+  const { templates, isLoading: templatesLoading } = useTemplates();
+  const { chatGroups, loading: messagesLoading } = useMessages();
+  const { accounts } = useWhatsAppAccounts();
 
   // Filter templates for chats only
   const chatTemplates = templates.filter(t => t.for_chats);
 
-  const handleSendMessage = () => {
-    if (!messageInput.trim() || selectedChat === null) return;
+  // Get selected chat group
+  const selectedChat = selectedChatKey 
+    ? chatGroups.find(g => `${g.contact_phone}_${g.account_id}` === selectedChatKey)
+    : null;
+
+  // Get account status
+  const getAccountStatus = (accountId: string) => {
+    const account = accounts.find(a => a.id === accountId);
+    return account?.status || "disconnected";
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !selectedChat) return;
     
-    // Check if account is blocked
-    const currentChat = chats.find(chat => chat.id === selectedChat);
-    if (currentChat?.accountStatus === "blocked") {
-      toast.error("Dieser WhatsApp-Account ist gesperrt. Sie können keine Nachrichten senden.");
+    // Check if account is disconnected
+    const accountStatus = getAccountStatus(selectedChat.account_id);
+    if (accountStatus === "disconnected") {
+      toast.error("Dieser WhatsApp-Account ist nicht verbunden. Sie können keine Nachrichten senden.");
       return;
     }
     
-    const now = new Date();
-    const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    const currentMessages = chatMessages[selectedChat] || [];
-    const newMessage = {
-      id: currentMessages.length + 1,
-      text: messageInput,
-      sender: "me" as const,
-      time: timeString,
-    };
-    
-    setChatMessages({
-      ...chatMessages,
-      [selectedChat]: [...currentMessages, newMessage]
-    });
-    setMessageInput("");
-    
-    // Reset unread counter for current chat
-    setChats(chats.map(chat => 
-      chat.id === selectedChat ? { ...chat, unread: 0, lastMessage: messageInput, time: timeString } : chat
-    ));
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .insert({
+          account_id: selectedChat.account_id,
+          contact_phone: selectedChat.contact_phone,
+          contact_name: selectedChat.contact_name,
+          message_text: messageInput,
+          direction: "outbound",
+        });
+
+      if (error) throw error;
+
+      setMessageInput("");
+      toast.success("Nachricht gesendet");
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Fehler beim Senden der Nachricht");
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -119,35 +111,27 @@ const Chats = () => {
     }
   };
 
-  const toggleFavorite = (chatId: number) => {
-    setChats(prev => prev.map(chat => 
-      chat.id === chatId ? { ...chat, isFavorite: !chat.isFavorite } : chat
-    ));
-    const prevChat = chats.find(c => c.id === chatId);
-    toast.success(prevChat?.isFavorite ? "Aus Favoriten entfernt" : "Als Favorit markiert");
-  };
-
-  const toggleGroup = (chatId: number) => {
-    setChats(prev => prev.map(chat => 
-      chat.id === chatId ? { ...chat, isGroup: !chat.isGroup } : chat
-    ));
-    const prevChat = chats.find(c => c.id === chatId);
-    toast.success(prevChat?.isGroup ? "Als Einzelchat markiert" : "Als Gruppe markiert");
-  };
-
   // Filter chats based on selected filter
-  const filteredChats = chats.filter(chat => {
+  const filteredChats = chatGroups.filter(chat => {
     switch (chatFilter) {
       case "unread":
-        return chat.unread > 0;
-      case "favorites":
-        return chat.isFavorite;
-      case "groups":
-        return chat.isGroup;
+        return chat.unread_count > 0;
       default:
         return true;
     }
   });
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 24) {
+      return format(date, "HH:mm", { locale: de });
+    } else {
+      return format(date, "dd.MM.yyyy", { locale: de });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -182,7 +166,7 @@ const Chats = () => {
                   </Button>
                 </div>
                 <ScrollArea className="flex-1">
-                  {isLoading ? (
+                  {templatesLoading ? (
                     <div className="text-center text-muted-foreground py-8 text-sm">Lädt...</div>
                   ) : chatTemplates.length === 0 ? (
                     <div className="text-center text-muted-foreground py-8 text-sm px-4">
@@ -253,123 +237,62 @@ const Chats = () => {
                 
                 {/* Filter Tabs */}
                 <Tabs value={chatFilter} onValueChange={(v) => setChatFilter(v as any)} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4 h-9">
+                  <TabsList className="grid w-full grid-cols-2 h-9">
                     <TabsTrigger value="all" className="text-xs">Alle</TabsTrigger>
                     <TabsTrigger value="unread" className="text-xs">Ungelesen</TabsTrigger>
-                    <TabsTrigger value="favorites" className="text-xs">Favoriten</TabsTrigger>
-                    <TabsTrigger value="groups" className="text-xs">Gruppen</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
               <ScrollArea className="flex-1">
-                {filteredChats.length === 0 ? (
+                {messagesLoading ? (
                   <div className="text-center text-muted-foreground py-8 text-sm">
-                    Keine Chats gefunden
+                    Lädt Chats...
                   </div>
-                 ) : (
-                   filteredChats.map((chat) => (
-                   <div
-                    key={chat.id}
-                    className="group relative"
-                  >
-                    <div
-                      className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
-                        selectedChat === chat.id ? "bg-muted" : ""
-                      }`}
-                      onClick={() => setSelectedChat(chat.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <span className="font-semibold text-primary">{chat.name.charAt(0)}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-1">
-                              <p className="font-semibold truncate">{chat.name}</p>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={(e) => { e.stopPropagation(); toggleFavorite(chat.id); }}
-                                aria-label="Favorit umschalten"
-                              >
-                                <Star className={cn("w-3 h-3", chat.isFavorite ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={(e) => { e.stopPropagation(); toggleGroup(chat.id); }}
-                                aria-label="Gruppenstatus umschalten"
-                              >
-                                <Users className={cn("w-3 h-3", chat.isGroup ? "text-primary" : "text-muted-foreground")} />
-                              </Button>
+                ) : filteredChats.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8 text-sm px-4">
+                    {chatFilter === "unread" ? "Keine ungelesenen Chats" : "Keine Chats vorhanden"}
+                    <p className="text-xs mt-2">Nachrichten erscheinen hier automatisch</p>
+                  </div>
+                ) : (
+                  filteredChats.map((chat) => {
+                    const chatKey = `${chat.contact_phone}_${chat.account_id}`;
+                    return (
+                      <div
+                        key={chatKey}
+                        className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
+                          selectedChatKey === chatKey ? "bg-muted" : ""
+                        }`}
+                        onClick={() => setSelectedChatKey(chatKey)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="font-semibold text-primary">{chat.contact_name.charAt(0)}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-semibold truncate">{chat.contact_name}</p>
+                              <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
                             </div>
-                            <span className="text-xs text-muted-foreground">{chat.time}</span>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-muted-foreground truncate">{chat.last_message}</p>
+                              {chat.unread_count > 0 && (
+                                <Badge className="ml-2 rounded-full">{chat.unread_count}</Badge>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="mt-1 text-xs">
+                              {chat.account_name}
+                            </Badge>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
-                            {chat.unread > 0 && (
-                              <Badge className="ml-2 rounded-full">{chat.unread}</Badge>
-                            )}
-                          </div>
-                          <Badge variant="secondary" className="mt-1 text-xs">
-                            {chat.account}
-                          </Badge>
                         </div>
                       </div>
-                    </div>
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <span className="text-lg">⋮</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(chat.id);
-                          }}>
-                            {chat.isFavorite ? (
-                              <>
-                                <StarOff className="w-4 h-4 mr-2" />
-                                Aus Favoriten entfernen
-                              </>
-                            ) : (
-                              <>
-                                <Star className="w-4 h-4 mr-2" />
-                                Als Favorit markieren
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation();
-                            toggleGroup(chat.id);
-                          }}>
-                            {chat.isGroup ? (
-                              <>
-                                <UserCheck className="w-4 h-4 mr-2" />
-                                Als Einzelchat markieren
-                              </>
-                            ) : (
-                              <>
-                                <Users className="w-4 h-4 mr-2" />
-                                Als Gruppe markieren
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                   </div>
-                 ))
-                 )}
+                    );
+                  })
+                )}
               </ScrollArea>
             </div>
 
             {/* Chat View */}
-            {selectedChat !== null ? (
+            {selectedChat ? (
               <div className="flex flex-col h-full overflow-hidden">
                 {/* Header */}
                 <div className="p-4 border-b flex items-center justify-between shrink-0">
@@ -378,13 +301,13 @@ const Chats = () => {
                       <div className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -ml-2 transition-colors">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="font-semibold text-primary">
-                            {chats[selectedChat].name.charAt(0)}
+                            {selectedChat.contact_name.charAt(0)}
                           </span>
                         </div>
                         <div>
-                          <p className="font-semibold">{chats[selectedChat].name}</p>
+                          <p className="font-semibold">{selectedChat.contact_name}</p>
                           <Badge variant="secondary" className="text-xs">
-                            {chats[selectedChat].account}
+                            {selectedChat.account_name}
                           </Badge>
                         </div>
                       </div>
@@ -400,64 +323,21 @@ const Chats = () => {
                         <div className="flex items-center gap-4">
                           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                             <span className="font-semibold text-primary text-2xl">
-                              {chats[selectedChat].name.charAt(0)}
+                              {selectedChat.contact_name.charAt(0)}
                             </span>
                           </div>
                           <div>
-                            <h3 className="font-semibold text-lg">{chats[selectedChat].name}</h3>
-                            {chats[selectedChat].isGroup && (
-                              <Badge variant="outline" className="mt-1">
-                                <Users className="w-3 h-3 mr-1" />
-                                Gruppe
-                              </Badge>
-                            )}
+                            <h3 className="font-semibold text-lg">{selectedChat.contact_name}</h3>
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {chats[selectedChat].phone && (
-                            <div>
-                              <p className="text-sm text-muted-foreground">Telefonnummer</p>
-                              <p className="font-medium">{chats[selectedChat].phone}</p>
-                            </div>
-                          )}
                           <div>
-                            <p className="text-sm text-muted-foreground">Account</p>
-                            <p className="font-medium">{chats[selectedChat].account}</p>
+                            <p className="text-sm text-muted-foreground">Telefonnummer</p>
+                            <p className="font-medium">{selectedChat.contact_phone}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Status</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              {chats[selectedChat].isFavorite && (
-                                <Badge variant="secondary">
-                                  <Star className="w-3 h-3 mr-1 fill-yellow-500 text-yellow-500" />
-                                  Favorit
-                                </Badge>
-                              )}
-                              {chats[selectedChat].isGroup && (
-                                <Badge variant="secondary">
-                                  <Users className="w-3 h-3 mr-1" />
-                                  Gruppe
-                                </Badge>
-                              )}
-                            </div>
-
-                            <div className="pt-4 space-y-3">
-                              <h4 className="text-sm font-medium">Einstellungen</h4>
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm">Als Favorit markieren</span>
-                                <Switch
-                                  checked={chats[selectedChat].isFavorite}
-                                  onCheckedChange={() => toggleFavorite(chats[selectedChat].id)}
-                                />
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm">Als Gruppe markieren</span>
-                                <Switch
-                                  checked={chats[selectedChat].isGroup}
-                                  onCheckedChange={() => toggleGroup(chats[selectedChat].id)}
-                                />
-                              </div>
-                            </div>
+                            <p className="text-sm text-muted-foreground">Account</p>
+                            <p className="font-medium">{selectedChat.account_name}</p>
                           </div>
                         </div>
                       </div>
@@ -477,26 +357,28 @@ const Chats = () => {
                 <div className="flex-1 min-h-0">
                   <ScrollArea className="h-full">
                     <div className="space-y-4 p-4">
-                      {messages.map((message) => (
+                      {selectedChat.messages.sort((a, b) => 
+                        new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+                      ).map((message) => (
                         <div
                           key={message.id}
-                          className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}
+                          className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}
                         >
                           <div
                             className={`max-w-[70%] rounded-lg p-3 ${
-                              message.sender === "me"
+                              message.direction === "outbound"
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted"
                             }`}
                           >
                             {(() => {
                               const LONG_THRESHOLD = 400;
-                              const key = `${selectedChat}-${message.id}`;
+                              const key = `${selectedChatKey}-${message.id}`;
                               const isExpanded = expandedMessageKeys.has(key);
-                              const isLong = message.text.length > LONG_THRESHOLD;
+                              const isLong = message.message_text.length > LONG_THRESHOLD;
                               const displayText = !isExpanded && isLong
-                                ? message.text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
-                                : message.text;
+                                ? message.message_text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
+                                : message.message_text;
                               return (
                                 <>
                                   <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
@@ -505,7 +387,7 @@ const Chats = () => {
                                       type="button"
                                       className={cn(
                                         "mt-2 text-xs font-medium underline underline-offset-2",
-                                        message.sender === "me" ? "text-primary-foreground" : "text-primary"
+                                        message.direction === "outbound" ? "text-primary-foreground" : "text-primary"
                                       )}
                                       onClick={() =>
                                         setExpandedMessageKeys((prev) => {
@@ -518,11 +400,12 @@ const Chats = () => {
                                       Mehr lesen
                                     </button>
                                   )}
-                                  <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
+                                  <span className="text-xs opacity-70 mt-2 block">
+                                    {format(new Date(message.sent_at), "HH:mm", { locale: de })}
+                                  </span>
                                 </>
                               );
                             })()}
-
                           </div>
                         </div>
                       ))}
@@ -532,10 +415,10 @@ const Chats = () => {
 
                 {/* Input */}
                 <div className="p-4 border-t shrink-0">
-                  {chats[selectedChat]?.accountStatus === "blocked" && (
+                  {getAccountStatus(selectedChat.account_id) === "disconnected" && (
                     <div className="mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                       <p className="text-sm text-destructive font-medium">
-                        ⚠️ Dieser WhatsApp-Account ist gesperrt. Sie können keine neuen Nachrichten senden.
+                        ⚠️ Dieser WhatsApp-Account ist nicht verbunden. Sie können keine neuen Nachrichten senden.
                       </p>
                     </div>
                   )}
@@ -552,14 +435,14 @@ const Chats = () => {
                       variant="ghost" 
                       size="icon"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
+                      disabled={getAccountStatus(selectedChat.account_id) === "disconnected"}
                     >
                       <Paperclip className="w-4 h-4" />
                     </Button>
                     <Input
                       placeholder={
-                        chats[selectedChat]?.accountStatus === "blocked"
-                          ? "Account ist gesperrt..."
+                        getAccountStatus(selectedChat.account_id) === "disconnected"
+                          ? "Account ist nicht verbunden..."
                           : "Nachricht eingeben oder Vorlage hierher ziehen..."
                       }
                       className="flex-1"
@@ -568,12 +451,12 @@ const Chats = () => {
                       onKeyDown={handleKeyPress}
                       onDrop={handleDrop}
                       onDragOver={handleDragOver}
-                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
+                      disabled={getAccountStatus(selectedChat.account_id) === "disconnected"}
                     />
                     <Button 
                       size="icon" 
                       onClick={handleSendMessage}
-                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
+                      disabled={getAccountStatus(selectedChat.account_id) === "disconnected"}
                     >
                       <Send className="w-4 h-4" />
                     </Button>
