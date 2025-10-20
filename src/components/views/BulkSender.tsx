@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, Send, FileText, AlertCircle, X } from "lucide-react";
@@ -12,17 +12,80 @@ import { useTemplates } from "@/hooks/useTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
+
+interface Contact {
+  name: string;
+  phone: string;
+  [key: string]: any;
+}
 
 const BulkSender = () => {
   const { accounts } = useWhatsAppAccounts();
   const { templates } = useTemplates();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [textRotation, setTextRotation] = useState(true);
   const [delay, setDelay] = useState("2-5");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadedFile(file.name);
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = event.target?.result;
+          const workbook = XLSX.read(data, { type: "binary" });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as Contact[];
+          
+          // Validate that we have name and phone columns
+          if (jsonData.length === 0) {
+            toast.error("Die Datei ist leer");
+            return;
+          }
+          
+          const firstRow = jsonData[0];
+          const hasName = "name" in firstRow || "Name" in firstRow || "namen" in firstRow;
+          const hasPhone = "phone" in firstRow || "Phone" in firstRow || "telefon" in firstRow || "Telefon" in firstRow;
+          
+          if (!hasName || !hasPhone) {
+            toast.error("Die Datei muss Spalten mit 'Name' und 'Phone' enthalten");
+            return;
+          }
+          
+          // Normalize column names
+          const normalizedContacts = jsonData.map((row: any) => ({
+            name: row.name || row.Name || row.namen || row.Namen || "",
+            phone: row.phone || row.Phone || row.telefon || row.Telefon || "",
+            ...row
+          }));
+          
+          setContacts(normalizedContacts);
+          toast.success(`${normalizedContacts.length} Kontakte erfolgreich geladen`);
+        } catch (error) {
+          console.error("Error parsing file:", error);
+          toast.error("Fehler beim Lesen der Datei");
+        }
+      };
+      
+      reader.readAsBinaryString(file);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast.error("Fehler beim Hochladen der Datei");
+    }
+  };
 
   const toggleAccount = (accountId: string) => {
     setSelectedAccounts((prev) =>
@@ -50,29 +113,30 @@ const BulkSender = () => {
             <CardDescription>Laden Sie eine Datei mit Ihren Kontakten hoch</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
+            <div 
+              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-sm font-medium mb-1">
                 {uploadedFile ? uploadedFile : "Datei hier ablegen oder klicken"}
               </p>
               <p className="text-xs text-muted-foreground">CSV oder Excel (max. 10MB)</p>
               <input
+                ref={fileInputRef}
                 type="file"
                 className="hidden"
                 accept=".csv,.xlsx,.xls"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setUploadedFile(file.name);
-                }}
+                onChange={handleFileUpload}
               />
             </div>
-            {uploadedFile && (
+            {uploadedFile && contacts.length > 0 && (
               <Alert>
                 <FileText className="h-4 w-4" />
                 <AlertDescription>
                   Datei erfolgreich hochgeladen: {uploadedFile}
                   <br />
-                  <span className="text-xs text-muted-foreground">125 Kontakte gefunden</span>
+                  <span className="text-xs text-muted-foreground">{contacts.length} Kontakte gefunden</span>
                 </AlertDescription>
               </Alert>
             )}
@@ -230,9 +294,10 @@ const BulkSender = () => {
             <Button
               size="lg"
               className="w-full gap-2"
-              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0}
+              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0}
               onClick={() => {
                 setSending(true);
+                toast.info("Versand wird gestartet...");
                 // Simulate sending
                 let p = 0;
                 const interval = setInterval(() => {
@@ -241,12 +306,13 @@ const BulkSender = () => {
                   if (p >= 100) {
                     clearInterval(interval);
                     setSending(false);
+                    toast.success("Versand abgeschlossen!");
                   }
                 }, 100);
               }}
             >
               <Send className="w-4 h-4" />
-              Versand starten (125 Empfänger)
+              Versand starten ({contacts.length} Empfänger)
             </Button>
           ) : (
             <div className="space-y-2">
@@ -256,7 +322,7 @@ const BulkSender = () => {
               </div>
               <Progress value={progress} />
               <p className="text-xs text-muted-foreground text-center">
-                {Math.round((progress / 100) * 125)} von 125 Nachrichten gesendet
+                {Math.round((progress / 100) * contacts.length)} von {contacts.length} Nachrichten gesendet
               </p>
             </div>
           )}
