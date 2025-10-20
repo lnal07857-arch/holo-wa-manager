@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
+
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
   const [messageInput, setMessageInput] = useState("");
@@ -25,11 +26,22 @@ const Chats = () => {
     { id: 3, name: "Lisa Müller", account: "Account 3", phone: "+49 175 44444444", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false },
     { id: 4, name: "Team Verkauf", account: "Account 1", phone: "", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true },
   ]);
-  const [messages, setMessages] = useState([
-    { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
-    { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
-    { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
-  ]);
+  
+  // Store messages per chat
+  const [chatMessages, setChatMessages] = useState<Record<number, Array<{ id: number; text: string; sender: string; time: string }>>>({
+    0: [
+      { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
+      { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
+      { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
+    ],
+    1: [
+      { id: 1, text: "Hallo Anna!", sender: "me", time: "09:10" },
+      { id: 2, text: "Wann können wir uns treffen?", sender: "contact", time: "09:15" },
+    ],
+  });
+  
+  const messages = selectedChat !== null ? (chatMessages[selectedChat] || []) : [];
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { templates, isLoading } = useTemplates();
 
@@ -42,14 +54,18 @@ const Chats = () => {
     const now = new Date();
     const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
     
+    const currentMessages = chatMessages[selectedChat] || [];
     const newMessage = {
-      id: messages.length + 1,
+      id: currentMessages.length + 1,
       text: messageInput,
-      sender: "me",
+      sender: "me" as const,
       time: timeString,
     };
     
-    setMessages([...messages, newMessage]);
+    setChatMessages({
+      ...chatMessages,
+      [selectedChat]: [...currentMessages, newMessage]
+    });
     setMessageInput("");
     
     // Reset unread counter for current chat
@@ -462,7 +478,9 @@ const Chats = () => {
                               : "bg-muted"
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
+                          <ScrollArea className="max-h-[300px]">
+                            <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
+                          </ScrollArea>
                           <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
                         </div>
                       </div>
