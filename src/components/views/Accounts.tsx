@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,64 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import demoQR from "@/assets/whatsapp-qr-demo.png";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Accounts = () => {
   const { accounts, isLoading, createAccount, deleteAccount } = useWhatsAppAccounts();
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [creatingDemo, setCreatingDemo] = useState(false);
+
+  const createDemoData = async () => {
+    setCreatingDemo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Sie müssen angemeldet sein");
+        return;
+      }
+
+      // WhatsApp Accounts erstellen
+      const { error: accountsError } = await supabase.from('whatsapp_accounts').insert([
+        { user_id: user.id, account_name: 'Business Account', phone_number: '+49 151 11111111', status: 'connected', last_connected_at: new Date().toISOString() },
+        { user_id: user.id, account_name: 'Marketing Account', phone_number: '+49 160 22222222', status: 'connected', last_connected_at: new Date().toISOString() },
+        { user_id: user.id, account_name: 'Sales Account', phone_number: '+49 170 33333333', status: 'connected', last_connected_at: new Date().toISOString() },
+        { user_id: user.id, account_name: 'Support Account', phone_number: '+49 175 44444444', status: 'disconnected' },
+        { user_id: user.id, account_name: 'Demo Gesperrt', phone_number: '+49 176 55555555', status: 'blocked' }
+      ]);
+
+      if (accountsError) throw accountsError;
+
+      // Kontakte erstellen
+      const { error: contactsError } = await supabase.from('contacts').insert([
+        { user_id: user.id, name: 'Max Mustermann', phone_number: '+49 151 12345678', custom_fields: { firma: 'ABC GmbH', position: 'Geschäftsführer' } },
+        { user_id: user.id, name: 'Anna Schmidt', phone_number: '+49 160 98765432', custom_fields: { firma: 'XYZ AG', position: 'Marketing Manager' } },
+        { user_id: user.id, name: 'Peter Wagner', phone_number: '+49 170 55555555', custom_fields: { firma: 'Tech Solutions GmbH', position: 'IT-Leiter' } },
+        { user_id: user.id, name: 'Lisa Müller', phone_number: '+49 175 44444444', custom_fields: { firma: 'Consulting Plus', position: 'Senior Beraterin' } },
+        { user_id: user.id, name: 'Tom Weber', phone_number: '+49 151 66666666', custom_fields: { firma: 'Sales Pro', position: 'Vertriebsleiter' } }
+      ]);
+
+      if (contactsError) throw contactsError;
+
+      // Vorlagen erstellen
+      const { error: templatesError } = await supabase.from('message_templates').insert([
+        { user_id: user.id, template_name: 'Begrüßung Neukunde', category: 'Vertrieb', template_text: 'Hallo {{name}}, vielen Dank für Ihr Interesse!', placeholders: ['name'], for_chats: true },
+        { user_id: user.id, template_name: 'Termin Erinnerung', category: 'Service', template_text: 'Hallo {{name}}, Termin am {{datum}} um {{uhrzeit}} Uhr.', placeholders: ['name', 'datum', 'uhrzeit'], for_chats: false },
+        { user_id: user.id, template_name: 'Meeting Anfrage', category: 'Allgemein', template_text: 'Hallo {{name}}, können wir ein Meeting vereinbaren?', placeholders: ['name'], for_chats: true }
+      ]);
+
+      if (templatesError) throw templatesError;
+
+      toast.success('Demo-Daten erfolgreich erstellt! (5 Accounts, 5 Kontakte, 3 Vorlagen)');
+    } catch (error: any) {
+      console.error('Error creating demo data:', error);
+      toast.error(error.message || 'Fehler beim Erstellen der Demo-Daten');
+    } finally {
+      setCreatingDemo(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +90,23 @@ const Accounts = () => {
           <h2 className="text-3xl font-bold tracking-tight">Account-Verwaltung</h2>
           <p className="text-muted-foreground">Verwalten Sie Ihre WhatsApp-Konten</p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Neues Konto hinzufügen
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={createDemoData}
+            disabled={creatingDemo || accounts.length > 0}
+          >
+            <Database className="w-4 h-4" />
+            {creatingDemo ? 'Erstelle...' : 'Demo-Daten erstellen'}
+          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                Neues Konto hinzufügen
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Neues WhatsApp-Konto hinzufügen</DialogTitle>
@@ -98,6 +160,7 @@ const Accounts = () => {
               </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
