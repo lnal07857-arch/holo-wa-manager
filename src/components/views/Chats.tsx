@@ -63,7 +63,7 @@ const Chats = () => {
           contact_phone: selectedChat.contact_phone,
           contact_name: selectedChat.contact_name,
           message_text: messageInput,
-          direction: "outbound",
+          direction: "outgoing",
         });
 
       if (error) throw error;
@@ -362,11 +362,11 @@ const Chats = () => {
                       ).map((message) => (
                         <div
                           key={message.id}
-                          className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}
+                          className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}
                         >
                           <div
                             className={`max-w-[70%] rounded-lg p-3 ${
-                              message.direction === "outbound"
+                              message.direction === "outgoing"
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted"
                             }`}
@@ -387,7 +387,7 @@ const Chats = () => {
                                       type="button"
                                       className={cn(
                                         "mt-2 text-xs font-medium underline underline-offset-2",
-                                        message.direction === "outbound" ? "text-primary-foreground" : "text-primary"
+                                        message.direction === "outgoing" ? "text-primary-foreground" : "text-primary"
                                       )}
                                       onClick={() =>
                                         setExpandedMessageKeys((prev) => {

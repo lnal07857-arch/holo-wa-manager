@@ -8,7 +8,7 @@ export interface Message {
   contact_phone: string;
   contact_name: string | null;
   message_text: string;
-  direction: "inbound" | "outbound";
+  direction: "incoming" | "outgoing";
   sent_at: string;
   is_read: boolean;
 }
@@ -57,7 +57,7 @@ export const useMessages = () => {
           contact_phone: msg.contact_phone,
           contact_name: msg.contact_name,
           message_text: msg.message_text,
-          direction: msg.direction as "inbound" | "outbound",
+          direction: msg.direction as "incoming" | "outgoing",
           sent_at: msg.sent_at,
           is_read: msg.is_read,
         }));
@@ -85,7 +85,7 @@ export const useMessages = () => {
 
           groups[key].messages.push(msg);
           
-          if (msg.direction === "inbound" && !msg.is_read) {
+          if (msg.direction === "incoming" && !msg.is_read) {
             groups[key].unread_count++;
           }
         });

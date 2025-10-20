@@ -337,7 +337,7 @@ const BulkSender = () => {
                       contact_phone,
                       contact_name,
                       message_text,
-                      direction: "outbound",
+                      direction: "outgoing",
                     });
 
                     if (!error) created += 1;
