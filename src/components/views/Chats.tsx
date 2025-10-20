@@ -293,9 +293,9 @@ const Chats = () => {
 
             {/* Chat View */}
             {selectedChat ? (
-              <div className="flex flex-col h-full overflow-hidden">
-                {/* Header */}
-                <div className="p-4 border-b flex items-center justify-between shrink-0">
+              <div className="flex flex-col h-full relative">
+                {/* Header - Fixed at top */}
+                <div className="sticky top-0 z-10 bg-background p-4 border-b flex items-center justify-between">
                   <Dialog>
                     <DialogTrigger asChild>
                       <div className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -ml-2 transition-colors">
@@ -353,68 +353,66 @@ const Chats = () => {
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 min-h-0">
-                  <ScrollArea className="h-full">
-                    <div className="space-y-4 p-4">
-                      {selectedChat.messages.sort((a, b) => 
-                        new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
-                      ).map((message) => (
+                {/* Messages - Scrollable middle section */}
+                <ScrollArea className="flex-1">
+                  <div className="space-y-4 p-4">
+                    {selectedChat.messages.sort((a, b) => 
+                      new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+                    ).map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}
+                      >
                         <div
-                          key={message.id}
-                          className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}
+                          className={`max-w-[70%] rounded-lg p-3 ${
+                            message.direction === "outgoing"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"
+                          }`}
                         >
-                          <div
-                            className={`max-w-[70%] rounded-lg p-3 ${
-                              message.direction === "outgoing"
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted"
-                            }`}
-                          >
-                            {(() => {
-                              const LONG_THRESHOLD = 400;
-                              const key = `${selectedChatKey}-${message.id}`;
-                              const isExpanded = expandedMessageKeys.has(key);
-                              const isLong = message.message_text.length > LONG_THRESHOLD;
-                              const displayText = !isExpanded && isLong
-                                ? message.message_text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
-                                : message.message_text;
-                              return (
-                                <>
-                                  <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
-                                  {!isExpanded && isLong && (
-                                    <button
-                                      type="button"
-                                      className={cn(
-                                        "mt-2 text-xs font-medium underline underline-offset-2",
-                                        message.direction === "outgoing" ? "text-primary-foreground" : "text-primary"
-                                      )}
-                                      onClick={() =>
-                                        setExpandedMessageKeys((prev) => {
-                                          const next = new Set(prev);
-                                          next.add(key);
-                                          return next;
-                                        })
-                                      }
-                                    >
-                                      Mehr lesen
-                                    </button>
-                                  )}
-                                  <span className="text-xs opacity-70 mt-2 block">
-                                    {format(new Date(message.sent_at), "HH:mm", { locale: de })}
-                                  </span>
-                                </>
-                              );
-                            })()}
-                          </div>
+                          {(() => {
+                            const LONG_THRESHOLD = 400;
+                            const key = `${selectedChatKey}-${message.id}`;
+                            const isExpanded = expandedMessageKeys.has(key);
+                            const isLong = message.message_text.length > LONG_THRESHOLD;
+                            const displayText = !isExpanded && isLong
+                              ? message.message_text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
+                              : message.message_text;
+                            return (
+                              <>
+                                <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
+                                {!isExpanded && isLong && (
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "mt-2 text-xs font-medium underline underline-offset-2",
+                                      message.direction === "outgoing" ? "text-primary-foreground" : "text-primary"
+                                    )}
+                                    onClick={() =>
+                                      setExpandedMessageKeys((prev) => {
+                                        const next = new Set(prev);
+                                        next.add(key);
+                                        return next;
+                                      })
+                                    }
+                                  >
+                                    Mehr lesen
+                                  </button>
+                                )}
+                                <span className="text-xs opacity-70 mt-2 block">
+                                  {format(new Date(message.sent_at), "HH:mm", { locale: de })}
+                                </span>
+                              </>
+                            );
+                          })()}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
 
-                {/* Input */}
-                <div className="p-4 border-t shrink-0">
+                {/* Input - Fixed at bottom */}
+                <div className="sticky bottom-0 z-10 bg-background p-4 border-t">
                   {getAccountStatus(selectedChat.account_id) === "disconnected" && (
                     <div className="mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                       <p className="text-sm text-destructive font-medium">
