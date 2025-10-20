@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const Settings = () => {
   const { settings, isLoading, updateSettings } = useGlobalProfile();
   const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
   const [profileImage, setProfileImage] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
@@ -18,6 +19,7 @@ const Settings = () => {
   useEffect(() => {
     if (settings) {
       setProfileName(settings.global_profile_name || "");
+      setProfileEmail(settings.global_profile_email || "");
       setProfileImage(settings.global_profile_image || "");
       setWebsite(settings.global_profile_website || "");
       setAddress(settings.global_profile_address || "");
@@ -28,6 +30,7 @@ const Settings = () => {
     e.preventDefault();
     await updateSettings.mutateAsync({
       global_profile_name: profileName,
+      global_profile_email: profileEmail,
       global_profile_image: profileImage,
       global_profile_website: website,
       global_profile_address: address,
@@ -73,6 +76,20 @@ const Settings = () => {
               />
               <p className="text-xs text-muted-foreground">
                 Dieser Name wird als Anzeigename für alle WhatsApp-Accounts verwendet
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profileEmail">E-Mail-Adresse</Label>
+              <Input
+                id="profileEmail"
+                type="email"
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                placeholder="kontakt@beispiel.de"
+              />
+              <p className="text-xs text-muted-foreground">
+                E-Mail-Adresse für das WhatsApp Business-Profil
               </p>
             </div>
 

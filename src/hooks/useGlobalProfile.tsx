@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 export interface GlobalProfileSettings {
   global_profile_name: string | null;
+  global_profile_email: string | null;
   global_profile_image: string | null;
   global_profile_website: string | null;
   global_profile_address: string | null;
@@ -22,7 +23,7 @@ export const useGlobalProfile = () => {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("global_profile_name, global_profile_image, global_profile_website, global_profile_address")
+        .select("global_profile_name, global_profile_email, global_profile_image, global_profile_website, global_profile_address")
         .eq("id", user.id)
         .single();
 
