@@ -23,8 +23,12 @@ const Chats = () => {
   const [selectedChatKey, setSelectedChatKey] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
-  const [chatFilter, setChatFilter] = useState<"all" | "unread">("all");
+  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites">("all");
   const [expandedMessageKeys, setExpandedMessageKeys] = useState<Set<string>>(new Set());
+  const [favoriteChatKeys, setFavoriteChatKeys] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem("favoriteChatKeys");
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
@@ -43,6 +47,21 @@ const Chats = () => {
   const getAccountStatus = (accountId: string) => {
     const account = accounts.find(a => a.id === accountId);
     return account?.status || "disconnected";
+  };
+
+  const toggleFavorite = (chatKey: string) => {
+    setFavoriteChatKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatKey)) {
+        next.delete(chatKey);
+        toast.success("Aus Favoriten entfernt");
+      } else {
+        next.add(chatKey);
+        toast.success("Zu Favoriten hinzugefügt");
+      }
+      localStorage.setItem("favoriteChatKeys", JSON.stringify(Array.from(next)));
+      return next;
+    });
   };
 
   const handleSendMessage = async () => {
@@ -113,9 +132,12 @@ const Chats = () => {
 
   // Filter chats based on selected filter
   const filteredChats = chatGroups.filter(chat => {
+    const chatKey = `${chat.contact_phone}_${chat.account_id}`;
     switch (chatFilter) {
       case "unread":
         return chat.unread_count > 0;
+      case "favorites":
+        return favoriteChatKeys.has(chatKey);
       default:
         return true;
     }
@@ -237,9 +259,10 @@ const Chats = () => {
                 
                 {/* Filter Tabs */}
                 <Tabs value={chatFilter} onValueChange={(v) => setChatFilter(v as any)} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 h-9">
+                  <TabsList className="grid w-full grid-cols-3 h-9">
                     <TabsTrigger value="all" className="text-xs">Alle</TabsTrigger>
                     <TabsTrigger value="unread" className="text-xs">Ungelesen</TabsTrigger>
+                    <TabsTrigger value="favorites" className="text-xs">Favoriten</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -250,7 +273,11 @@ const Chats = () => {
                   </div>
                 ) : filteredChats.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8 text-sm px-4">
-                    {chatFilter === "unread" ? "Keine ungelesenen Chats" : "Keine Chats vorhanden"}
+                    {chatFilter === "unread" 
+                      ? "Keine ungelesenen Chats" 
+                      : chatFilter === "favorites"
+                      ? "Keine Favoriten vorhanden"
+                      : "Keine Chats vorhanden"}
                     <p className="text-xs mt-2">Nachrichten erscheinen hier automatisch</p>
                   </div>
                 ) : (
@@ -344,8 +371,17 @@ const Chats = () => {
                     </DialogContent>
                   </Dialog>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" title="Als Favorit markieren">
-                      <Star className="w-4 h-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      title={favoriteChatKeys.has(selectedChatKey!) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}
+                      onClick={() => toggleFavorite(selectedChatKey!)}
+                    >
+                      {favoriteChatKeys.has(selectedChatKey!) ? (
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                      ) : (
+                        <Star className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button variant="ghost" size="icon">
                       <Phone className="w-4 h-4" />
