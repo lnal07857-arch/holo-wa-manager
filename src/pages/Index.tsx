@@ -6,6 +6,7 @@ import Accounts from "@/components/views/Accounts";
 import Chats from "@/components/views/Chats";
 import Templates from "@/components/views/Templates";
 import BulkSender from "@/components/views/BulkSender";
+import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
@@ -46,12 +47,7 @@ const Index = () => {
       case "bulk":
         return <BulkSender />;
       case "settings":
-        return (
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight mb-4">Einstellungen</h2>
-            <p className="text-muted-foreground">Einstellungen werden demnächst verfügbar sein.</p>
-          </div>
-        );
+        return <Settings />;
       default:
         return <Dashboard />;
     }
