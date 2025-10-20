@@ -140,10 +140,10 @@ const Chats = () => {
         <p className="text-muted-foreground">Alle Konversationen im Überblick</p>
       </div>
 
-      <Card className="h-[calc(100vh-200px)]">
-        <CardContent className="p-0 h-full">
+      <Card className="h-[calc(100vh-200px)] overflow-hidden">
+        <CardContent className="p-0 h-full overflow-hidden">
           <div className={cn(
-            "grid h-full transition-all duration-300",
+            "grid h-full transition-all duration-300 overflow-hidden",
             showTemplates ? "grid-cols-[300px_350px_1fr]" : "grid-cols-[350px_1fr]"
           )}>
             {/* Templates List - Collapsible */}
