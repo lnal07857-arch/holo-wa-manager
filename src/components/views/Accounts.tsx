@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import demoQR from "@/assets/whatsapp-qr-demo.png";
 
 const Accounts = () => {
   const [accounts] = useState([
@@ -37,13 +39,24 @@ const Accounts = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <Alert className="mb-4">
+                <AlertDescription className="text-sm">
+                  <strong>Demo-Modus:</strong> Dies ist ein Demo-QR-Code. Für die echte WhatsApp Web Integration benötigen Sie Lovable Cloud (Backend-Anbindung).
+                </AlertDescription>
+              </Alert>
               <div className="flex justify-center">
-                <div className="w-64 h-64 border-2 border-dashed rounded-lg flex items-center justify-center bg-muted">
-                  <div className="text-center">
-                    <QrCode className="w-16 h-16 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">QR-Code wird geladen...</p>
-                  </div>
+                <div className="w-64 h-64 border-2 rounded-lg flex items-center justify-center bg-background p-2">
+                  <img 
+                    src={demoQR} 
+                    alt="WhatsApp Web QR Code" 
+                    className="w-full h-full object-contain"
+                  />
                 </div>
+              </div>
+              <div className="text-center text-sm text-muted-foreground mb-4">
+                <p>1. Öffnen Sie WhatsApp auf Ihrem Handy</p>
+                <p>2. Gehen Sie zu Einstellungen → Verknüpfte Geräte</p>
+                <p>3. Scannen Sie diesen QR-Code</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="accountName">Account-Name</Label>
