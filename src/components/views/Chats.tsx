@@ -40,6 +40,9 @@ const Chats = () => {
     ],
   });
   
+  // Track expanded state for long messages per chat/message
+  const [expandedMessageKeys, setExpandedMessageKeys] = useState<Set<string>>(new Set());
+  
   const messages = selectedChat !== null ? (chatMessages[selectedChat] || []) : [];
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -478,10 +481,40 @@ const Chats = () => {
                               : "bg-muted"
                           }`}
                         >
-                          <ScrollArea className="max-h-[300px]">
-                            <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
-                          </ScrollArea>
-                          <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
+                          {(() => {
+                            const LONG_THRESHOLD = 400;
+                            const key = `${selectedChat}-${message.id}`;
+                            const isExpanded = expandedMessageKeys.has(key);
+                            const isLong = message.text.length > LONG_THRESHOLD;
+                            const displayText = !isExpanded && isLong
+                              ? message.text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
+                              : message.text;
+                            return (
+                              <>
+                                <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
+                                {!isExpanded && isLong && (
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "mt-2 text-xs font-medium underline underline-offset-2",
+                                      message.sender === "me" ? "text-primary-foreground" : "text-primary"
+                                    )}
+                                    onClick={() =>
+                                      setExpandedMessageKeys((prev) => {
+                                        const next = new Set(prev);
+                                        next.add(key);
+                                        return next;
+                                      })
+                                    }
+                                  >
+                                    Mehr lesen
+                                  </button>
+                                )}
+                                <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
+                              </>
+                            );
+                          })()}
+
                         </div>
                       </div>
                     ))}
