@@ -249,8 +249,8 @@ const Chats = () => {
                               : "bg-muted"
                           }`}
                         >
-                          <p className="text-sm">{message.text}</p>
-                          <span className="text-xs opacity-70 mt-1 block">{message.time}</span>
+                          <p className="text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
+                          <span className="text-xs opacity-70 mt-2 block">{message.time}</span>
                         </div>
                       </div>
                     ))}
