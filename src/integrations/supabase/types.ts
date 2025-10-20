@@ -153,6 +153,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          display_order: number | null
           id: string
           placeholders: string[] | null
           template_name: string
@@ -163,6 +164,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
+          display_order?: number | null
           id?: string
           placeholders?: string[] | null
           template_name: string
@@ -173,6 +175,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          display_order?: number | null
           id?: string
           placeholders?: string[] | null
           template_name?: string

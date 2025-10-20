@@ -9,6 +9,7 @@ export interface MessageTemplate {
   category: string;
   template_text: string;
   placeholders: string[];
+  display_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -22,7 +23,7 @@ export const useTemplates = () => {
       const { data, error } = await supabase
         .from("message_templates")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("display_order", { ascending: true });
 
       if (error) throw error;
       return data as MessageTemplate[];
@@ -109,11 +110,30 @@ export const useTemplates = () => {
     },
   });
 
+  const reorderTemplates = useMutation({
+    mutationFn: async (reorderedTemplates: { id: string; display_order: number }[]) => {
+      const promises = reorderedTemplates.map(({ id, display_order }) =>
+        supabase
+          .from("message_templates")
+          .update({ display_order })
+          .eq("id", id)
+      );
+      
+      const results = await Promise.all(promises);
+      const error = results.find(r => r.error)?.error;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+    },
+  });
+
   return {
     templates,
     isLoading,
     createTemplate,
     updateTemplate,
     deleteTemplate,
+    reorderTemplates,
   };
 };

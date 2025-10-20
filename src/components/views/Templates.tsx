@@ -1,22 +1,150 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Copy, Edit, Trash2 } from "lucide-react";
+import { Plus, Copy, Edit, Trash2, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTemplates } from "@/hooks/useTemplates";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+const SortableTemplate = ({ template, onEdit, onDelete }: any) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: template.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className="hover:shadow-lg transition-all">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-2 flex-1">
+              <button
+                className="mt-1 cursor-grab active:cursor-grabbing touch-none"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="w-5 h-5 text-muted-foreground" />
+              </button>
+              <div>
+                <CardTitle className="text-lg">{template.template_name}</CardTitle>
+                <CardDescription>{template.category}</CardDescription>
+              </div>
+            </div>
+            <Badge variant="secondary">{template.placeholders.length} Platzhalter</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="p-3 bg-muted rounded-lg text-sm font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
+              {template.template_text}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {template.placeholders.map((placeholder: string) => (
+                <Badge key={placeholder} variant="outline" className="text-xs">
+                  {`{${placeholder}}`}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1 gap-1">
+                <Copy className="w-3 h-3" />
+                Kopieren
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => onEdit(template.id)}
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-destructive hover:text-destructive"
+                onClick={() => onDelete(template.id)}
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const Templates = () => {
-  const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate } = useTemplates();
+  const { templates, isLoading, createTemplate, updateTemplate, deleteTemplate, reorderTemplates } = useTemplates();
+  const [localTemplates, setLocalTemplates] = useState(templates);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [category, setCategory] = useState("");
   const [templateText, setTemplateText] = useState("");
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Update local templates when templates change
+  useEffect(() => {
+    setLocalTemplates(templates);
+  }, [templates]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = localTemplates.findIndex((t) => t.id === active.id);
+      const newIndex = localTemplates.findIndex((t) => t.id === over.id);
+
+      const newOrder = arrayMove(localTemplates, oldIndex, newIndex);
+      setLocalTemplates(newOrder);
+
+      // Update display_order in database
+      const reorderedData = newOrder.map((template, index) => ({
+        id: template.id,
+        display_order: index,
+      }));
+      
+      reorderTemplates.mutate(reorderedData);
+    }
+  };
 
   const extractPlaceholders = (text: string): string[] => {
     const matches = text.match(/\{([^}]+)\}/g);
@@ -204,57 +332,27 @@ const Templates = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => (
-          <Card key={template.id} className="hover:shadow-lg transition-all">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{template.template_name}</CardTitle>
-                  <CardDescription>{template.category}</CardDescription>
-                </div>
-                <Badge variant="secondary">{template.placeholders.length} Platzhalter</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="p-3 bg-muted rounded-lg text-sm font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
-                  {template.template_text}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {template.placeholders.map((placeholder) => (
-                    <Badge key={placeholder} variant="outline" className="text-xs">
-                      {`{${placeholder}}`}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 gap-1">
-                    <Copy className="w-3 h-3" />
-                    Kopieren
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => handleEdit(template.id)}
-                  >
-                    <Edit className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1 text-destructive hover:text-destructive"
-                    onClick={() => deleteTemplate.mutate(template.id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={localTemplates.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {localTemplates.map((template) => (
+              <SortableTemplate
+                key={template.id}
+                template={template}
+                onEdit={handleEdit}
+                onDelete={(id: string) => deleteTemplate.mutate(id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 };
