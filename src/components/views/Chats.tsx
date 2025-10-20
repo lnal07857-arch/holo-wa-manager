@@ -344,6 +344,9 @@ const Chats = () => {
                     </DialogContent>
                   </Dialog>
                   <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" title="Als Favorit markieren">
+                      <Star className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="icon">
                       <Phone className="w-4 h-4" />
                     </Button>
