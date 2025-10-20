@@ -11,13 +11,27 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
   const [messageInput, setMessageInput] = useState("");
+  const [messages, setMessages] = useState([
+    { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
+    { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
+    { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
+  ]);
   const { templates, isLoading } = useTemplates();
 
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
     
-    // Demo functionality - in production, this would send the message to the backend
-    console.log("Sending message:", messageInput);
+    const now = new Date();
+    const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    const newMessage = {
+      id: messages.length + 1,
+      text: messageInput,
+      sender: "me",
+      time: timeString,
+    };
+    
+    setMessages([...messages, newMessage]);
     setMessageInput("");
   };
 
@@ -53,12 +67,6 @@ const Chats = () => {
     { id: 1, name: "Anna Schmidt", account: "Account 2", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0 },
     { id: 2, name: "Peter Wagner", account: "Account 1", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1 },
     { id: 3, name: "Lisa Müller", account: "Account 3", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0 },
-  ];
-
-  const messages = [
-    { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
-    { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
-    { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
   ];
 
   return (
