@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Copy, Edit, Trash2, GripVertical } from "lucide-react";
+import { Plus, Copy, Edit, Trash2, GripVertical, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTemplates } from "@/hooks/useTemplates";
 import {
   DndContext,
@@ -26,7 +27,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const SortableTemplate = ({ template, onEdit, onDelete }: any) => {
+const SortableTemplate = ({ template, onEdit, onDelete, onToggleForChats }: any) => {
   const {
     attributes,
     listeners,
@@ -56,7 +57,15 @@ const SortableTemplate = ({ template, onEdit, onDelete }: any) => {
                 <GripVertical className="w-5 h-5 text-muted-foreground" />
               </button>
               <div>
-                <CardTitle className="text-lg">{template.template_name}</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  {template.template_name}
+                  {template.for_chats && (
+                    <Badge variant="default" className="text-xs gap-1">
+                      <MessageSquare className="w-3 h-3" />
+                      Chat
+                    </Badge>
+                  )}
+                </CardTitle>
                 <CardDescription>{template.category}</CardDescription>
               </div>
             </div>
@@ -74,6 +83,21 @@ const SortableTemplate = ({ template, onEdit, onDelete }: any) => {
                   {`{${placeholder}}`}
                 </Badge>
               ))}
+            </div>
+            <div className="flex items-center gap-3 pt-2 border-t">
+              <div className="flex items-center space-x-2 flex-1">
+                <Checkbox
+                  id={`chat-${template.id}`}
+                  checked={template.for_chats}
+                  onCheckedChange={() => onToggleForChats(template.id, !template.for_chats)}
+                />
+                <label
+                  htmlFor={`chat-${template.id}`}
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Für Chats verwenden
+                </label>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="flex-1 gap-1">
@@ -144,6 +168,19 @@ const Templates = () => {
       
       reorderTemplates.mutate(reorderedData);
     }
+  };
+
+  const handleToggleForChats = async (templateId: string, forChats: boolean) => {
+    await updateTemplate.mutateAsync({
+      templateId,
+      template: {
+        template_name: localTemplates.find(t => t.id === templateId)!.template_name,
+        category: localTemplates.find(t => t.id === templateId)!.category,
+        template_text: localTemplates.find(t => t.id === templateId)!.template_text,
+        placeholders: localTemplates.find(t => t.id === templateId)!.placeholders,
+        for_chats: forChats,
+      },
+    });
   };
 
   const extractPlaceholders = (text: string): string[] => {
@@ -348,6 +385,7 @@ const Templates = () => {
                 template={template}
                 onEdit={handleEdit}
                 onDelete={(id: string) => deleteTemplate.mutate(id)}
+                onToggleForChats={handleToggleForChats}
               />
             ))}
           </div>

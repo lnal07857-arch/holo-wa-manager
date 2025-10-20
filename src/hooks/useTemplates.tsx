@@ -10,6 +10,7 @@ export interface MessageTemplate {
   template_text: string;
   placeholders: string[];
   display_order: number;
+  for_chats: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +75,7 @@ export const useTemplates = () => {
         category: string;
         template_text: string;
         placeholders: string[];
+        for_chats?: boolean;
       };
     }) => {
       const { data, error } = await supabase

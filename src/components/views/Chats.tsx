@@ -2,20 +2,25 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
+import { cn } from "@/lib/utils";
 
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
   const [messageInput, setMessageInput] = useState("");
+  const [showTemplates, setShowTemplates] = useState(true);
   const [messages, setMessages] = useState([
     { id: 1, text: "Hallo, wann ist mein nächster Termin?", sender: "contact", time: "10:25" },
     { id: 2, text: "Guten Tag! Ihr Termin ist am Montag, 15. Januar um 14:00 Uhr.", sender: "me", time: "10:27" },
     { id: 3, text: "Vielen Dank für die Info!", sender: "contact", time: "10:30" },
   ]);
   const { templates, isLoading } = useTemplates();
+
+  // Filter templates for chats only
+  const chatTemplates = templates.filter(t => t.for_chats);
 
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
@@ -77,63 +82,90 @@ const Chats = () => {
 
       <Card className="h-[calc(100vh-200px)]">
         <CardContent className="p-0 h-full">
-          <div className="grid grid-cols-[300px_350px_1fr] h-full">
-            {/* Templates List */}
-            <div className="border-r flex flex-col bg-muted/30">
-              <div className="p-4 border-b bg-background">
-                <h3 className="font-semibold text-sm">Vorlagen für Chats</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Ziehen Sie eine Vorlage ins Chat-Fenster
-                </p>
-              </div>
-              <ScrollArea className="flex-1">
-                {isLoading ? (
-                  <div className="text-center text-muted-foreground py-8 text-sm">Lädt...</div>
-                ) : templates.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8 text-sm px-4">
-                    Keine Vorlagen vorhanden.<br />Erstellen Sie welche unter "Vorlagen"
+          <div className={cn(
+            "grid h-full transition-all duration-300",
+            showTemplates ? "grid-cols-[300px_350px_1fr]" : "grid-cols-[350px_1fr]"
+          )}>
+            {/* Templates List - Collapsible */}
+            {showTemplates && (
+              <div className="border-r flex flex-col bg-muted/30 animate-in slide-in-from-left">
+                <div className="p-4 border-b bg-background flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">Vorlagen für Chats</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ziehen Sie eine Vorlage ins Chat-Fenster
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-2 p-3">
-                    {templates.map((template) => (
-                      <Card
-                        key={template.id}
-                        className="cursor-move hover:shadow-md transition-all hover:scale-[1.02]"
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, template.template_text)}
-                        onClick={() => handleTemplateClick(template.template_text)}
-                      >
-                        <CardHeader className="p-3 pb-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <CardTitle className="text-xs font-semibold truncate">
-                                {template.template_name}
-                              </CardTitle>
-                              <CardDescription className="text-xs truncate">
-                                {template.category}
-                              </CardDescription>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowTemplates(false)}
+                    className="shrink-0"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                </div>
+                <ScrollArea className="flex-1">
+                  {isLoading ? (
+                    <div className="text-center text-muted-foreground py-8 text-sm">Lädt...</div>
+                  ) : chatTemplates.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8 text-sm px-4">
+                      Keine Chat-Vorlagen vorhanden.<br />
+                      Aktivieren Sie Vorlagen unter "Vorlagen"
+                    </div>
+                  ) : (
+                    <div className="space-y-2 p-3">
+                      {chatTemplates.map((template) => (
+                        <Card
+                          key={template.id}
+                          className="cursor-move hover:shadow-md transition-all hover:scale-[1.02]"
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, template.template_text)}
+                          onClick={() => handleTemplateClick(template.template_text)}
+                        >
+                          <CardHeader className="p-3 pb-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <CardTitle className="text-xs font-semibold truncate">
+                                  {template.template_name}
+                                </CardTitle>
+                                <CardDescription className="text-xs truncate">
+                                  {template.category}
+                                </CardDescription>
+                              </div>
+                              {template.placeholders.length > 0 && (
+                                <Badge variant="secondary" className="text-xs shrink-0">
+                                  {template.placeholders.length}
+                                </Badge>
+                              )}
                             </div>
-                            {template.placeholders.length > 0 && (
-                              <Badge variant="secondary" className="text-xs shrink-0">
-                                {template.placeholders.length}
-                              </Badge>
-                            )}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0">
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {template.template_text}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </div>
+                          </CardHeader>
+                          <CardContent className="p-3 pt-0">
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {template.template_text}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
 
             {/* Chat List */}
-            <div className="border-r flex flex-col">
+            <div className="border-r flex flex-col relative">
+              {!showTemplates && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowTemplates(true)}
+                  className="absolute top-2 left-2 z-10"
+                  title="Vorlagen anzeigen"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
               <div className="p-4 border-b">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

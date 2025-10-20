@@ -154,6 +154,7 @@ export type Database = {
           category: string
           created_at: string
           display_order: number | null
+          for_chats: boolean | null
           id: string
           placeholders: string[] | null
           template_name: string
@@ -165,6 +166,7 @@ export type Database = {
           category: string
           created_at?: string
           display_order?: number | null
+          for_chats?: boolean | null
           id?: string
           placeholders?: string[] | null
           template_name: string
@@ -176,6 +178,7 @@ export type Database = {
           category?: string
           created_at?: string
           display_order?: number | null
+          for_chats?: boolean | null
           id?: string
           placeholders?: string[] | null
           template_name?: string
