@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Contact {
   name: string;
@@ -33,6 +34,16 @@ const BulkSender = () => {
   const [textRotation, setTextRotation] = useState(true);
   const [delay, setDelay] = useState("2-5");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sanitizePhone = (phone: string) => {
+    // Entfernt führende Apostrophe, Leerzeichen und gängige Trenner, behält '+' und Ziffern
+    return (phone || "")
+      .toString()
+      .trim()
+      .replace(/^'+/, "")
+      .replace(/[()\-]/g, "")
+      .replace(/\s+/g, "");
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -294,21 +305,54 @@ const BulkSender = () => {
             <Button
               size="lg"
               className="w-full gap-2"
-              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0}
-              onClick={() => {
-                setSending(true);
-                toast.info("Versand wird gestartet...");
-                // Simulate sending
-                let p = 0;
-                const interval = setInterval(() => {
-                  p += 2;
-                  setProgress(p);
-                  if (p >= 100) {
-                    clearInterval(interval);
-                    setSending(false);
-                    toast.success("Versand abgeschlossen!");
+              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0 || sending}
+              onClick={async () => {
+                try {
+                  setSending(true);
+                  setProgress(0);
+                  toast.info("Versand wird gestartet...");
+
+                  const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
+                  const total = contacts.length;
+                  let created = 0;
+
+                  for (let i = 0; i < contacts.length; i++) {
+                    const contact = contacts[i];
+                    const accountId = selectedAccounts[i % selectedAccounts.length];
+                    const template = (textRotation && selectedTemplateObjects.length > 0)
+                      ? selectedTemplateObjects[i % selectedTemplateObjects.length]
+                      : selectedTemplateObjects[0];
+
+                    const message_text = template?.template_text || "";
+                    const contact_phone = sanitizePhone(String(contact.phone || ""));
+                    const contact_name = contact.name || null;
+
+                    if (!contact_phone) {
+                      setProgress(Math.round(((i + 1) / total) * 100));
+                      continue;
+                    }
+
+                    const { error } = await supabase.from("messages").insert({
+                      account_id: accountId,
+                      contact_phone,
+                      contact_name,
+                      message_text,
+                      direction: "outbound",
+                    });
+
+                    if (!error) created += 1;
+                    else console.error("Fehler beim Anlegen der Nachricht:", error);
+
+                    setProgress(Math.round(((i + 1) / total) * 100));
                   }
-                }, 100);
+
+                  toast.success(`Versand abgeschlossen! ${created}/${total} Nachrichten angelegt`);
+                } catch (e) {
+                  console.error(e);
+                  toast.error("Fehler beim Versand");
+                } finally {
+                  setSending(false);
+                }
               }}
             >
               <Send className="w-4 h-4" />
