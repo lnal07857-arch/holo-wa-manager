@@ -184,9 +184,16 @@ const Templates = () => {
   };
 
   const extractPlaceholders = (text: string): string[] => {
-    const matches = text.match(/\{\{([^}]+)\}\}/g);
-    if (!matches) return [];
-    return [...new Set(matches.map((m) => m.slice(2, -2)))];
+    // Unterstützt sowohl {{placeholder}} als auch {placeholder}
+    const doubleMatches = text.match(/\{\{([^}]+)\}\}/g) || [];
+    const singleMatches = text.match(/\{([^}]+)\}/g) || [];
+    
+    const doublePlaceholders = doubleMatches.map((m) => m.slice(2, -2));
+    const singlePlaceholders = singleMatches
+      .filter(m => !m.startsWith('{{')) // Verhindere Duplikate
+      .map((m) => m.slice(1, -1));
+    
+    return [...new Set([...doublePlaceholders, ...singlePlaceholders])];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -287,7 +294,7 @@ const Templates = () => {
                     id="templateText"
                     value={templateText}
                     onChange={(e) => setTemplateText(e.target.value)}
-                    placeholder="Verwenden Sie {{Platzhalter}} für dynamische Inhalte"
+                    placeholder="Verwenden Sie {Platzhalter} oder {{Platzhalter}} für dynamische Inhalte"
                     className="min-h-[200px]"
                     required
                   />
@@ -346,7 +353,7 @@ const Templates = () => {
                   id="editTemplateText"
                   value={templateText}
                   onChange={(e) => setTemplateText(e.target.value)}
-                  placeholder="Verwenden Sie {{Platzhalter}} für dynamische Inhalte"
+                  placeholder="Verwenden Sie {Platzhalter} oder {{Platzhalter}} für dynamische Inhalte"
                   className="min-h-[200px]"
                   required
                 />
