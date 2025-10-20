@@ -140,15 +140,15 @@ const Chats = () => {
         <p className="text-muted-foreground">Alle Konversationen im Überblick</p>
       </div>
 
-      <Card className="h-[calc(100vh-200px)] overflow-hidden">
-        <CardContent className="p-0 h-full overflow-hidden">
+      <Card className="h-[calc(100vh-200px)]">
+        <CardContent className="p-0 h-full">
           <div className={cn(
-            "grid h-full transition-all duration-300 overflow-hidden",
+            "grid h-full transition-all duration-300",
             showTemplates ? "grid-cols-[300px_350px_1fr]" : "grid-cols-[350px_1fr]"
           )}>
             {/* Templates List - Collapsible */}
             {showTemplates && (
-              <div className="border-r flex flex-col bg-muted/30 animate-in slide-in-from-left">
+              <div className="border-r flex flex-col h-full bg-muted/30 animate-in slide-in-from-left overflow-hidden">
                 <div className="p-4 border-b bg-background flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-sm">Vorlagen für Chats</h3>
@@ -214,7 +214,7 @@ const Chats = () => {
             )}
 
             {/* Chat List */}
-            <div className="border-r flex flex-col">
+            <div className="border-r flex flex-col h-full overflow-hidden">
               <div className="p-4 border-b space-y-3">
                 <div className="flex gap-2">
                   {!showTemplates && (
@@ -293,7 +293,7 @@ const Chats = () => {
 
             {/* Chat View */}
             {selectedChat ? (
-              <div className="flex flex-col h-full relative">
+              <div className="flex flex-col h-full overflow-hidden">
                 {/* Header - Fixed at top */}
                 <div className="sticky top-0 z-10 bg-background p-4 border-b flex items-center justify-between">
                   <Dialog>
