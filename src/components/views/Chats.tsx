@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 const Chats = () => {
@@ -93,15 +94,19 @@ const Chats = () => {
   };
 
   const toggleFavorite = (chatId: number) => {
-    setChats(chats.map(chat => 
+    setChats(prev => prev.map(chat => 
       chat.id === chatId ? { ...chat, isFavorite: !chat.isFavorite } : chat
     ));
+    const prevChat = chats.find(c => c.id === chatId);
+    toast.success(prevChat?.isFavorite ? "Aus Favoriten entfernt" : "Als Favorit markiert");
   };
 
   const toggleGroup = (chatId: number) => {
-    setChats(chats.map(chat => 
+    setChats(prev => prev.map(chat => 
       chat.id === chatId ? { ...chat, isGroup: !chat.isGroup } : chat
     ));
+    const prevChat = chats.find(c => c.id === chatId);
+    toast.success(prevChat?.isGroup ? "Als Einzelchat markiert" : "Als Gruppe markiert");
   };
 
   // Filter chats based on selected filter
@@ -253,14 +258,26 @@ const Chats = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <p className="font-semibold truncate">{chat.name}</p>
-                              {chat.isFavorite && (
-                                <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                              )}
-                              {chat.isGroup && (
-                                <Users className="w-3 h-3 text-muted-foreground" />
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(chat.id); }}
+                                aria-label="Favorit umschalten"
+                              >
+                                <Star className={cn("w-3 h-3", chat.isFavorite ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => { e.stopPropagation(); toggleGroup(chat.id); }}
+                                aria-label="Gruppenstatus umschalten"
+                              >
+                                <Users className={cn("w-3 h-3", chat.isGroup ? "text-primary" : "text-muted-foreground")} />
+                              </Button>
                             </div>
                             <span className="text-xs text-muted-foreground">{chat.time}</span>
                           </div>
@@ -396,6 +413,24 @@ const Chats = () => {
                                   Gruppe
                                 </Badge>
                               )}
+                            </div>
+
+                            <div className="pt-4 space-y-3">
+                              <h4 className="text-sm font-medium">Einstellungen</h4>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm">Als Favorit markieren</span>
+                                <Switch
+                                  checked={chats[selectedChat].isFavorite}
+                                  onCheckedChange={() => toggleFavorite(chats[selectedChat].id)}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm">Als Gruppe markieren</span>
+                                <Switch
+                                  checked={chats[selectedChat].isGroup}
+                                  onCheckedChange={() => toggleGroup(chats[selectedChat].id)}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
