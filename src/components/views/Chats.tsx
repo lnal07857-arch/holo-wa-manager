@@ -370,9 +370,9 @@ const Chats = () => {
 
             {/* Chat View */}
             {selectedChat !== null ? (
-              <div className="flex flex-col h-full">
+              <div className="flex flex-col h-full overflow-hidden">
                 {/* Header */}
-                <div className="p-4 border-b flex items-center justify-between">
+                <div className="p-4 border-b flex items-center justify-between shrink-0">
                   <Dialog>
                     <DialogTrigger asChild>
                       <div className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2 -ml-2 transition-colors">
@@ -474,9 +474,9 @@ const Chats = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-hidden">
-                  <ScrollArea className="h-full p-4">
-                    <div className="space-y-4">
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full">
+                    <div className="space-y-4 p-4">
                       {messages.map((message) => (
                         <div
                           key={message.id}
@@ -531,7 +531,7 @@ const Chats = () => {
                 </div>
 
                 {/* Input */}
-                <div className="p-4 border-t">
+                <div className="p-4 border-t shrink-0">
                   {chats[selectedChat]?.accountStatus === "blocked" && (
                     <div className="mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                       <p className="text-sm text-destructive font-medium">
