@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
@@ -36,7 +36,7 @@ const Chats = () => {
   const chatTemplates = templates.filter(t => t.for_chats);
 
   const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
+    if (!messageInput.trim() || selectedChat === null) return;
     
     const now = new Date();
     const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -50,6 +50,11 @@ const Chats = () => {
     
     setMessages([...messages, newMessage]);
     setMessageInput("");
+    
+    // Reset unread counter for current chat
+    setChats(chats.map(chat => 
+      chat.id === selectedChat ? { ...chat, unread: 0, lastMessage: messageInput, time: timeString } : chat
+    ));
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -279,7 +284,10 @@ const Chats = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toggleFavorite(chat.id)}>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(chat.id);
+                          }}>
                             {chat.isFavorite ? (
                               <>
                                 <StarOff className="w-4 h-4 mr-2" />
@@ -292,7 +300,10 @@ const Chats = () => {
                               </>
                             )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleGroup(chat.id)}>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGroup(chat.id);
+                          }}>
                             {chat.isGroup ? (
                               <>
                                 <UserCheck className="w-4 h-4 mr-2" />
@@ -339,6 +350,9 @@ const Chats = () => {
                       <DialogHeader>
                         <DialogTitle>Kontaktdetails</DialogTitle>
                       </DialogHeader>
+                      <DialogDescription className="sr-only">
+                        Detaillierte Informationen über den ausgewählten Kontakt
+                      </DialogDescription>
                       <div className="space-y-4 py-4">
                         <div className="flex items-center gap-4">
                           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
