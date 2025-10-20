@@ -53,6 +53,20 @@ const BulkSender = () => {
       .replace(/\s+/g, "");
   };
 
+  const replacePlaceholders = (text: string, contact: Contact): string => {
+    let result = text;
+    
+    // Ersetze alle Platzhalter im Format {field_name}
+    const placeholderRegex = /\{([^}]+)\}/g;
+    result = result.replace(placeholderRegex, (match, fieldName) => {
+      // Suche den Wert im Contact-Objekt
+      const value = contact[fieldName];
+      return value !== undefined && value !== null ? String(value) : match;
+    });
+    
+    return result;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -357,7 +371,8 @@ const BulkSender = () => {
                       ? selectedTemplateObjects[i % selectedTemplateObjects.length]
                       : selectedTemplateObjects[0];
 
-                    const message_text = template?.template_text || "";
+                    const templateText = template?.template_text || "";
+                    const message_text = replacePlaceholders(templateText, contact);
                     const contact_phone = sanitizePhone(String(contact.phone || ""));
                     const contact_name = contact.name || null;
 
