@@ -20,11 +20,11 @@ const Chats = () => {
   const [showTemplates, setShowTemplates] = useState(true);
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites" | "groups">("all");
   const [chats, setChats] = useState([
-    { id: 0, name: "Max Mustermann", account: "Account 1", phone: "+49 151 12345678", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false },
-    { id: 1, name: "Anna Schmidt", account: "Account 2", phone: "+49 160 98765432", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false },
-    { id: 2, name: "Peter Wagner", account: "Account 1", phone: "+49 170 55555555", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false },
-    { id: 3, name: "Lisa Müller", account: "Account 3", phone: "+49 175 44444444", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false },
-    { id: 4, name: "Team Verkauf", account: "Account 1", phone: "", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true },
+    { id: 0, name: "Max Mustermann", account: "Account 1", phone: "+49 151 12345678", lastMessage: "Vielen Dank für die Info!", time: "10:30", unread: 2, isFavorite: false, isGroup: false, accountStatus: "connected" },
+    { id: 1, name: "Anna Schmidt", account: "Account 2", phone: "+49 160 98765432", lastMessage: "Wann können wir uns treffen?", time: "09:15", unread: 0, isFavorite: true, isGroup: false, accountStatus: "blocked" },
+    { id: 2, name: "Peter Wagner", account: "Account 1", phone: "+49 170 55555555", lastMessage: "Die Rechnung ist angekommen", time: "Gestern", unread: 1, isFavorite: false, isGroup: false, accountStatus: "connected" },
+    { id: 3, name: "Lisa Müller", account: "Account 3", phone: "+49 175 44444444", lastMessage: "Perfekt, bis dann!", time: "Gestern", unread: 0, isFavorite: true, isGroup: false, accountStatus: "connected" },
+    { id: 4, name: "Team Verkauf", account: "Account 1", phone: "", lastMessage: "Meeting um 15 Uhr", time: "Gestern", unread: 3, isFavorite: false, isGroup: true, accountStatus: "connected" },
   ]);
   
   // Store messages per chat
@@ -53,6 +53,13 @@ const Chats = () => {
 
   const handleSendMessage = () => {
     if (!messageInput.trim() || selectedChat === null) return;
+    
+    // Check if account is blocked
+    const currentChat = chats.find(chat => chat.id === selectedChat);
+    if (currentChat?.accountStatus === "blocked") {
+      toast.error("Dieser WhatsApp-Account ist gesperrt. Sie können keine Nachrichten senden.");
+      return;
+    }
     
     const now = new Date();
     const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -523,6 +530,13 @@ const Chats = () => {
 
                 {/* Input */}
                 <div className="p-4 border-t">
+                  {chats[selectedChat]?.accountStatus === "blocked" && (
+                    <div className="mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm text-destructive font-medium">
+                        ⚠️ Dieser WhatsApp-Account ist gesperrt. Sie können keine neuen Nachrichten senden.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="file"
@@ -536,19 +550,29 @@ const Chats = () => {
                       variant="ghost" 
                       size="icon"
                       onClick={() => fileInputRef.current?.click()}
+                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
                     >
                       <Paperclip className="w-4 h-4" />
                     </Button>
                     <Input
-                      placeholder="Nachricht eingeben oder Vorlage hierher ziehen..."
+                      placeholder={
+                        chats[selectedChat]?.accountStatus === "blocked"
+                          ? "Account ist gesperrt..."
+                          : "Nachricht eingeben oder Vorlage hierher ziehen..."
+                      }
                       className="flex-1"
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
                       onKeyDown={handleKeyPress}
                       onDrop={handleDrop}
                       onDragOver={handleDragOver}
+                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
                     />
-                    <Button size="icon" onClick={handleSendMessage}>
+                    <Button 
+                      size="icon" 
+                      onClick={handleSendMessage}
+                      disabled={chats[selectedChat]?.accountStatus === "blocked"}
+                    >
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
