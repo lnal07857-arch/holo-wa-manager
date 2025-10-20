@@ -2,11 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, FileText } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const Chats = () => {
   const [selectedChat, setSelectedChat] = useState<number | null>(0);
@@ -78,7 +77,61 @@ const Chats = () => {
 
       <Card className="h-[calc(100vh-200px)]">
         <CardContent className="p-0 h-full">
-          <div className="grid grid-cols-[350px_1fr] h-full">
+          <div className="grid grid-cols-[300px_350px_1fr] h-full">
+            {/* Templates List */}
+            <div className="border-r flex flex-col bg-muted/30">
+              <div className="p-4 border-b bg-background">
+                <h3 className="font-semibold text-sm">Vorlagen für Chats</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ziehen Sie eine Vorlage ins Chat-Fenster
+                </p>
+              </div>
+              <ScrollArea className="flex-1">
+                {isLoading ? (
+                  <div className="text-center text-muted-foreground py-8 text-sm">Lädt...</div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-8 text-sm px-4">
+                    Keine Vorlagen vorhanden.<br />Erstellen Sie welche unter "Vorlagen"
+                  </div>
+                ) : (
+                  <div className="space-y-2 p-3">
+                    {templates.map((template) => (
+                      <Card
+                        key={template.id}
+                        className="cursor-move hover:shadow-md transition-all hover:scale-[1.02]"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, template.template_text)}
+                        onClick={() => handleTemplateClick(template.template_text)}
+                      >
+                        <CardHeader className="p-3 pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <CardTitle className="text-xs font-semibold truncate">
+                                {template.template_name}
+                              </CardTitle>
+                              <CardDescription className="text-xs truncate">
+                                {template.category}
+                              </CardDescription>
+                            </div>
+                            {template.placeholders.length > 0 && (
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                {template.placeholders.length}
+                              </Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {template.template_text}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
             {/* Chat List */}
             <div className="border-r flex flex-col">
               <div className="p-4 border-b">
@@ -178,72 +231,8 @@ const Chats = () => {
                     <Button variant="ghost" size="icon">
                       <Paperclip className="w-4 h-4" />
                     </Button>
-                    <Sheet>
-                      <SheetTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent side="right" className="w-[400px] sm:w-[540px]">
-                        <SheetHeader>
-                          <SheetTitle>Nachrichtenvorlagen</SheetTitle>
-                          <SheetDescription>
-                            Ziehen Sie eine Vorlage ins Chat-Fenster oder klicken Sie darauf
-                          </SheetDescription>
-                        </SheetHeader>
-                        <ScrollArea className="h-[calc(100vh-120px)] mt-6">
-                          {isLoading ? (
-                            <div className="text-center text-muted-foreground py-8">Lädt...</div>
-                          ) : templates.length === 0 ? (
-                            <div className="text-center text-muted-foreground py-8">
-                              Keine Vorlagen vorhanden
-                            </div>
-                          ) : (
-                            <div className="space-y-3 pr-4">
-                              {templates.map((template) => (
-                                <Card
-                                  key={template.id}
-                                  className="cursor-move hover:shadow-md transition-all"
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, template.template_text)}
-                                  onClick={() => handleTemplateClick(template.template_text)}
-                                >
-                                  <CardHeader className="pb-3">
-                                    <div className="flex items-start justify-between">
-                                      <div>
-                                        <CardTitle className="text-base">{template.template_name}</CardTitle>
-                                        <CardDescription className="text-xs">{template.category}</CardDescription>
-                                      </div>
-                                      {template.placeholders.length > 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          {template.placeholders.length} Platzhalter
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </CardHeader>
-                                  <CardContent className="pb-3">
-                                    <p className="text-sm text-muted-foreground line-clamp-3 font-mono">
-                                      {template.template_text}
-                                    </p>
-                                    {template.placeholders.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-2">
-                                        {template.placeholders.map((placeholder) => (
-                                          <Badge key={placeholder} variant="outline" className="text-xs">
-                                            {`{${placeholder}}`}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
-                          )}
-                        </ScrollArea>
-                      </SheetContent>
-                    </Sheet>
                     <Input
-                      placeholder="Nachricht eingeben..."
+                      placeholder="Nachricht eingeben oder Vorlage hierher ziehen..."
                       className="flex-1"
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
