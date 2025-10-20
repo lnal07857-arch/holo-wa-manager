@@ -155,23 +155,24 @@ const Chats = () => {
 
             {/* Chat List */}
             <div className="border-r flex flex-col relative">
-              {!showTemplates && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowTemplates(true)}
-                  className="absolute top-2 left-2 z-10"
-                  title="Vorlagen anzeigen"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              )}
               <div className="p-4 border-b">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Chats durchsuchen..." className="pl-9" />
                 </div>
               </div>
+              {!showTemplates && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowTemplates(true)}
+                  className="absolute top-[72px] left-2 z-10 gap-2"
+                  title="Vorlagen anzeigen"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  Vorlagen
+                </Button>
+              )}
               <ScrollArea className="flex-1">
                 {chats.map((chat) => (
                   <div
