@@ -13,6 +13,21 @@ const Chats = () => {
   const [messageInput, setMessageInput] = useState("");
   const { templates, isLoading } = useTemplates();
 
+  const handleSendMessage = () => {
+    if (!messageInput.trim()) return;
+    
+    // Demo functionality - in production, this would send the message to the backend
+    console.log("Sending message:", messageInput);
+    setMessageInput("");
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   const handleTemplateClick = (templateText: string) => {
     setMessageInput(templateText);
   };
@@ -224,10 +239,11 @@ const Chats = () => {
                       className="flex-1"
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyDown={handleKeyPress}
                       onDrop={handleDrop}
                       onDragOver={handleDragOver}
                     />
-                    <Button size="icon">
+                    <Button size="icon" onClick={handleSendMessage}>
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
