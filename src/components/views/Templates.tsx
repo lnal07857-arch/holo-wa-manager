@@ -7,31 +7,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useTemplates } from "@/hooks/useTemplates";
 
 const Templates = () => {
-  const [templates] = useState([
-    {
-      id: 1,
-      name: "Terminbestätigung",
-      text: "Hallo {Name},\n\nIhr Termin am {Datum} um {Uhrzeit} wurde bestätigt.\n\nMit freundlichen Grüßen",
-      category: "Termine",
-      placeholders: ["Name", "Datum", "Uhrzeit"],
-    },
-    {
-      id: 2,
-      name: "Rechnungserinnerung",
-      text: "Sehr geehrte/r {Anrede} {Name},\n\ndie Rechnung {Rechnungsnummer} über {Betrag}€ ist noch offen.\n\nBitte überweisen Sie den Betrag bis zum {Fälligkeitsdatum}.",
-      category: "Finanzen",
-      placeholders: ["Anrede", "Name", "Rechnungsnummer", "Betrag", "Fälligkeitsdatum"],
-    },
-    {
-      id: 3,
-      name: "Willkommensnachricht",
-      text: "Herzlich Willkommen {Name}!\n\nSchön, dass Sie bei uns sind. Ihre Kundennummer lautet: {Kundennummer}",
-      category: "Onboarding",
-      placeholders: ["Name", "Kundennummer"],
-    },
-  ]);
+  const { templates, isLoading, createTemplate, deleteTemplate } = useTemplates();
+  const [open, setOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [category, setCategory] = useState("");
+  const [templateText, setTemplateText] = useState("");
+
+  const extractPlaceholders = (text: string): string[] => {
+    const matches = text.match(/\{([^}]+)\}/g);
+    if (!matches) return [];
+    return [...new Set(matches.map((m) => m.slice(1, -1)))];
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const placeholders = extractPlaceholders(templateText);
+    await createTemplate.mutateAsync({
+      template_name: templateName,
+      category,
+      template_text: templateText,
+      placeholders,
+    });
+    setTemplateName("");
+    setCategory("");
+    setTemplateText("");
+    setOpen(false);
+  };
+
+  if (isLoading) {
+    return <div>Lädt...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -52,34 +60,54 @@ const Templates = () => {
               <DialogTitle>Neue Vorlage erstellen</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="templateName">Vorlagen-Name</Label>
-                  <Input id="templateName" placeholder="z.B. Terminbestätigung" />
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="templateName">Vorlagen-Name</Label>
+                    <Input
+                      id="templateName"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="z.B. Terminbestätigung"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Kategorie</Label>
+                    <Input
+                      id="category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      placeholder="z.B. Termine"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="category">Kategorie</Label>
-                  <Input id="category" placeholder="z.B. Termine" />
+                  <Label htmlFor="templateText">Nachrichtentext</Label>
+                  <Textarea
+                    id="templateText"
+                    value={templateText}
+                    onChange={(e) => setTemplateText(e.target.value)}
+                    placeholder="Verwenden Sie {Platzhalter} für dynamische Inhalte"
+                    className="min-h-[200px]"
+                    required
+                  />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="templateText">Nachrichtentext</Label>
-                <Textarea
-                  id="templateText"
-                  placeholder="Verwenden Sie {Platzhalter} für dynamische Inhalte"
-                  className="min-h-[200px]"
-                />
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-2">Verfügbare Platzhalter:</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Name", "Datum", "Uhrzeit", "Betrag", "Kundennummer"].map((placeholder) => (
-                    <Badge key={placeholder} variant="secondary">
-                      {`{${placeholder}}`}
-                    </Badge>
-                  ))}
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-2">Erkannte Platzhalter:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {extractPlaceholders(templateText).map((placeholder) => (
+                      <Badge key={placeholder} variant="secondary">
+                        {`{${placeholder}}`}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <Button type="submit" className="w-full">
+                  Vorlage erstellen
+                </Button>
+              </form>
             </div>
           </DialogContent>
         </Dialog>
@@ -91,7 +119,7 @@ const Templates = () => {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg">{template.name}</CardTitle>
+                  <CardTitle className="text-lg">{template.template_name}</CardTitle>
                   <CardDescription>{template.category}</CardDescription>
                 </div>
                 <Badge variant="secondary">{template.placeholders.length} Platzhalter</Badge>
@@ -100,7 +128,7 @@ const Templates = () => {
             <CardContent>
               <div className="space-y-4">
                 <div className="p-3 bg-muted rounded-lg text-sm font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
-                  {template.text}
+                  {template.template_text}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {template.placeholders.map((placeholder) => (
@@ -117,7 +145,12 @@ const Templates = () => {
                   <Button variant="outline" size="sm" className="gap-1">
                     <Edit className="w-3 h-3" />
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1 text-destructive hover:text-destructive">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 text-destructive hover:text-destructive"
+                    onClick={() => deleteTemplate.mutate(template.id)}
+                  >
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
