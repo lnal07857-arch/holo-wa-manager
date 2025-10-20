@@ -35,10 +35,11 @@ const BulkSender = () => {
   const [delay, setDelay] = useState("2-5");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Automatisch alle verfügbaren Accounts auswählen
+  // Automatisch nur verbundene Accounts auswählen
   useEffect(() => {
-    if (accounts.length > 0) {
-      setSelectedAccounts(accounts.map(acc => acc.id));
+    const connectedAccounts = accounts.filter(acc => acc.status === 'connected');
+    if (connectedAccounts.length > 0) {
+      setSelectedAccounts(connectedAccounts.map(acc => acc.id));
     }
   }, [accounts]);
 
@@ -168,12 +169,12 @@ const BulkSender = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>WhatsApp-Accounts (Automatisch alle ausgewählt)</Label>
+              <Label>WhatsApp-Accounts (Nur verbundene werden automatisch verwendet)</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
                     {selectedAccounts.length > 0
-                      ? `${selectedAccounts.length} Account(s) ausgewählt (rotierend)`
+                      ? `${selectedAccounts.length} Account(s) ausgewählt (${accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length} verbunden)`
                       : "Keine Accounts verfügbar"}
                   </Button>
                 </PopoverTrigger>
@@ -190,6 +191,9 @@ const BulkSender = () => {
                           <p className="text-sm font-medium">{account.account_name}</p>
                           <p className="text-xs text-muted-foreground">{account.phone_number}</p>
                         </div>
+                        {account.status === 'connected' && (
+                          <Badge variant="default" className="text-xs">Verbunden</Badge>
+                        )}
                         {account.status === 'disconnected' && (
                           <Badge variant="secondary" className="text-xs">Getrennt</Badge>
                         )}
@@ -267,13 +271,18 @@ const BulkSender = () => {
                 <AlertDescription className="text-xs">
                   {selectedAccounts.length > 0 && selectedTemplates.length > 0 ? (
                     <>
-                      Die Nachrichten werden rotierend über <strong>{selectedAccounts.length}</strong>{" "}
-                      Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
-                      <br />
-                      <span className="text-muted-foreground mt-1 block">
-                        Hinweis: Nachrichten werden auch bei gesperrten Accounts gespeichert und können
-                        nach Reaktivierung fortgesetzt werden.
-                      </span>
+                      Die Nachrichten werden rotierend über{" "}
+                      <strong>{accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length}</strong>{" "}
+                      verbundene Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
+                      {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length > 0 && (
+                        <>
+                          <br />
+                          <span className="text-destructive font-medium mt-1 block">
+                            Warnung: {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length}{" "}
+                            getrennte Account(s) werden übersprungen.
+                          </span>
+                        </>
+                      )}
                     </>
                   ) : (
                     "Wählen Sie mindestens einen Account und eine Vorlage aus."
@@ -328,12 +337,22 @@ const BulkSender = () => {
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
+                  const connectedAccountIds = accounts
+                    .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
+                    .map(acc => acc.id);
+
+                  if (connectedAccountIds.length === 0) {
+                    toast.error("Keine verbundenen WhatsApp-Accounts verfügbar");
+                    setSending(false);
+                    return;
+                  }
+
                   const total = contacts.length;
                   let created = 0;
 
                   for (let i = 0; i < contacts.length; i++) {
                     const contact = contacts[i];
-                    const accountId = selectedAccounts[i % selectedAccounts.length];
+                    const accountId = connectedAccountIds[i % connectedAccountIds.length];
                     const template = (textRotation && selectedTemplateObjects.length > 0)
                       ? selectedTemplateObjects[i % selectedTemplateObjects.length]
                       : selectedTemplateObjects[0];
