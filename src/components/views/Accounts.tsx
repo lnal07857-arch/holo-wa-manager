@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import demoQR from "@/assets/whatsapp-qr-demo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -18,6 +17,9 @@ const Accounts = () => {
   const [accountName, setAccountName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [creatingDemo, setCreatingDemo] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [initializingAccount, setInitializingAccount] = useState<string | null>(null);
+  const [loadingQR, setLoadingQR] = useState(false);
 
   const createDemoData = async () => {
     setCreatingDemo(true);
@@ -68,16 +70,88 @@ const Accounts = () => {
     }
   };
 
+  const initializeWhatsApp = async (accountId: string) => {
+    setLoadingQR(true);
+    setInitializingAccount(accountId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+        body: {
+          action: 'initialize',
+          accountId: accountId
+        }
+      });
+
+      if (error) throw error;
+
+      console.log('[WhatsApp Init]', data);
+      
+      // QR-Code wird über Realtime-Updates in die Datenbank geschrieben
+      // Wir hören auf Änderungen am Account
+      toast.success('WhatsApp wird initialisiert...');
+    } catch (error: any) {
+      console.error('[WhatsApp Init Error]', error);
+      toast.error(error.message || 'Fehler bei der Initialisierung');
+    } finally {
+      setLoadingQR(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createAccount.mutateAsync({
-      account_name: accountName,
-      phone_number: phoneNumber,
-    });
-    setAccountName("");
-    setPhoneNumber("");
-    setOpen(false);
+    
+    try {
+      const result = await createAccount.mutateAsync({
+        account_name: accountName,
+        phone_number: phoneNumber,
+      });
+      
+      // Nach dem Erstellen des Accounts, initialisieren wir WhatsApp
+      if (result) {
+        await initializeWhatsApp(result.id);
+      }
+      
+      setAccountName("");
+      setPhoneNumber("");
+    } catch (error: any) {
+      console.error('[Create Account Error]', error);
+      toast.error(error.message || 'Fehler beim Erstellen des Accounts');
+    }
   };
+
+  // Realtime-Subscription für QR-Code Updates
+  useEffect(() => {
+    if (!initializingAccount) return;
+
+    const channel = supabase
+      .channel(`account-${initializingAccount}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_accounts',
+          filter: `id=eq.${initializingAccount}`
+        },
+        (payload: any) => {
+          console.log('[Account Update]', payload);
+          if (payload.new.qr_code) {
+            setQrCode(payload.new.qr_code);
+          }
+          if (payload.new.status === 'connected') {
+            toast.success('WhatsApp erfolgreich verbunden!');
+            setOpen(false);
+            setInitializingAccount(null);
+            setQrCode(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [initializingAccount]);
 
   if (isLoading) {
     return <div>Lädt...</div>;
@@ -107,32 +181,15 @@ const Accounts = () => {
                 Neues Konto hinzufügen
               </Button>
             </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Neues WhatsApp-Konto hinzufügen</DialogTitle>
               <DialogDescription>
-                Scannen Sie den QR-Code mit Ihrer WhatsApp-App
+                {qrCode ? 'Scannen Sie den QR-Code mit Ihrer WhatsApp-App' : 'Geben Sie die Account-Details ein'}
               </DialogDescription>
             </DialogHeader>
-              <Alert className="mb-4">
-                <AlertDescription className="text-sm">
-                  <strong>Demo-Modus:</strong> Dies ist ein Demo-QR-Code. Für die echte WhatsApp Web Integration benötigen Sie zusätzliche Backend-Funktionen.
-                </AlertDescription>
-              </Alert>
-              <div className="flex justify-center">
-                <div className="w-64 h-64 border-2 rounded-lg flex items-center justify-center bg-background p-2">
-                  <img 
-                    src={demoQR} 
-                    alt="WhatsApp Web QR Code" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-              <div className="text-center text-sm text-muted-foreground mb-4">
-                <p>1. Öffnen Sie WhatsApp auf Ihrem Handy</p>
-                <p>2. Gehen Sie zu Einstellungen → Verknüpfte Geräte</p>
-                <p>3. Scannen Sie diesen QR-Code</p>
-              </div>
+            
+            {!qrCode ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="accountName">Account-Name</Label>
@@ -154,10 +211,52 @@ const Accounts = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full">
-                  Account hinzufügen
+                <Button type="submit" className="w-full" disabled={loadingQR}>
+                  {loadingQR ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Initialisiere...
+                    </>
+                  ) : (
+                    'WhatsApp verbinden'
+                  )}
                 </Button>
               </form>
+            ) : (
+              <div className="space-y-4">
+                <Alert>
+                  <AlertDescription className="text-sm">
+                    Scannen Sie diesen QR-Code mit WhatsApp auf Ihrem Handy
+                  </AlertDescription>
+                </Alert>
+                <div className="flex justify-center">
+                  <div className="w-64 h-64 border-2 rounded-lg flex items-center justify-center bg-white p-4">
+                    <img 
+                      src={qrCode} 
+                      alt="WhatsApp Web QR Code" 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+                <div className="text-center text-sm text-muted-foreground space-y-1">
+                  <p>1. Öffnen Sie WhatsApp auf Ihrem Handy</p>
+                  <p>2. Gehen Sie zu Einstellungen → Verknüpfte Geräte</p>
+                  <p>3. Tippen Sie auf "Gerät verknüpfen"</p>
+                  <p>4. Scannen Sie diesen QR-Code</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => {
+                    setQrCode(null);
+                    setInitializingAccount(null);
+                    setOpen(false);
+                  }}
+                >
+                  Abbrechen
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
         </div>
