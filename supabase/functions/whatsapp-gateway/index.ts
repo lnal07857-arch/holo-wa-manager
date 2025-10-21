@@ -33,7 +33,7 @@ serve(async (req) => {
           body: JSON.stringify({
             accountId,
             supabaseUrl: Deno.env.get('SUPABASE_URL'),
-            supabaseKey: Deno.env.get('SUPABASE_PUBLISHABLE_KEY'),
+            supabaseKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
           }),
         });
 
