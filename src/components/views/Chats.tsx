@@ -74,24 +74,44 @@ const Chats = () => {
       return;
     }
     
+    const messageText = messageInput;
+    setMessageInput(""); // Clear input immediately for better UX
+    
     try {
-      const { error } = await supabase
+      // Save message to database
+      const { error: dbError } = await supabase
         .from("messages")
         .insert({
           account_id: selectedChat.account_id,
           contact_phone: selectedChat.contact_phone,
           contact_name: selectedChat.contact_name,
-          message_text: messageInput,
+          message_text: messageText,
           direction: "outgoing",
         });
 
-      if (error) throw error;
+      if (dbError) throw dbError;
 
-      setMessageInput("");
+      // Send message via WhatsApp
+      const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
+        body: {
+          action: "send-message",
+          accountId: selectedChat.account_id,
+          phoneNumber: selectedChat.contact_phone,
+          message: messageText,
+        },
+      });
+
+      if (sendError) {
+        console.error("Error sending WhatsApp message:", sendError);
+        toast.error("Nachricht gespeichert, aber WhatsApp-Versand fehlgeschlagen");
+        return;
+      }
+
       toast.success("Nachricht gesendet");
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Fehler beim Senden der Nachricht");
+      setMessageInput(messageText); // Restore message on error
     }
   };
 
