@@ -144,8 +144,6 @@ const Chats = () => {
         toast.error("Nachricht gespeichert, aber WhatsApp-Versand fehlgeschlagen");
         return;
       }
-
-      toast.success("Nachricht gesendet");
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Fehler beim Senden der Nachricht");
