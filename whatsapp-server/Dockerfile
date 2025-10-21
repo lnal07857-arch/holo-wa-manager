@@ -5,11 +5,11 @@ FROM ghcr.io/puppeteer/puppeteer:22
 WORKDIR /app
 
 # Install dependencies first (use repo root as context)
-COPY package*.json ./
+COPY whatsapp-server/package*.json ./
 RUN npm ci --omit=dev || npm install --only=production
 
 # Copy source
-COPY . .
+COPY whatsapp-server/. .
 
 # Environment
 ENV NODE_ENV=production
