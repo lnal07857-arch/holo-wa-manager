@@ -1,6 +1,7 @@
 import { MessageSquare, Users, FileText, Send, LayoutDashboard, Settings, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/whatsapp-business-logo.png";
 
 interface SidebarProps {
   activeView: string;
@@ -22,8 +23,8 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
     <aside className="w-64 border-r bg-card flex flex-col">
       <div className="p-6 border-b">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-            <MessageSquare className="w-6 h-6 text-primary-foreground" />
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center">
+            <img src={logo} alt="WhatsApp Business" className="w-10 h-10 rounded-lg" />
           </div>
           <div>
             <h1 className="font-bold text-lg">WhatsApp Manager</h1>
