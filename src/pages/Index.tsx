@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import patternBg from "@/assets/whatsapp-pattern-bg.png";
+import headerBg from "@/assets/header-bg.png";
 
 const Index = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -61,12 +62,21 @@ const Index = () => {
     <div className="flex h-screen bg-background">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <main className="flex-1 overflow-y-auto">
-        <div className="border-b p-4 flex justify-between items-center">
-          <div>
+        <div 
+          className="border-b p-4 flex justify-between items-center relative overflow-hidden"
+          style={{
+            backgroundImage: `url(${headerBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        >
+          <div className="absolute inset-0 bg-background/75 backdrop-blur-sm" />
+          <div className="relative z-10">
             <p className="text-sm text-muted-foreground">Angemeldet als</p>
             <p className="font-medium">{user.email}</p>
           </div>
-          <Button variant="outline" onClick={signOut} className="gap-2">
+          <Button variant="outline" onClick={signOut} className="gap-2 relative z-10">
             <LogOut className="w-4 h-4" />
             Abmelden
           </Button>
