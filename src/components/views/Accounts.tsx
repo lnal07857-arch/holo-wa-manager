@@ -219,7 +219,7 @@ const Accounts = () => {
             <Database className="w-4 h-4" />
             {creatingDemo ? 'Erstelle...' : 'Demo-Daten erstellen'}
           </Button>
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="w-4 h-4" />
@@ -234,7 +234,7 @@ const Accounts = () => {
               </DialogDescription>
             </DialogHeader>
             
-            {!qrCode ? (
+            {!initializingAccount ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="accountName">Account-Name</Label>
@@ -335,6 +335,19 @@ const Accounts = () => {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      setQrCode(null);
+                      setInitializingAccount(account.id);
+                      setOpen(true);
+                      initializeWhatsApp(account.id);
+                    }}
+                  >
+                    {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
+                  </Button>
                   <Button variant="outline" size="sm" className="flex-1">
                     Details
                   </Button>
