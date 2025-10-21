@@ -10,6 +10,7 @@ COPY . ./
 # Environment
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
 # Public backend values baked in so you don't need to edit Railway Variables
 ENV SUPABASE_URL="https://umizkegxybjhqucbhgth.supabase.co"
