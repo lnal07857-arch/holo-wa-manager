@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const Chats = () => {
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
   const { chatGroups, loading: messagesLoading } = useMessages();
   const { accounts } = useWhatsAppAccounts();
@@ -42,6 +43,18 @@ const Chats = () => {
   const selectedChat = selectedChatKey 
     ? chatGroups.find(g => `${g.contact_phone}_${g.account_id}` === selectedChatKey)
     : null;
+
+  // Auto-scroll to latest message
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Scroll when messages change or chat is selected
+  useEffect(() => {
+    if (selectedChat) {
+      scrollToBottom();
+    }
+  }, [selectedChat?.messages, selectedChatKey]);
 
   // Get account status
   const getAccountStatus = (accountId: string) => {
@@ -483,6 +496,7 @@ const Chats = () => {
                         </div>
                       </div>
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
 
