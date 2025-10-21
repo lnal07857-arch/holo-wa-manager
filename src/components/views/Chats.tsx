@@ -56,6 +56,36 @@ const Chats = () => {
     }
   }, [selectedChat?.messages, selectedChatKey]);
 
+  // Mark incoming messages as read when chat is opened
+  useEffect(() => {
+    if (!selectedChat) return;
+
+    const markAsRead = async () => {
+      const unreadIncomingMessages = selectedChat.messages.filter(
+        msg => msg.direction === "incoming" && !msg.is_read
+      );
+
+      if (unreadIncomingMessages.length === 0) return;
+
+      const messageIds = unreadIncomingMessages.map(msg => msg.id);
+
+      try {
+        const { error } = await supabase
+          .from("messages")
+          .update({ is_read: true })
+          .in("id", messageIds);
+
+        if (error) {
+          console.error("Error marking messages as read:", error);
+        }
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    };
+
+    markAsRead();
+  }, [selectedChatKey, selectedChat]);
+
   // Get account status
   const getAccountStatus = (accountId: string) => {
     const account = accounts.find(a => a.id === accountId);
