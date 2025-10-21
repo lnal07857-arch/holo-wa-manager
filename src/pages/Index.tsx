@@ -11,7 +11,6 @@ import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
-import bgImage from "@/assets/whatsapp-security-bg.png";
 
 const Index = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -71,20 +70,7 @@ const Index = () => {
             Abmelden
           </Button>
         </div>
-        <div 
-          className="container mx-auto p-8 relative"
-          style={{
-            backgroundImage: `url(${bgImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed'
-          }}
-        >
-          <div className="relative z-10">
-            {renderView()}
-          </div>
-        </div>
+        <div className="container mx-auto p-8">{renderView()}</div>
       </main>
     </div>
   );
