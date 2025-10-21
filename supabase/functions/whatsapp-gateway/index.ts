@@ -68,9 +68,13 @@ serve(async (req) => {
         const phoneNum = phoneNumber || phone;
         const messageText = message || text;
         
+        console.log(`[Send Message] Account: ${accountId}, Phone: ${phoneNum}, Message: ${messageText?.substring(0, 50)}...`);
+        
         if (!phoneNum || !messageText) {
           throw new Error('Phone and message are required');
         }
+
+        console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);
 
         const response = await fetch(`${BASE_URL}/api/send-message`, {
           method: 'POST',
@@ -82,12 +86,16 @@ serve(async (req) => {
           }),
         });
 
+        console.log(`[Send Message] Railway response status: ${response.status}`);
+
         if (!response.ok) {
           const error = await response.text();
+          console.error(`[Send Message] Railway error: ${error}`);
           throw new Error(`Railway error: ${error}`);
         }
 
         const data = await response.json();
+        console.log(`[Send Message] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
