@@ -9,6 +9,8 @@ COPY . ./
 
 # Environment
 ENV NODE_ENV=production
+# Force Puppeteer to download bundled Chromium during npm install
+ENV PUPPETEER_SKIP_DOWNLOAD=false
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
 # Public backend values baked in so you don't need to edit Railway Variables
 ENV SUPABASE_URL="https://umizkegxybjhqucbhgth.supabase.co"
