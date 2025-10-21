@@ -94,18 +94,18 @@ const BulkSender = () => {
           }
           
           const firstRow = jsonData[0];
-          const hasName = "name" in firstRow || "Name" in firstRow || "namen" in firstRow;
-          const hasPhone = "phone" in firstRow || "Phone" in firstRow || "telefon" in firstRow || "Telefon" in firstRow;
+          const hasName = "name" in firstRow || "Name" in firstRow || "namen" in firstRow || "Namen" in firstRow;
+          const hasPhone = "phone" in firstRow || "Phone" in firstRow || "telefon" in firstRow || "Telefon" in firstRow || "nummer" in firstRow || "Nummer" in firstRow;
           
           if (!hasName || !hasPhone) {
-            toast.error("Die Datei muss Spalten mit 'Name' und 'Phone' enthalten");
+            toast.error("Die Datei muss Spalten mit 'Name' und 'Nummer' (oder 'Phone'/'Telefon') enthalten");
             return;
           }
           
           // Normalize column names
           const normalizedContacts = jsonData.map((row: any) => ({
             name: row.name || row.Name || row.namen || row.Namen || "",
-            phone: row.phone || row.Phone || row.telefon || row.Telefon || "",
+            phone: row.phone || row.Phone || row.telefon || row.Telefon || row.nummer || row.Nummer || "",
             ...row
           }));
           
