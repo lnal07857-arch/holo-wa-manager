@@ -27,7 +27,7 @@ export const FollowUp = () => {
   const [daysThreshold, setDaysThreshold] = useState("7");
   const [nonResponders, setNonResponders] = useState<NonResponder[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -125,9 +125,25 @@ export const FollowUp = () => {
     setSelectedContacts(new Set());
   };
 
+  const toggleAccount = (accountId: string) => {
+    setSelectedAccounts(prev => 
+      prev.includes(accountId) 
+        ? prev.filter(id => id !== accountId)
+        : [...prev, accountId]
+    );
+  };
+
+  const selectAllAccounts = () => {
+    setSelectedAccounts(connectedAccounts.map(acc => acc.id));
+  };
+
+  const deselectAllAccounts = () => {
+    setSelectedAccounts([]);
+  };
+
   const sendFollowUpMessages = async () => {
-    if (!selectedAccount || !selectedTemplate) {
-      toast.error("Bitte Account und Template auswählen");
+    if (selectedAccounts.length === 0 || !selectedTemplate) {
+      toast.error("Bitte mindestens einen Account und Template auswählen");
       return;
     }
 
@@ -148,8 +164,15 @@ export const FollowUp = () => {
 
     const selectedNonResponders = nonResponders.filter(nr => selectedContacts.has(nr.contactPhone));
 
+    // Account rotation
+    let accountIndex = 0;
+
     for (const contact of selectedNonResponders) {
       try {
+        // Select account in rotation
+        const currentAccount = selectedAccounts[accountIndex % selectedAccounts.length];
+        accountIndex++;
+
         // Replace placeholders
         let messageText = template.template_text;
         messageText = messageText.replace(/\{name\}/gi, contact.contactName || contact.contactPhone);
@@ -161,7 +184,7 @@ export const FollowUp = () => {
 
         const { error: dbError } = await supabase.from("messages").insert({
           user_id: user.id,
-          account_id: selectedAccount,
+          account_id: currentAccount,
           contact_phone: contact.contactPhone,
           contact_name: contact.contactName,
           message_text: messageText,
@@ -174,7 +197,7 @@ export const FollowUp = () => {
         // Send via WhatsApp
         const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
           body: {
-            accountId: selectedAccount,
+            accountId: currentAccount,
             to: contact.contactPhone,
             message: messageText,
           },
@@ -235,19 +258,44 @@ export const FollowUp = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">WhatsApp Account</label>
-              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Account wählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {connectedAccounts.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.account_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">WhatsApp Accounts ({selectedAccounts.length})</label>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={selectAllAccounts}
+                  >
+                    Alle
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={deselectAllAccounts}
+                  >
+                    Keine
+                  </Button>
+                </div>
+              </div>
+              <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                {connectedAccounts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Keine verbundenen Accounts</p>
+                ) : (
+                  connectedAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedAccounts.includes(acc.id)}
+                        onCheckedChange={() => toggleAccount(acc.id)}
+                      />
+                      <label className="text-sm cursor-pointer" onClick={() => toggleAccount(acc.id)}>
+                        {acc.account_name}
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -332,7 +380,7 @@ export const FollowUp = () => {
         <Button
           size="lg"
           onClick={sendFollowUpMessages}
-          disabled={isSending || selectedContacts.size === 0 || !selectedAccount || !selectedTemplate}
+          disabled={isSending || selectedContacts.size === 0 || selectedAccounts.length === 0 || !selectedTemplate}
         >
           {isSending ? (
             <>
