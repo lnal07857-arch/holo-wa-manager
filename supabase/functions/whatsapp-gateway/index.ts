@@ -5,8 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Railway Server URL - WICHTIG: Hier deine Railway-URL eintragen!
-const RAILWAY_URL = Deno.env.get('RAILWAY_WHATSAPP_URL') || 'https://dein-projekt.up.railway.app';
+const RAILWAY_URL = Deno.env.get('RAILWAY_SERVER_URL');
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -15,7 +14,11 @@ serve(async (req) => {
   }
 
   try {
-    const { action, accountId, phone, text } = await req.json();
+    if (!RAILWAY_URL) {
+      throw new Error('RAILWAY_SERVER_URL is not configured');
+    }
+
+    const { action, accountId, phoneNumber, phone, message, text, contacts } = await req.json();
 
     console.log(`[WhatsApp Gateway] Action: ${action}, Account: ${accountId}`);
 
@@ -44,10 +47,14 @@ serve(async (req) => {
         });
       }
 
-      case 'send': {
+      case 'send':
+      case 'send-message': {
         // Nachricht senden
-        if (!phone || !text) {
-          throw new Error('Phone and text are required');
+        const phoneNum = phoneNumber || phone;
+        const messageText = message || text;
+        
+        if (!phoneNum || !messageText) {
+          throw new Error('Phone and message are required');
         }
 
         const response = await fetch(`${RAILWAY_URL}/api/send-message`, {
@@ -55,8 +62,34 @@ serve(async (req) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             accountId,
-            phone,
-            text,
+            phoneNumber: phoneNum,
+            message: messageText,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Railway error: ${error}`);
+        }
+
+        const data = await response.json();
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'send-bulk': {
+        // Bulk-Nachrichten senden
+        if (!contacts || !Array.isArray(contacts)) {
+          throw new Error('Contacts array is required');
+        }
+
+        const response = await fetch(`${RAILWAY_URL}/api/send-bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId,
+            contacts,
           }),
         });
 
