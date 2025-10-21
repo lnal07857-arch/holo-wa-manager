@@ -152,6 +152,41 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
   });
 
+  // Message event - handle incoming messages
+  client.on('message', async (msg) => {
+    try {
+      console.log('Incoming message:', msg.from, msg.body);
+      
+      // Get contact info
+      const contact = await msg.getContact();
+      const contactName = contact.pushname || contact.name || null;
+      
+      // Clean phone number (remove @c.us)
+      const phoneNumber = msg.from.replace('@c.us', '');
+      
+      // Save message to database
+      const { error } = await supa
+        .from('messages')
+        .insert({
+          account_id: accountId,
+          contact_phone: phoneNumber,
+          contact_name: contactName,
+          message_text: msg.body,
+          direction: 'incoming',
+          sent_at: new Date().toISOString(),
+          is_read: false
+        });
+      
+      if (error) {
+        console.error('Error saving incoming message:', error);
+      } else {
+        console.log('Incoming message saved to database');
+      }
+    } catch (error) {
+      console.error('Error handling incoming message:', error);
+    }
+  });
+
   // Disconnected event
   client.on('disconnected', async (reason) => {
     console.log('Client disconnected:', reason);
