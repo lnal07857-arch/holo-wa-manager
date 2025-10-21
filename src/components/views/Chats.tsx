@@ -33,7 +33,7 @@ const Chats = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
-  const { chatGroups, loading: messagesLoading } = useMessages();
+  const { chatGroups, loading: messagesLoading, addOptimisticMessage } = useMessages();
   const { accounts } = useWhatsAppAccounts();
 
   // Filter templates for chats only
@@ -90,8 +90,17 @@ const Chats = () => {
     const messageText = messageInput;
     setMessageInput(""); // Clear input immediately for better UX
     
+    // Add optimistic message to UI immediately
+    addOptimisticMessage({
+      account_id: selectedChat.account_id,
+      contact_phone: selectedChat.contact_phone,
+      contact_name: selectedChat.contact_name,
+      message_text: messageText,
+      direction: "outgoing",
+    });
+    
     try {
-      // 1) Save message to database (so it appears in UI immediately)
+      // 1) Save message to database
       const { error: dbError } = await supabase
         .from("messages")
         .insert({

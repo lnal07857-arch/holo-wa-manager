@@ -30,6 +30,38 @@ export const useMessages = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
+  // Function to add optimistic message
+  const addOptimisticMessage = (message: Omit<Message, "id" | "sent_at" | "is_read">) => {
+    const optimisticMessage: Message = {
+      ...message,
+      id: `temp-${Date.now()}`,
+      sent_at: new Date().toISOString(),
+      is_read: false,
+    };
+
+    setChatGroups((prev) => {
+      const key = `${message.contact_phone}_${message.account_id}`;
+      const existingGroupIndex = prev.findIndex(
+        (g) => `${g.contact_phone}_${g.account_id}` === key
+      );
+
+      if (existingGroupIndex !== -1) {
+        const updated = [...prev];
+        updated[existingGroupIndex] = {
+          ...updated[existingGroupIndex],
+          messages: [...updated[existingGroupIndex].messages, optimisticMessage],
+          last_message: message.message_text,
+          last_message_time: optimisticMessage.sent_at,
+        };
+        return updated;
+      }
+
+      return prev;
+    });
+
+    return optimisticMessage.id;
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -121,5 +153,5 @@ export const useMessages = () => {
     };
   }, [user]);
 
-  return { messages, chatGroups, loading };
+  return { messages, chatGroups, loading, addOptimisticMessage };
 };
