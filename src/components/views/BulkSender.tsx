@@ -385,8 +385,8 @@ const BulkSender = () => {
                       continue;
                     }
 
-                    // Nachrichten werden immer gespeichert, auch bei gesperrten Accounts
-                    const { error } = await supabase.from("messages").insert({
+                    // 1. Nachricht in DB speichern
+                    const { error: dbError } = await supabase.from("messages").insert({
                       account_id: accountId,
                       contact_phone,
                       contact_name,
@@ -394,10 +394,30 @@ const BulkSender = () => {
                       direction: "outgoing",
                     });
 
-                    if (!error) {
-                      created += 1;
-                    } else {
-                      console.error("Fehler beim Anlegen der Nachricht:", error);
+                    if (dbError) {
+                      console.error("Fehler beim Anlegen der Nachricht:", dbError);
+                      setProgress(Math.round(((i + 1) / total) * 100));
+                      continue;
+                    }
+
+                    // 2. Nachricht via WhatsApp versenden
+                    try {
+                      const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
+                        body: {
+                          action: "send-message",
+                          accountId: accountId,
+                          phoneNumber: contact_phone,
+                          message: message_text,
+                        },
+                      });
+
+                      if (sendError) {
+                        console.error("WhatsApp Versand fehlgeschlagen:", sendError);
+                      } else {
+                        created += 1;
+                      }
+                    } catch (sendErr) {
+                      console.error("Fehler beim WhatsApp-Versand:", sendErr);
                     }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
