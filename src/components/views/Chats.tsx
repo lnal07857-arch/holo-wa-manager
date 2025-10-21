@@ -78,7 +78,7 @@ const Chats = () => {
     setMessageInput(""); // Clear input immediately for better UX
     
     try {
-      // Save message to database
+      // 1) Save message to database (so it appears in UI immediately)
       const { error: dbError } = await supabase
         .from("messages")
         .insert({
@@ -91,15 +91,31 @@ const Chats = () => {
 
       if (dbError) throw dbError;
 
-      // Send message via WhatsApp
-      const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
-        body: {
-          action: "send-message",
-          accountId: selectedChat.account_id,
-          phoneNumber: selectedChat.contact_phone,
-          message: messageText,
-        },
-      });
+      // 2) Try to send via WhatsApp gateway
+      const trySend = async () => {
+        const { error } = await supabase.functions.invoke("whatsapp-gateway", {
+          body: {
+            action: "send-message",
+            accountId: selectedChat.account_id,
+            phoneNumber: selectedChat.contact_phone,
+            message: messageText,
+          },
+        });
+        return error;
+      };
+
+      let sendError = await trySend();
+
+      // If client on Railway was restarted, auto-initialize and retry once
+      if (sendError) {
+        toast.message("Verbindung wird neu hergestellt…", { description: "WhatsApp-Client wird initialisiert" });
+        await supabase.functions.invoke("whatsapp-gateway", {
+          body: { action: "initialize", accountId: selectedChat.account_id },
+        });
+        // kurzer Delay, damit der Client starten kann
+        await new Promise((r) => setTimeout(r, 1500));
+        sendError = await trySend();
+      }
 
       if (sendError) {
         console.error("Error sending WhatsApp message:", sendError);
