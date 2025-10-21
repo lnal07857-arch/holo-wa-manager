@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -71,6 +72,9 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     return { success: true, message: 'Client already initialized' };
   }
 
+  // Supabase client using service role key for privileged updates
+  const supa = createClient(supabaseUrl, supabaseKey);
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
     puppeteer: {
@@ -103,26 +107,21 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     
     // Update status in Supabase
     try {
-      const response = await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`
-        },
-        body: JSON.stringify({
+      const { error: upErr } = await supa
+        .from('whatsapp_accounts')
+        .update({
           qr_code: qrDataUrl,
           status: 'qr_generated',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-      });
-      console.log('QR code saved to Supabase:', response.status);
-      if (!response.ok) {
-        const txt = await response.text();
-        console.error('Failed to save QR:', response.status, txt);
+        .eq('id', accountId);
+      if (upErr) {
+        console.error('Failed to save QR (supabase-js):', upErr);
+      } else {
+        console.log('QR code saved to Supabase with supabase-js');
       }
     } catch (error) {
-      console.error('Error saving QR to Supabase:', error);
+      console.error('Error saving QR to Supabase (supabase-js):', error);
     }
   });
 
