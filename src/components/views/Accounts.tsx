@@ -108,10 +108,13 @@ const Accounts = () => {
     e.preventDefault();
     
     try {
+      console.log('[Account Create] Starting account creation...');
       const result = await createAccount.mutateAsync({
         account_name: accountName,
         phone_number: phoneNumber,
       });
+      
+      console.log('[Account Create] Account created:', result);
       
       // Nach dem Erstellen des Accounts, initialisieren wir WhatsApp
       if (result) {
@@ -123,6 +126,8 @@ const Accounts = () => {
     } catch (error: any) {
       console.error('[Create Account Error]', error);
       toast.error(error.message || 'Fehler beim Erstellen des Accounts');
+      setInitializingAccount(null);
+      setLoadingQR(false);
     }
   };
 
