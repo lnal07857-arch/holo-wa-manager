@@ -11,7 +11,7 @@ import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
-import bgImage from "@/assets/whatsapp-security-bg.png";
+import bgImage from "@/assets/whatsapp-business-bg.png";
 const Index = () => {
   const [activeView, setActiveView] = useState("dashboard");
   const {
@@ -73,6 +73,7 @@ const Index = () => {
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed'
       }} className="container mx-auto p-8 relative rounded bg-zinc-50">
+          <div className="absolute inset-0 bg-background/88 backdrop-blur-sm rounded" />
           <div className="relative z-10">
             {renderView()}
           </div>
