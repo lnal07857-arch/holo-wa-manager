@@ -19,12 +19,12 @@ ENV SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 # Use root for installation to avoid EACCES, then give ownership back
 USER root
 
-# Install dependencies depending on where package.json is (no npm ci requirement)
+# Install dependencies depending on where package.json is (ensure browser is installed)
 RUN set -eux; \
     if [ -f ./whatsapp-server/package.json ]; then \
-      cd ./whatsapp-server && npm install --omit=dev --force; \
+      cd ./whatsapp-server && npm install --omit=dev --force && npx puppeteer browsers install chrome; \
     elif [ -f ./package.json ]; then \
-      npm install --omit=dev --force; \
+      npm install --omit=dev --force && npx puppeteer browsers install chrome; \
     else \
       echo "No package.json found" && ls -la && exit 1; \
     fi && \

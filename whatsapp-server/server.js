@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
+const puppeteer = require('puppeteer');
 require('dotenv').config();
 
 const app = express();
@@ -79,6 +80,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     authStrategy: new LocalAuth({ clientId: accountId }),
     puppeteer: {
       headless: true,
+      executablePath: puppeteer.executablePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
