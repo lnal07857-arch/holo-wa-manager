@@ -26,12 +26,19 @@ serve(async (req) => {
     // Action Router
     switch (action) {
       case 'initialize': {
+        // Get user ID from auth header
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader) {
+          throw new Error('No authorization header');
+        }
+
         // WhatsApp Client initialisieren
         const response = await fetch(`${BASE_URL}/api/initialize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             accountId,
+            userId: accountId, // We use accountId as userId is already part of the account record
             supabaseUrl: Deno.env.get('SUPABASE_URL'),
             supabaseKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
           }),

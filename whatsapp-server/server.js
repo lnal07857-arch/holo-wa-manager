@@ -92,6 +92,15 @@ async function initializeClient(accountId, userId) {
     console.log('QR RECEIVED for', accountId);
     qrcode.generate(qr, { small: true });
     
+    // Convert QR to data URL for display in browser
+    const QRCode = require('qrcode');
+    let qrDataUrl = '';
+    try {
+      qrDataUrl = await QRCode.toDataURL(qr);
+    } catch (err) {
+      console.error('Error generating QR data URL:', err);
+    }
+    
     // Update status in Supabase
     try {
       const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
@@ -102,12 +111,12 @@ async function initializeClient(accountId, userId) {
           'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
         },
         body: JSON.stringify({
-          qr_code: qr,
+          qr_code: qrDataUrl,
           status: 'qr_generated',
           updated_at: new Date().toISOString()
         })
       });
-      console.log('QR code saved to Supabase');
+      console.log('QR code saved to Supabase:', response.status);
     } catch (error) {
       console.error('Error saving QR to Supabase:', error);
     }
@@ -180,11 +189,12 @@ app.post('/api/initialize', async (req, res) => {
   try {
     const { accountId, userId } = req.body;
     
-    if (!accountId || !userId) {
-      return res.status(400).json({ error: 'accountId and userId are required' });
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' });
     }
 
-    const result = await initializeClient(accountId, userId);
+    console.log(`Initializing WhatsApp client for account: ${accountId}`);
+    const result = await initializeClient(accountId, userId || accountId);
     res.json(result);
   } catch (error) {
     console.error('Error initializing client:', error);
