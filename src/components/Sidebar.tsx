@@ -1,4 +1,4 @@
-import { MessageSquare, Users, FileText, Send, LayoutDashboard, Settings } from "lucide-react";
+import { MessageSquare, Users, FileText, Send, LayoutDashboard, Settings, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -14,6 +14,7 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
     { id: "bulk", label: "Bulk Sender", icon: Send },
+    { id: "followup", label: "Follow-up", icon: Clock },
     { id: "settings", label: "Einstellungen", icon: Settings },
   ];
 
