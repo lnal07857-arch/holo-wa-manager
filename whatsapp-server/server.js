@@ -67,6 +67,89 @@ class MessageQueue {
 
 const messageQueues = new Map();
 
+// Sync messages from last 72 hours
+async function syncRecentMessages(client, accountId, supa) {
+  try {
+    const chats = await client.getChats();
+    console.log(`Found ${chats.length} chats to sync`);
+    
+    const cutoffTime = Date.now() - (72 * 60 * 60 * 1000); // 72 hours ago
+    let totalSynced = 0;
+    let totalSkipped = 0;
+
+    for (const chat of chats) {
+      try {
+        // Fetch messages from this chat
+        const messages = await chat.fetchMessages({ limit: 100 });
+        
+        // Filter messages from last 72 hours
+        const recentMessages = messages.filter(msg => msg.timestamp * 1000 >= cutoffTime);
+        
+        console.log(`Chat ${chat.name || chat.id.user}: ${recentMessages.length} recent messages`);
+
+        for (const msg of recentMessages) {
+          try {
+            // Get contact info
+            const contact = await msg.getContact();
+            const contactName = contact.pushname || contact.name || null;
+            const phoneNumber = msg.from.replace('@c.us', '');
+            const messageTime = new Date(msg.timestamp * 1000).toISOString();
+            
+            // Determine direction
+            const direction = msg.fromMe ? 'outgoing' : 'incoming';
+
+            // Check if message already exists (to avoid duplicates)
+            const { data: existing } = await supa
+              .from('messages')
+              .select('id')
+              .eq('account_id', accountId)
+              .eq('contact_phone', phoneNumber)
+              .eq('message_text', msg.body)
+              .eq('sent_at', messageTime)
+              .eq('direction', direction)
+              .single();
+
+            if (existing) {
+              totalSkipped++;
+              continue; // Skip if already exists
+            }
+
+            // Insert message
+            const { error } = await supa
+              .from('messages')
+              .insert({
+                account_id: accountId,
+                contact_phone: phoneNumber,
+                contact_name: contactName,
+                message_text: msg.body,
+                direction: direction,
+                sent_at: messageTime,
+                is_read: msg.fromMe || false
+              });
+
+            if (error) {
+              console.error('Error inserting message:', error);
+            } else {
+              totalSynced++;
+            }
+
+            // Small delay to avoid overwhelming the database
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (msgError) {
+            console.error('Error processing message:', msgError);
+          }
+        }
+      } catch (chatError) {
+        console.error(`Error syncing chat ${chat.id.user}:`, chatError);
+      }
+    }
+
+    console.log(`Sync complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped`);
+  } catch (error) {
+    console.error('Error in syncRecentMessages:', error);
+  }
+}
+
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   if (clients.has(accountId)) {
@@ -149,6 +232,14 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       console.log('Status updated to connected', response.status);
     } catch (error) {
       console.error('Error updating status:', error);
+    }
+
+    // Sync messages from last 72 hours
+    console.log('Starting message sync for last 72 hours...');
+    try {
+      await syncRecentMessages(client, accountId, supa);
+    } catch (error) {
+      console.error('Error syncing messages:', error);
     }
   });
 
