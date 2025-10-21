@@ -2,7 +2,8 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "whatsapp-server/Dockerfile"
+    "dockerfilePath": "Dockerfile",
+    "buildContext": "whatsapp-server"
   },
   "deploy": {
     "restartPolicyType": "ON_FAILURE",
