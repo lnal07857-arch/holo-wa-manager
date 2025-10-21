@@ -6,14 +6,17 @@ WORKDIR /app
 
 # Install dependencies first
 COPY package*.json ./
-RUN npm ci --omit=dev || npm install --only=production
+# Set env early to prevent Puppeteer download during install and speed up builds
+ENV NODE_ENV=production
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+RUN npm ci --omit=dev || npm install --omit=dev
+# Verify critical dependency is installed to avoid runtime failures
+RUN npm ls whatsapp-web.js || (echo "whatsapp-web.js not installed" && exit 1)
 
 # Copy source
 COPY . ./
 
-# Environment
-ENV NODE_ENV=production
-ENV PUPPETEER_SKIP_DOWNLOAD=true
+# Runtime environment
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
 # Public backend values baked in so you don't need to edit Railway Variables
 ENV SUPABASE_URL="https://umizkegxybjhqucbhgth.supabase.co"
