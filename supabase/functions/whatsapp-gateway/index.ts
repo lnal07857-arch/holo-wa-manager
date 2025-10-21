@@ -5,7 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAILWAY_URL = Deno.env.get('RAILWAY_SERVER_URL');
+const RAW_RAILWAY_URL = Deno.env.get('RAILWAY_SERVER_URL') || '';
+const BASE_URL = RAW_RAILWAY_URL && RAW_RAILWAY_URL.startsWith('http') ? RAW_RAILWAY_URL : `https://${RAW_RAILWAY_URL}`;
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -14,7 +15,7 @@ serve(async (req) => {
   }
 
   try {
-    if (!RAILWAY_URL) {
+    if (!BASE_URL || BASE_URL === 'https://') {
       throw new Error('RAILWAY_SERVER_URL is not configured');
     }
 
@@ -26,7 +27,7 @@ serve(async (req) => {
     switch (action) {
       case 'initialize': {
         // WhatsApp Client initialisieren
-        const response = await fetch(`${RAILWAY_URL}/api/initialize`, {
+        const response = await fetch(`${BASE_URL}/api/initialize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -57,7 +58,7 @@ serve(async (req) => {
           throw new Error('Phone and message are required');
         }
 
-        const response = await fetch(`${RAILWAY_URL}/api/send-message`, {
+        const response = await fetch(`${BASE_URL}/api/send-message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -84,7 +85,7 @@ serve(async (req) => {
           throw new Error('Contacts array is required');
         }
 
-        const response = await fetch(`${RAILWAY_URL}/api/send-bulk`, {
+        const response = await fetch(`${BASE_URL}/api/send-bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -106,7 +107,7 @@ serve(async (req) => {
 
       case 'status': {
         // Status abrufen
-        const response = await fetch(`${RAILWAY_URL}/api/status/${accountId}`);
+        const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
 
         if (!response.ok) {
           const error = await response.text();
