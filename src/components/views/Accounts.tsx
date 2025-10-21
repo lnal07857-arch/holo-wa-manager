@@ -153,6 +153,39 @@ const Accounts = () => {
     };
   }, [initializingAccount]);
 
+  // Fallback-Polling, falls Realtime nicht verfügbar ist
+  useEffect(() => {
+    if (!initializingAccount || qrCode) return;
+
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_accounts')
+          .select('qr_code,status')
+          .eq('id', initializingAccount)
+          .single();
+        if (!error && data) {
+          if (data.qr_code) setQrCode(data.qr_code);
+          if (data.status === 'connected') {
+            toast.success('WhatsApp erfolgreich verbunden!');
+            setOpen(false);
+            setInitializingAccount(null);
+            setQrCode(null);
+          }
+        }
+      } catch (err) {
+        console.error('[QR Polling Error]', err);
+      }
+      if (attempts > 60) {
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [initializingAccount, qrCode]);
+
   if (isLoading) {
     return <div>Lädt...</div>;
   }

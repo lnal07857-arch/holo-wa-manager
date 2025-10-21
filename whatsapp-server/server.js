@@ -66,7 +66,7 @@ class MessageQueue {
 const messageQueues = new Map();
 
 // Initialize WhatsApp client
-async function initializeClient(accountId, userId) {
+async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   if (clients.has(accountId)) {
     return { success: true, message: 'Client already initialized' };
   }
@@ -103,12 +103,12 @@ async function initializeClient(accountId, userId) {
     
     // Update status in Supabase
     try {
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
         },
         body: JSON.stringify({
           qr_code: qrDataUrl,
@@ -117,6 +117,10 @@ async function initializeClient(accountId, userId) {
         })
       });
       console.log('QR code saved to Supabase:', response.status);
+      if (!response.ok) {
+        const txt = await response.text();
+        console.error('Failed to save QR:', response.status, txt);
+      }
     } catch (error) {
       console.error('Error saving QR to Supabase:', error);
     }
@@ -128,12 +132,12 @@ async function initializeClient(accountId, userId) {
     
     // Update status in Supabase
     try {
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
         },
         body: JSON.stringify({
           status: 'connected',
@@ -141,7 +145,7 @@ async function initializeClient(accountId, userId) {
           updated_at: new Date().toISOString()
         })
       });
-      console.log('Status updated to connected');
+      console.log('Status updated to connected', response.status);
     } catch (error) {
       console.error('Error updating status:', error);
     }
@@ -155,12 +159,12 @@ async function initializeClient(accountId, userId) {
     
     // Update status in Supabase
     try {
-      await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+      await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
         },
         body: JSON.stringify({
           status: 'disconnected',
@@ -187,14 +191,17 @@ app.get('/health', (req, res) => {
 
 app.post('/api/initialize', async (req, res) => {
   try {
-    const { accountId, userId } = req.body;
+    const { accountId, userId, supabaseUrl, supabaseKey } = req.body;
     
     if (!accountId) {
       return res.status(400).json({ error: 'accountId is required' });
     }
 
+    const url = supabaseUrl || process.env.SUPABASE_URL;
+    const key = supabaseKey || process.env.SUPABASE_KEY;
+
     console.log(`Initializing WhatsApp client for account: ${accountId}`);
-    const result = await initializeClient(accountId, userId || accountId);
+    const result = await initializeClient(accountId, userId || accountId, url, key);
     res.json(result);
   } catch (error) {
     console.error('Error initializing client:', error);
