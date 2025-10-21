@@ -80,7 +80,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {accounts.slice(0, 3).map((account, index) => (
+              {accounts.map((account, index) => (
                 <div
                   key={account.id}
                   className="group relative flex items-center justify-between p-5 rounded-xl border-2 bg-card hover:bg-accent/5 hover:border-primary/50 hover:shadow-lg transition-all duration-300 animate-fade-in"
