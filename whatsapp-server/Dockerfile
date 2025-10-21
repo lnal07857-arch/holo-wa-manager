@@ -9,7 +9,7 @@ COPY whatsapp-server/package*.json ./
 RUN npm ci --omit=dev || npm install --only=production
 
 # Copy source
-COPY whatsapp-server/. .
+COPY whatsapp-server/ ./
 
 # Environment
 ENV NODE_ENV=production
