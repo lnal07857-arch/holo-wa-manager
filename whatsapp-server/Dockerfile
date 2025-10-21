@@ -6,12 +6,12 @@ WORKDIR /app
 
 # Install dependencies first
 COPY package*.json ./
-# Set env early to prevent Puppeteer download during install and speed up builds
-ENV NODE_ENV=production
+
+# Set env to prevent Puppeteer download
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-RUN npm ci --omit=dev || npm install --omit=dev
-# Verify critical dependency is installed to avoid runtime failures
-RUN npm ls whatsapp-web.js || (echo "whatsapp-web.js not installed" && exit 1)
+
+# Install dependencies with clean slate
+RUN rm -rf node_modules package-lock.json && npm install --production --force
 
 # Copy source
 COPY . ./
