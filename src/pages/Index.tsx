@@ -11,7 +11,7 @@ import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
-import patternBg from "@/assets/whatsapp-pattern-bg.png";
+import patternBg from "@/assets/whatsapp-business-bg.png";
 import headerBg from "@/assets/header-bg.png";
 
 const Index = () => {
