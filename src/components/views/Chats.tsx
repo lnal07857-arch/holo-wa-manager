@@ -33,7 +33,7 @@ const Chats = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
-  const { chatGroups, loading: messagesLoading, addOptimisticMessage } = useMessages();
+  const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessages();
   const { accounts } = useWhatsAppAccounts();
 
   // Filter templates for chats only
@@ -58,7 +58,7 @@ const Chats = () => {
 
   // Mark incoming messages as read when chat is opened
   useEffect(() => {
-    if (!selectedChat) return;
+    if (!selectedChat || !selectedChatKey) return;
 
     const markAsRead = async () => {
       const unreadIncomingMessages = selectedChat.messages.filter(
@@ -69,6 +69,10 @@ const Chats = () => {
 
       const messageIds = unreadIncomingMessages.map(msg => msg.id);
 
+      // Optimistic update - update UI immediately
+      markMessagesAsRead(selectedChatKey, messageIds);
+
+      // Update database
       try {
         const { error } = await supabase
           .from("messages")
@@ -84,7 +88,7 @@ const Chats = () => {
     };
 
     markAsRead();
-  }, [selectedChatKey, selectedChat]);
+  }, [selectedChatKey, selectedChat, markMessagesAsRead]);
 
   // Get account status
   const getAccountStatus = (accountId: string) => {

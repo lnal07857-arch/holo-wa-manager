@@ -62,6 +62,22 @@ export const useMessages = () => {
     return optimisticMessage.id;
   };
 
+  // Function to mark messages as read
+  const markMessagesAsRead = (chatKey: string, messageIds: string[]) => {
+    setChatGroups((prev) => prev.map(group => {
+      if (`${group.contact_phone}_${group.account_id}` === chatKey) {
+        return {
+          ...group,
+          unread_count: 0,
+          messages: group.messages.map(msg => 
+            messageIds.includes(msg.id) ? { ...msg, is_read: true } : msg
+          )
+        };
+      }
+      return group;
+    }));
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -153,5 +169,5 @@ export const useMessages = () => {
     };
   }, [user]);
 
-  return { messages, chatGroups, loading, addOptimisticMessage };
+  return { messages, chatGroups, loading, addOptimisticMessage, markMessagesAsRead };
 };
