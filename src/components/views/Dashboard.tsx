@@ -54,7 +54,7 @@ const Dashboard = () => {
             </p>
           ) : (
             <div className="space-y-4">
-              {accounts.slice(0, 3).map((account) => (
+              {accounts.map((account) => (
                 <div
                   key={account.id}
                   className="flex items-center justify-between p-4 rounded-lg border bg-card hover:shadow-md transition-all"
