@@ -82,17 +82,24 @@ const Accounts = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[WhatsApp Init Error]', error);
+        throw new Error(error.message || 'Edge Function Fehler');
+      }
 
-      console.log('[WhatsApp Init]', data);
+      if (data?.error) {
+        console.error('[WhatsApp Init Error from Railway]', data.error);
+        throw new Error(data.error);
+      }
+
+      console.log('[WhatsApp Init Success]', data);
       
       // QR-Code wird über Realtime-Updates in die Datenbank geschrieben
-      // Wir hören auf Änderungen am Account
-      toast.success('WhatsApp wird initialisiert...');
+      toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');
     } catch (error: any) {
       console.error('[WhatsApp Init Error]', error);
       toast.error(error.message || 'Fehler bei der Initialisierung');
-    } finally {
+      setInitializingAccount(null);
       setLoadingQR(false);
     }
   };

@@ -32,6 +32,9 @@ serve(async (req) => {
           throw new Error('No authorization header');
         }
 
+        console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
+        console.log(`[Initialize] AccountId: ${accountId}`);
+
         // WhatsApp Client initialisieren
         const response = await fetch(`${BASE_URL}/api/initialize`, {
           method: 'POST',
@@ -44,12 +47,16 @@ serve(async (req) => {
           }),
         });
 
+        console.log(`[Initialize] Railway response status: ${response.status}`);
+
         if (!response.ok) {
           const error = await response.text();
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Initialize] Railway error: ${error}`);
+          throw new Error(`Railway server error (${response.status}): ${error}`);
         }
 
         const data = await response.json();
+        console.log(`[Initialize] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
