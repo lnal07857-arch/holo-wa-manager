@@ -149,6 +149,30 @@ export type Database = {
         }
         Relationships: []
       }
+      follow_up_disabled_contacts: {
+        Row: {
+          contact_phone: string
+          created_at: string
+          disabled_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          contact_phone: string
+          created_at?: string
+          disabled_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          contact_phone?: string
+          created_at?: string
+          disabled_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_templates: {
         Row: {
           category: string

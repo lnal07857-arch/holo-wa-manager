@@ -7,9 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Clock } from "lucide-react";
+import { Loader2, Send, Clock, BanIcon, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 
 interface NonResponder {
   contactPhone: string;
@@ -31,10 +41,37 @@ export const FollowUp = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [disabledContacts, setDisabledContacts] = useState<Set<string>>(new Set());
+  const [contactToDisable, setContactToDisable] = useState<string | null>(null);
 
   useEffect(() => {
-    analyzeNonResponders();
-  }, [messages, daysThreshold]);
+    loadDisabledContacts();
+  }, []);
+
+  useEffect(() => {
+    if (disabledContacts.size > 0) {
+      analyzeNonResponders();
+    }
+  }, [messages, daysThreshold, disabledContacts]);
+
+  const loadDisabledContacts = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("follow_up_disabled_contacts")
+        .select("contact_phone")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      setDisabledContacts(new Set(data.map(d => d.contact_phone)));
+      analyzeNonResponders();
+    } catch (error) {
+      console.error("Error loading disabled contacts:", error);
+    }
+  };
 
   const analyzeNonResponders = () => {
     setIsAnalyzing(true);
@@ -80,14 +117,15 @@ export const FollowUp = () => {
       }
     });
 
-    // Filter non-responders
+    // Filter non-responders (exclude disabled contacts)
     const nonRespondersArray: NonResponder[] = [];
     contactLastActivity.forEach((activity, key) => {
       const [accountId, contactPhone] = key.split('-');
       
       if (
         activity.lastOutgoing >= cutoffTime &&
-        !activity.hasResponse
+        !activity.hasResponse &&
+        !disabledContacts.has(contactPhone)
       ) {
         const daysSince = Math.floor((Date.now() - activity.lastOutgoing) / (24 * 60 * 60 * 1000));
         nonRespondersArray.push({
@@ -139,6 +177,52 @@ export const FollowUp = () => {
 
   const deselectAllAccounts = () => {
     setSelectedAccounts([]);
+  };
+
+  const disableContact = async (contactPhone: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("follow_up_disabled_contacts")
+        .insert({
+          user_id: user.id,
+          contact_phone: contactPhone,
+        });
+
+      if (error) throw error;
+
+      setDisabledContacts(new Set([...disabledContacts, contactPhone]));
+      toast.success("Kontakt für Follow-up deaktiviert");
+      setContactToDisable(null);
+    } catch (error) {
+      console.error("Error disabling contact:", error);
+      toast.error("Fehler beim Deaktivieren des Kontakts");
+    }
+  };
+
+  const enableContact = async (contactPhone: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("follow_up_disabled_contacts")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("contact_phone", contactPhone);
+
+      if (error) throw error;
+
+      const newDisabled = new Set(disabledContacts);
+      newDisabled.delete(contactPhone);
+      setDisabledContacts(newDisabled);
+      toast.success("Kontakt für Follow-up aktiviert");
+    } catch (error) {
+      console.error("Error enabling contact:", error);
+      toast.error("Fehler beim Aktivieren des Kontakts");
+    }
   };
 
   const sendFollowUpMessages = async () => {
@@ -352,12 +436,12 @@ export const FollowUp = () => {
                   key={contact.contactPhone}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1">
                     <Checkbox
                       checked={selectedContacts.has(contact.contactPhone)}
                       onCheckedChange={() => toggleContact(contact.contactPhone)}
                     />
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">
                         {contact.contactName || contact.contactPhone}
                       </div>
@@ -366,9 +450,19 @@ export const FollowUp = () => {
                       </div>
                     </div>
                   </div>
-                  <Badge variant="secondary">
-                    {contact.daysSinceLastSent} {contact.daysSinceLastSent === 1 ? 'Tag' : 'Tage'}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {contact.daysSinceLastSent} {contact.daysSinceLastSent === 1 ? 'Tag' : 'Tage'}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setContactToDisable(contact.contactPhone)}
+                      title="Für Follow-up deaktivieren"
+                    >
+                      <BanIcon className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -395,6 +489,54 @@ export const FollowUp = () => {
           )}
         </Button>
       </div>
+
+      {disabledContacts.size > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Deaktivierte Kontakte</CardTitle>
+            <CardDescription>
+              {disabledContacts.size} Kontakte werden nicht für Follow-up vorgeschlagen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {Array.from(disabledContacts).map((phone) => (
+                <div
+                  key={phone}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div className="text-sm font-medium">{phone}</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => enableContact(phone)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Aktivieren
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={contactToDisable !== null} onOpenChange={() => setContactToDisable(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kontakt für Follow-up deaktivieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Dieser Kontakt wird nicht mehr in der Follow-up Liste angezeigt. Sie können ihn später wieder aktivieren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => contactToDisable && disableContact(contactToDisable)}>
+              Deaktivieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
