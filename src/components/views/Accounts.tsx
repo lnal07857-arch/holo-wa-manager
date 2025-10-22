@@ -1,18 +1,20 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2 } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useGlobalProfile } from "@/hooks/useGlobalProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const Accounts = () => {
   const { accounts, isLoading, createAccount, deleteAccount } = useWhatsAppAccounts();
+  const { settings: globalSettings } = useGlobalProfile();
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -67,6 +69,35 @@ const Accounts = () => {
       toast.error(error.message || 'Fehler beim Erstellen der Demo-Daten');
     } finally {
       setCreatingDemo(false);
+    }
+  };
+
+  const applyGlobalSettings = async (accountId: string) => {
+    if (!globalSettings) {
+      toast.error('Keine globalen Einstellungen gefunden');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+        body: {
+          action: 'updateProfile',
+          accountId: accountId,
+          profileData: {
+            name: globalSettings.global_profile_name,
+            status: globalSettings.global_profile_info,
+            profilePicture: globalSettings.global_profile_image,
+          }
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Globale Einstellungen erfolgreich übernommen');
+    } catch (error: any) {
+      console.error('[Apply Global Settings Error]', error);
+      toast.error(error.message || 'Fehler beim Übernehmen der Einstellungen');
     }
   };
 
@@ -375,8 +406,15 @@ const Accounts = () => {
                   >
                     {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Details
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1 gap-1"
+                    onClick={() => applyGlobalSettings(account.id)}
+                    disabled={account.status !== "connected"}
+                  >
+                    <Settings className="w-3 h-3" />
+                    Einstellungen
                   </Button>
                   <Button
                     variant="outline"
