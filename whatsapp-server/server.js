@@ -433,7 +433,58 @@ async function resetAccountStatuses() {
   }
 }
 
+// Check all client statuses periodically
+async function checkClientStatuses() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return;
+  }
+
+  console.log(`Checking status of ${clients.size} active clients...`);
+  
+  for (const [accountId, client] of clients.entries()) {
+    try {
+      const state = await client.getState();
+      console.log(`Account ${accountId}: ${state}`);
+      
+      // If client is not connected, update database and remove from map
+      if (state !== 'CONNECTED') {
+        console.log(`Account ${accountId} is disconnected, updating database...`);
+        
+        await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          },
+          body: JSON.stringify({
+            status: 'disconnected',
+            qr_code: null,
+            updated_at: new Date().toISOString()
+          })
+        });
+        
+        clients.delete(accountId);
+        messageQueues.delete(accountId);
+        console.log(`Removed disconnected client ${accountId}`);
+      }
+    } catch (error) {
+      console.error(`Error checking status for ${accountId}:`, error);
+      // If there's an error getting state, assume disconnected
+      clients.delete(accountId);
+      messageQueues.delete(accountId);
+    }
+  }
+}
+
 app.listen(PORT, async () => {
   console.log(`WhatsApp server running on port ${PORT}`);
   await resetAccountStatuses();
+  
+  // Check client statuses every 2 minutes
+  setInterval(checkClientStatuses, 2 * 60 * 1000);
+  console.log('Status check scheduled every 2 minutes');
 });
