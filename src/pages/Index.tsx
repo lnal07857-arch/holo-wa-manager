@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
 import Dashboard from "@/components/views/Dashboard";
@@ -9,6 +9,7 @@ import BulkSender from "@/components/views/BulkSender";
 import { FollowUp } from "@/components/views/FollowUp";
 import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
+import { useMessages } from "@/hooks/useMessages";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import bgImage from "@/assets/whatsapp-business-bg.png";
@@ -20,6 +21,12 @@ const Index = () => {
     signOut
   } = useAuth();
   const navigate = useNavigate();
+  const { chatGroups } = useMessages();
+  
+  // Calculate total unread count
+  const totalUnreadCount = useMemo(() => {
+    return chatGroups.reduce((sum, chat) => sum + chat.unread_count, 0);
+  }, [chatGroups]);
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
@@ -54,7 +61,7 @@ const Index = () => {
     }
   };
   return <div className="flex h-screen bg-background">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <Sidebar activeView={activeView} onViewChange={setActiveView} unreadCount={totalUnreadCount} />
       <main className="flex-1 overflow-y-auto">
         <div className="border-b p-4 flex justify-between items-center">
           <div>
