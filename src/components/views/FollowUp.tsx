@@ -49,9 +49,7 @@ export const FollowUp = () => {
   }, []);
 
   useEffect(() => {
-    if (disabledContacts.size > 0) {
-      analyzeNonResponders();
-    }
+    analyzeNonResponders();
   }, [messages, daysThreshold, disabledContacts]);
 
   const loadDisabledContacts = async () => {
@@ -67,7 +65,6 @@ export const FollowUp = () => {
       if (error) throw error;
 
       setDisabledContacts(new Set(data.map(d => d.contact_phone)));
-      analyzeNonResponders();
     } catch (error) {
       console.error("Error loading disabled contacts:", error);
     }
@@ -163,22 +160,6 @@ export const FollowUp = () => {
     setSelectedContacts(new Set());
   };
 
-  const toggleAccount = (accountId: string) => {
-    setSelectedAccounts(prev => 
-      prev.includes(accountId) 
-        ? prev.filter(id => id !== accountId)
-        : [...prev, accountId]
-    );
-  };
-
-  const selectAllAccounts = () => {
-    setSelectedAccounts(connectedAccounts.map(acc => acc.id));
-  };
-
-  const deselectAllAccounts = () => {
-    setSelectedAccounts([]);
-  };
-
   const disableContact = async (contactPhone: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -196,6 +177,11 @@ export const FollowUp = () => {
       setDisabledContacts(new Set([...disabledContacts, contactPhone]));
       toast.success("Kontakt für Follow-up deaktiviert");
       setContactToDisable(null);
+      
+      // Remove from selected if present
+      const newSelected = new Set(selectedContacts);
+      newSelected.delete(contactPhone);
+      setSelectedContacts(newSelected);
     } catch (error) {
       console.error("Error disabling contact:", error);
       toast.error("Fehler beim Deaktivieren des Kontakts");
@@ -223,6 +209,22 @@ export const FollowUp = () => {
       console.error("Error enabling contact:", error);
       toast.error("Fehler beim Aktivieren des Kontakts");
     }
+  };
+
+  const toggleAccount = (accountId: string) => {
+    setSelectedAccounts(prev => 
+      prev.includes(accountId) 
+        ? prev.filter(id => id !== accountId)
+        : [...prev, accountId]
+    );
+  };
+
+  const selectAllAccounts = () => {
+    setSelectedAccounts(connectedAccounts.map(acc => acc.id));
+  };
+
+  const deselectAllAccounts = () => {
+    setSelectedAccounts([]);
   };
 
   const sendFollowUpMessages = async () => {
