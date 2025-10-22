@@ -248,6 +248,53 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       console.error('Error updating status:', error);
     }
 
+    // Apply global profile settings
+    try {
+      console.log('Fetching global profile settings...');
+      const { data: accountData } = await supa
+        .from('whatsapp_accounts')
+        .select('user_id')
+        .eq('id', accountId)
+        .single();
+      
+      if (accountData && accountData.user_id) {
+        const { data: profileData } = await supa
+          .from('profiles')
+          .select('global_profile_name, global_profile_description, global_profile_image')
+          .eq('id', accountData.user_id)
+          .single();
+        
+        if (profileData) {
+          console.log('Applying profile settings:', profileData);
+          
+          // Set profile status/description if available
+          if (profileData.global_profile_description) {
+            try {
+              await client.setStatus(profileData.global_profile_description);
+              console.log('Profile description set successfully');
+            } catch (err) {
+              console.error('Error setting profile description:', err);
+            }
+          }
+          
+          // Set profile picture if available
+          if (profileData.global_profile_image && profileData.global_profile_image.startsWith('http')) {
+            try {
+              const imageResponse = await fetch(profileData.global_profile_image);
+              const imageBuffer = await imageResponse.buffer();
+              const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+              await client.setProfilePicture(base64Image);
+              console.log('Profile picture set successfully');
+            } catch (err) {
+              console.error('Error setting profile picture:', err);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error applying global profile settings:', error);
+    }
+
     // Sync messages from last 72 hours
     console.log('Starting message sync for last 72 hours...');
     try {
