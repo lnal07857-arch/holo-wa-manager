@@ -24,6 +24,7 @@ const Chats = () => {
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(true);
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | "favorites">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedMessageKeys, setExpandedMessageKeys] = useState<Set<string>>(new Set());
   const [favoriteChatKeys, setFavoriteChatKeys] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("favoriteChatKeys");
@@ -220,17 +221,33 @@ const Chats = () => {
     }
   };
 
-  // Filter chats based on selected filter
+  // Filter chats based on selected filter and search query
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
+    
+    // Apply filter tabs
+    let matchesFilter = true;
     switch (chatFilter) {
       case "unread":
-        return chat.unread_count > 0;
+        matchesFilter = chat.unread_count > 0;
+        break;
       case "favorites":
-        return favoriteChatKeys.has(chatKey);
-      default:
-        return true;
+        matchesFilter = favoriteChatKeys.has(chatKey);
+        break;
     }
+    
+    if (!matchesFilter) return false;
+    
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesName = chat.contact_name.toLowerCase().includes(query);
+      const matchesPhone = chat.contact_phone.includes(query);
+      const matchesLastMessage = chat.last_message.toLowerCase().includes(query);
+      return matchesName || matchesPhone || matchesLastMessage;
+    }
+    
+    return true;
   });
 
   const formatTime = (dateString: string) => {
@@ -343,7 +360,12 @@ const Chats = () => {
                   )}
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Chats durchsuchen..." className="pl-9" />
+                    <Input 
+                      placeholder="Chats durchsuchen..." 
+                      className="pl-9"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                   </div>
                 </div>
                 
