@@ -17,6 +17,7 @@ const Settings = () => {
   const [profileImage, setProfileImage] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [category, setCategory] = useState("");
+  const [info, setInfo] = useState("");
   const [description, setDescription] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
@@ -28,6 +29,7 @@ const Settings = () => {
       setProfileImage(settings.global_profile_image || defaultProfileImage);
       setCoverImage(settings.global_profile_cover_image || defaultCoverImage);
       setCategory(settings.global_profile_category || "Arbeitsvermittlung");
+      setInfo(settings.global_profile_info || "");
       setDescription(settings.global_profile_description || "");
       setWebsite(settings.global_profile_website || "");
       setAddress(settings.global_profile_address || "");
@@ -42,6 +44,7 @@ const Settings = () => {
       global_profile_image: profileImage,
       global_profile_cover_image: coverImage,
       global_profile_category: category,
+      global_profile_info: info,
       global_profile_description: description,
       global_profile_website: website,
       global_profile_address: address,
@@ -173,16 +176,30 @@ const Settings = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Info / Beschreibung</Label>
+              <Label htmlFor="info">Info (WhatsApp Status)</Label>
+              <Textarea
+                id="info"
+                value={info}
+                onChange={(e) => setInfo(e.target.value)}
+                placeholder="z.B. wir finden den passenden Job für Dich"
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Status-Text, der in WhatsApp als "Info" angezeigt wird
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Beschreibung (Business-Profil)</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Kurze Beschreibung des Unternehmens"
+                placeholder="Ausführliche Beschreibung für das Business-Profil"
                 className="min-h-[100px]"
               />
               <p className="text-xs text-muted-foreground">
-                Beschreibung für das WhatsApp Business-Profil
+                Beschreibung für das WhatsApp Business-Profil (separat vom Status)
               </p>
             </div>
 

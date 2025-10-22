@@ -271,7 +271,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       
       const { data: profileData, error: profileError } = await supa
         .from('profiles')
-        .select('global_profile_name, global_profile_description, global_profile_image')
+        .select('global_profile_name, global_profile_info, global_profile_description, global_profile_image')
         .eq('id', accountData.user_id)
         .maybeSingle();
       
@@ -287,21 +287,29 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       
       console.log('[Profile Sync] Profile data:', {
         name: profileData.global_profile_name || 'none',
+        info: profileData.global_profile_info || 'none',
         description: profileData.global_profile_description || 'none',
         image: profileData.global_profile_image || 'none'
       });
       
-      // Set profile status/description if available
-      if (profileData.global_profile_description) {
+      // Set profile status/info if available
+      if (profileData.global_profile_info) {
         try {
-          console.log('[Profile Sync] Setting status to:', profileData.global_profile_description);
-          await client.setStatus(profileData.global_profile_description);
-          console.log('[Profile Sync] ✓ Status set successfully');
+          console.log('[Profile Sync] Setting status (Info) to:', profileData.global_profile_info);
+          await client.setStatus(profileData.global_profile_info);
+          console.log('[Profile Sync] ✓ Status (Info) set successfully');
         } catch (err) {
           console.error('[Profile Sync] ✗ Error setting status:', err.message || err);
         }
       } else {
-        console.log('[Profile Sync] No description to set');
+        console.log('[Profile Sync] No info to set');
+      }
+      
+      // Note: Business description cannot be set via whatsapp-web.js
+      // It requires WhatsApp Business API
+      if (profileData.global_profile_description) {
+        console.log('[Profile Sync] ⚠ Business description found but cannot be set via whatsapp-web.js');
+        console.log('[Profile Sync] Tip: Use WhatsApp Business API for full business profile control');
       }
       
       // Set profile picture if available (only for HTTP URLs)

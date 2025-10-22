@@ -267,6 +267,7 @@ export type Database = {
           global_profile_description: string | null
           global_profile_email: string | null
           global_profile_image: string | null
+          global_profile_info: string | null
           global_profile_name: string | null
           global_profile_website: string | null
           id: string
@@ -282,6 +283,7 @@ export type Database = {
           global_profile_description?: string | null
           global_profile_email?: string | null
           global_profile_image?: string | null
+          global_profile_info?: string | null
           global_profile_name?: string | null
           global_profile_website?: string | null
           id: string
@@ -297,6 +299,7 @@ export type Database = {
           global_profile_description?: string | null
           global_profile_email?: string | null
           global_profile_image?: string | null
+          global_profile_info?: string | null
           global_profile_name?: string | null
           global_profile_website?: string | null
           id?: string
