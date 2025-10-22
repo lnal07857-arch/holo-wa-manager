@@ -9,7 +9,7 @@ import BulkSender from "@/components/views/BulkSender";
 import { FollowUp } from "@/components/views/FollowUp";
 import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
-import { useMessages } from "@/hooks/useMessages";
+import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import bgImage from "@/assets/whatsapp-business-bg.png";
@@ -21,7 +21,7 @@ const Index = () => {
     signOut
   } = useAuth();
   const navigate = useNavigate();
-  const { chatGroups } = useMessages();
+  const { chatGroups } = useMessagesContext();
   
   // Calculate total unread count
   const totalUnreadCount = useMemo(() => {

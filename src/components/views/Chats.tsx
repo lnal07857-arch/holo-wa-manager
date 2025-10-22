@@ -6,7 +6,7 @@ import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star,
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
-import { useMessages } from "@/hooks/useMessages";
+import { useMessagesContext } from "@/contexts/MessagesContext";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,7 +33,7 @@ const Chats = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
-  const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessages();
+  const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessagesContext();
   const { accounts } = useWhatsAppAccounts();
 
   // Filter templates for chats only
