@@ -21,7 +21,7 @@ const Settings = () => {
 
   useEffect(() => {
     if (settings) {
-      setProfileName(settings.global_profile_name || "");
+      setProfileName(settings.global_profile_name || "smilework");
       setProfileEmail(settings.global_profile_email || "");
       setProfileImage(settings.global_profile_image || defaultProfileImage);
       setCoverImage(settings.global_profile_cover_image || defaultCoverImage);
@@ -72,12 +72,12 @@ const Settings = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="profileName">Profil-Name</Label>
+              <Label htmlFor="profileName">Unternehmens Name</Label>
               <Input
                 id="profileName"
                 value={profileName}
                 onChange={(e) => setProfileName(e.target.value)}
-                placeholder="z.B. Max Mustermann"
+                placeholder="z.B. smilework"
               />
               <p className="text-xs text-muted-foreground">
                 Dieser Name wird als Anzeigename für alle WhatsApp-Accounts verwendet
