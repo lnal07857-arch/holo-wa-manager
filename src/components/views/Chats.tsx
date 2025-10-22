@@ -388,13 +388,17 @@ const Chats = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <p className="font-semibold truncate">{chat.contact_name}</p>
-                              <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
+                                {chat.unread_count > 0 && (
+                                  <Badge className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                                    {chat.unread_count}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center justify-between">
                               <p className="text-sm text-muted-foreground truncate">{chat.last_message}</p>
-                              {chat.unread_count > 0 && (
-                                <Badge className="ml-2 rounded-full">{chat.unread_count}</Badge>
-                              )}
                             </div>
                             <Badge variant="secondary" className="mt-1 text-xs">
                               {chat.account_name}
