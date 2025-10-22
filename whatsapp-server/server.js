@@ -89,14 +89,17 @@ async function syncRecentMessages(client, accountId, supa) {
 
         for (const msg of recentMessages) {
           try {
+            // Determine correct peer and direction (same logic as message event)
+            const peerJid = msg.fromMe ? msg.to : msg.from;
+            const direction = msg.fromMe ? 'outgoing' : 'incoming';
+            
+            // Clean phone number
+            const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
+            const messageTime = new Date(msg.timestamp * 1000).toISOString();
+            
             // Get contact info
             const contact = await msg.getContact();
             const contactName = contact.pushname || contact.name || null;
-            const phoneNumber = msg.from.replace('@c.us', '');
-            const messageTime = new Date(msg.timestamp * 1000).toISOString();
-            
-            // Determine direction
-            const direction = msg.fromMe ? 'outgoing' : 'incoming';
 
             // Check if message already exists (to avoid duplicates)
             const { data: existing } = await supa
