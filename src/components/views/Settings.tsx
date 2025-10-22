@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useGlobalProfile } from "@/hooks/useGlobalProfile";
-import { Save, Image as ImageIcon } from "lucide-react";
+import { Save, Image as ImageIcon, Upload, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import defaultProfileImage from "@/assets/default-profile.png";
 import defaultCoverImage from "@/assets/default-cover-image.png";
 
@@ -21,6 +23,42 @@ const Settings = () => {
   const [description, setDescription] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
+  const [uploadingProfile, setUploadingProfile] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  const handleImageUpload = async (file: File, type: 'profile' | 'cover') => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const bucket = type === 'profile' ? 'profile-images' : 'cover-images';
+
+      if (type === 'profile') setUploadingProfile(true);
+      else setUploadingCover(true);
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(fileName);
+
+      if (type === 'profile') setProfileImage(publicUrl);
+      else setCoverImage(publicUrl);
+
+      toast.success(`${type === 'profile' ? 'Profilbild' : 'Titelbild'} hochgeladen`);
+    } catch (error: any) {
+      toast.error(`Fehler beim Hochladen: ${error.message}`);
+    } finally {
+      if (type === 'profile') setUploadingProfile(false);
+      else setUploadingCover(false);
+    }
+  };
 
   useEffect(() => {
     if (settings) {
@@ -108,17 +146,51 @@ const Settings = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="profileImage">Profilbild-URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="profileImage"
-                  value={profileImage}
-                  onChange={(e) => setProfileImage(e.target.value)}
-                  placeholder="https://example.com/profilbild.jpg"
-                  className="flex-1"
-                />
+              <Label htmlFor="profileImage">Profilbild</Label>
+              <div className="flex gap-2 items-start">
+                <div className="flex-1 space-y-2">
+                  <Input
+                    id="profileImage"
+                    value={profileImage}
+                    onChange={(e) => setProfileImage(e.target.value)}
+                    placeholder="https://example.com/profilbild.jpg oder hochladen"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingProfile}
+                      onClick={() => document.getElementById('profile-upload')?.click()}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingProfile ? "Lädt..." : "Hochladen"}
+                    </Button>
+                    {profileImage && !profileImage.startsWith('/src/') && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setProfileImage("")}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Entfernen
+                      </Button>
+                    )}
+                  </div>
+                  <input
+                    id="profile-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file, 'profile');
+                    }}
+                  />
+                </div>
                 {profileImage && (
-                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-border flex-shrink-0">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-border flex-shrink-0">
                     <img
                       src={profileImage}
                       alt="Vorschau"
@@ -131,18 +203,51 @@ const Settings = () => {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                URL zu einem Profilbild, das für alle Accounts verwendet werden soll
+                Bild hochladen oder URL eingeben - wird auf alle WhatsApp-Accounts angewendet
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="coverImage">Titelbild-URL</Label>
-              <div className="flex flex-col gap-2">
+              <Label htmlFor="coverImage">Titelbild</Label>
+              <div className="space-y-2">
                 <Input
                   id="coverImage"
                   value={coverImage}
                   onChange={(e) => setCoverImage(e.target.value)}
-                  placeholder="https://example.com/titelbild.jpg"
+                  placeholder="https://example.com/titelbild.jpg oder hochladen"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingCover}
+                    onClick={() => document.getElementById('cover-upload')?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {uploadingCover ? "Lädt..." : "Hochladen"}
+                  </Button>
+                  {coverImage && !coverImage.startsWith('/src/') && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCoverImage("")}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Entfernen
+                    </Button>
+                  )}
+                </div>
+                <input
+                  id="cover-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file, 'cover');
+                  }}
                 />
                 {coverImage && (
                   <div className="w-full h-32 rounded-lg overflow-hidden border-2 border-border">
@@ -158,7 +263,7 @@ const Settings = () => {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                URL zu einem Titelbild, das für alle WhatsApp Business-Profile verwendet werden soll
+                Bild hochladen oder URL eingeben - wird auf alle WhatsApp Business-Profile angewendet
               </p>
             </div>
 
