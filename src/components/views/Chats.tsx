@@ -221,6 +221,9 @@ const Chats = () => {
     }
   };
 
+  // Calculate unread counts for badges
+  const unreadChatsCount = chatGroups.filter(chat => chat.unread_count > 0).length;
+
   // Filter chats based on selected filter and search query
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
@@ -372,8 +375,26 @@ const Chats = () => {
                 {/* Filter Tabs */}
                 <Tabs value={chatFilter} onValueChange={(v) => setChatFilter(v as any)} className="w-full">
                   <TabsList className="grid w-full grid-cols-3 h-9">
-                    <TabsTrigger value="all" className="text-xs">Alle</TabsTrigger>
-                    <TabsTrigger value="unread" className="text-xs">Ungelesen</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs">
+                      <span className="flex items-center gap-1.5">
+                        Alle
+                        {unreadChatsCount > 0 && (
+                          <Badge className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
+                            {unreadChatsCount}
+                          </Badge>
+                        )}
+                      </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="unread" className="text-xs">
+                      <span className="flex items-center gap-1.5">
+                        Ungelesen
+                        {unreadChatsCount > 0 && (
+                          <Badge className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
+                            {unreadChatsCount}
+                          </Badge>
+                        )}
+                      </span>
+                    </TabsTrigger>
                     <TabsTrigger value="favorites" className="text-xs">Favoriten</TabsTrigger>
                   </TabsList>
                 </Tabs>
