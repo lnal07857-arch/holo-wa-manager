@@ -23,9 +23,9 @@ const Index = () => {
   const navigate = useNavigate();
   const { chatGroups } = useMessagesContext();
   
-  // Calculate total unread count
+  // Calculate total unread chat count (not message count)
   const totalUnreadCount = useMemo(() => {
-    return chatGroups.reduce((sum, chat) => sum + chat.unread_count, 0);
+    return chatGroups.filter(chat => chat.unread_count > 0).length;
   }, [chatGroups]);
   useEffect(() => {
     if (!loading && !user) {
