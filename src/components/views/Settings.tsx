@@ -16,6 +16,7 @@ const Settings = () => {
   const [profileEmail, setProfileEmail] = useState("");
   const [profileImage, setProfileImage] = useState("");
   const [coverImage, setCoverImage] = useState("");
+  const [category, setCategory] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
 
@@ -25,6 +26,7 @@ const Settings = () => {
       setProfileEmail(settings.global_profile_email || "");
       setProfileImage(settings.global_profile_image || defaultProfileImage);
       setCoverImage(settings.global_profile_cover_image || defaultCoverImage);
+      setCategory(settings.global_profile_category || "Arbeitsvermittlung");
       setWebsite(settings.global_profile_website || "");
       setAddress(settings.global_profile_address || "");
     }
@@ -37,6 +39,7 @@ const Settings = () => {
       global_profile_email: profileEmail,
       global_profile_image: profileImage,
       global_profile_cover_image: coverImage,
+      global_profile_category: category,
       global_profile_website: website,
       global_profile_address: address,
     });
@@ -150,6 +153,19 @@ const Settings = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 URL zu einem Titelbild, das für alle WhatsApp Business-Profile verwendet werden soll
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Kategorie</Label>
+              <Input
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="z.B. Arbeitsvermittlung"
+              />
+              <p className="text-xs text-muted-foreground">
+                Geschäftskategorie für das WhatsApp Business-Profil
               </p>
             </div>
 
