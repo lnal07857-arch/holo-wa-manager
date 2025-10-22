@@ -8,12 +8,14 @@ import { useGlobalProfile } from "@/hooks/useGlobalProfile";
 import { Save, Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import defaultProfileImage from "@/assets/default-profile.png";
+import defaultCoverImage from "@/assets/default-cover-image.png";
 
 const Settings = () => {
   const { settings, isLoading, updateSettings } = useGlobalProfile();
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profileImage, setProfileImage] = useState("");
+  const [coverImage, setCoverImage] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
 
@@ -22,6 +24,7 @@ const Settings = () => {
       setProfileName(settings.global_profile_name || "");
       setProfileEmail(settings.global_profile_email || "");
       setProfileImage(settings.global_profile_image || defaultProfileImage);
+      setCoverImage(settings.global_profile_cover_image || defaultCoverImage);
       setWebsite(settings.global_profile_website || "");
       setAddress(settings.global_profile_address || "");
     }
@@ -33,6 +36,7 @@ const Settings = () => {
       global_profile_name: profileName,
       global_profile_email: profileEmail,
       global_profile_image: profileImage,
+      global_profile_cover_image: coverImage,
       global_profile_website: website,
       global_profile_address: address,
     });
@@ -119,6 +123,33 @@ const Settings = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 URL zu einem Profilbild, das für alle Accounts verwendet werden soll
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="coverImage">Titelbild-URL</Label>
+              <div className="flex flex-col gap-2">
+                <Input
+                  id="coverImage"
+                  value={coverImage}
+                  onChange={(e) => setCoverImage(e.target.value)}
+                  placeholder="https://example.com/titelbild.jpg"
+                />
+                {coverImage && (
+                  <div className="w-full h-32 rounded-lg overflow-hidden border-2 border-border">
+                    <img
+                      src={coverImage}
+                      alt="Titelbild Vorschau"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = "";
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                URL zu einem Titelbild, das für alle WhatsApp Business-Profile verwendet werden soll
               </p>
             </div>
 
