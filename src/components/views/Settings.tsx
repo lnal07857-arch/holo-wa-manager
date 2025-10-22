@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useGlobalProfile } from "@/hooks/useGlobalProfile";
 import { Save, Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import defaultProfileImage from "@/assets/default-profile.png";
 
 const Settings = () => {
   const { settings, isLoading, updateSettings } = useGlobalProfile();
@@ -20,7 +21,7 @@ const Settings = () => {
     if (settings) {
       setProfileName(settings.global_profile_name || "");
       setProfileEmail(settings.global_profile_email || "");
-      setProfileImage(settings.global_profile_image || "");
+      setProfileImage(settings.global_profile_image || defaultProfileImage);
       setWebsite(settings.global_profile_website || "");
       setAddress(settings.global_profile_address || "");
     }
