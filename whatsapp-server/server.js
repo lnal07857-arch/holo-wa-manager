@@ -247,7 +247,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   });
 
   // Message event - handle new messages (incoming and outgoing from device)
-  client.on('message', async (msg) => {
+  client.on('message_create', async (msg) => {
     try {
       // Determine correct peer JID and direction
       const peerJid = msg.fromMe ? msg.to : msg.from;
@@ -261,7 +261,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         ? new Date(msg.timestamp * 1000).toISOString()
         : new Date().toISOString();
 
-      console.log('Message event:', {
+      console.log('Message created:', {
         fromMe: msg.fromMe,
         peerJid,
         phoneNumber,
@@ -273,6 +273,22 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       // Get contact info
       const contact = await msg.getContact();
       const contactName = contact.pushname || contact.name || null;
+
+      // Check if message already exists to avoid duplicates
+      const { data: existing } = await supa
+        .from('messages')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_phone', phoneNumber)
+        .eq('message_text', msg.body)
+        .eq('sent_at', sentAt)
+        .eq('direction', direction)
+        .maybeSingle();
+
+      if (existing) {
+        console.log('Message already exists, skipping');
+        return;
+      }
 
       // Save message to database
       const { error } = await supa
@@ -288,12 +304,12 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         });
 
       if (error) {
-        console.error('Error saving message (message event):', error);
+        console.error('Error saving message:', error);
       } else {
-        console.log('Message saved to database (message event)');
+        console.log('Message saved to database');
       }
     } catch (error) {
-      console.error('Error handling message event:', error);
+      console.error('Error handling message_create event:', error);
     }
   });
 
