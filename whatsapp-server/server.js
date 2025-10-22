@@ -397,6 +397,43 @@ app.get('/api/status/:accountId', (req, res) => {
   res.json({ connected: true });
 });
 
-app.listen(PORT, () => {
+// Reset all accounts to disconnected on server start
+async function resetAccountStatuses() {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.log('Skipping account status reset: Supabase credentials not configured');
+      return;
+    }
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?status=eq.connected`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        status: 'disconnected',
+        qr_code: null,
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      console.log('Reset all connected accounts to disconnected status');
+    } else {
+      console.error('Failed to reset account statuses:', response.status);
+    }
+  } catch (error) {
+    console.error('Error resetting account statuses:', error);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`WhatsApp server running on port ${PORT}`);
+  await resetAccountStatuses();
 });
