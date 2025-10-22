@@ -271,10 +271,6 @@ const Accounts = () => {
           <p className="text-muted-foreground">Verwalten Sie Ihre WhatsApp-Konten</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={createDemoData} disabled={creatingDemo || accounts.length > 0}>
-            <Database className="w-4 h-4" />
-            {creatingDemo ? 'Erstelle...' : 'Demo-Daten erstellen'}
-          </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -331,7 +327,7 @@ const Accounts = () => {
                 </Button>
               </div>}
           </DialogContent>
-        </Dialog>
+         </Dialog>
         </div>
       </div>
 
@@ -365,9 +361,6 @@ const Accounts = () => {
                 initializeWhatsApp(account.id);
               }}>
                     {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Details
                   </Button>
                   <Button variant="outline" size="sm" className="text-destructive" onClick={() => deleteAccount.mutate(account.id)}>
                     <Trash2 className="w-4 h-4" />
