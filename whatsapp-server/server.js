@@ -250,49 +250,88 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 
     // Apply global profile settings
     try {
-      console.log('Fetching global profile settings...');
-      const { data: accountData } = await supa
+      console.log('[Profile Sync] Starting profile settings sync...');
+      const { data: accountData, error: accountError } = await supa
         .from('whatsapp_accounts')
         .select('user_id')
         .eq('id', accountId)
-        .single();
+        .maybeSingle();
       
-      if (accountData && accountData.user_id) {
-        const { data: profileData } = await supa
-          .from('profiles')
-          .select('global_profile_name, global_profile_description, global_profile_image')
-          .eq('id', accountData.user_id)
-          .single();
-        
-        if (profileData) {
-          console.log('Applying profile settings:', profileData);
-          
-          // Set profile status/description if available
-          if (profileData.global_profile_description) {
-            try {
-              await client.setStatus(profileData.global_profile_description);
-              console.log('Profile description set successfully');
-            } catch (err) {
-              console.error('Error setting profile description:', err);
-            }
-          }
-          
-          // Set profile picture if available
-          if (profileData.global_profile_image && profileData.global_profile_image.startsWith('http')) {
-            try {
-              const imageResponse = await fetch(profileData.global_profile_image);
-              const imageBuffer = await imageResponse.buffer();
-              const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-              await client.setProfilePicture(base64Image);
-              console.log('Profile picture set successfully');
-            } catch (err) {
-              console.error('Error setting profile picture:', err);
-            }
-          }
-        }
+      if (accountError) {
+        console.error('[Profile Sync] Error fetching account data:', accountError);
+        return;
       }
+      
+      if (!accountData || !accountData.user_id) {
+        console.log('[Profile Sync] No account data found');
+        return;
+      }
+      
+      console.log('[Profile Sync] Found user_id:', accountData.user_id);
+      
+      const { data: profileData, error: profileError } = await supa
+        .from('profiles')
+        .select('global_profile_name, global_profile_description, global_profile_image')
+        .eq('id', accountData.user_id)
+        .maybeSingle();
+      
+      if (profileError) {
+        console.error('[Profile Sync] Error fetching profile data:', profileError);
+        return;
+      }
+      
+      if (!profileData) {
+        console.log('[Profile Sync] No profile data found for user');
+        return;
+      }
+      
+      console.log('[Profile Sync] Profile data:', {
+        name: profileData.global_profile_name || 'none',
+        description: profileData.global_profile_description || 'none',
+        image: profileData.global_profile_image || 'none'
+      });
+      
+      // Set profile status/description if available
+      if (profileData.global_profile_description) {
+        try {
+          console.log('[Profile Sync] Setting status to:', profileData.global_profile_description);
+          await client.setStatus(profileData.global_profile_description);
+          console.log('[Profile Sync] ✓ Status set successfully');
+        } catch (err) {
+          console.error('[Profile Sync] ✗ Error setting status:', err.message || err);
+        }
+      } else {
+        console.log('[Profile Sync] No description to set');
+      }
+      
+      // Set profile picture if available (only for HTTP URLs)
+      if (profileData.global_profile_image) {
+        if (profileData.global_profile_image.startsWith('http')) {
+          try {
+            console.log('[Profile Sync] Downloading image from:', profileData.global_profile_image);
+            const imageResponse = await fetch(profileData.global_profile_image);
+            if (!imageResponse.ok) {
+              throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
+            }
+            const imageBuffer = await imageResponse.buffer();
+            const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+            console.log('[Profile Sync] Setting profile picture...');
+            await client.setProfilePicture(base64Image);
+            console.log('[Profile Sync] ✓ Profile picture set successfully');
+          } catch (err) {
+            console.error('[Profile Sync] ✗ Error setting profile picture:', err.message || err);
+          }
+        } else {
+          console.log('[Profile Sync] ⚠ Skipping profile image - not a public URL:', profileData.global_profile_image);
+          console.log('[Profile Sync] Tip: Upload images to Supabase Storage for automatic syncing');
+        }
+      } else {
+        console.log('[Profile Sync] No profile image to set');
+      }
+      
+      console.log('[Profile Sync] Profile sync completed');
     } catch (error) {
-      console.error('Error applying global profile settings:', error);
+      console.error('[Profile Sync] Unexpected error:', error.message || error);
     }
 
     // Sync messages from last 72 hours
