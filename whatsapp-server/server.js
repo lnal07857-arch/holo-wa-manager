@@ -243,18 +243,34 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
   });
 
-  // Message event - handle incoming messages
+  // Message event - handle new messages (incoming and outgoing from device)
   client.on('message', async (msg) => {
     try {
-      console.log('Incoming message:', msg.from, msg.body);
-      
+      // Determine correct peer JID and direction
+      const peerJid = msg.fromMe ? msg.to : msg.from;
+      const direction = msg.fromMe ? 'outgoing' : 'incoming';
+
+      // Clean phone number (remove @c.us / @g.us)
+      const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
+
+      // Prefer WhatsApp timestamp if available
+      const sentAt = msg.timestamp
+        ? new Date(msg.timestamp * 1000).toISOString()
+        : new Date().toISOString();
+
+      console.log('Message event:', {
+        fromMe: msg.fromMe,
+        peerJid,
+        phoneNumber,
+        direction,
+        sentAt,
+        preview: (msg.body || '').slice(0, 50)
+      });
+
       // Get contact info
       const contact = await msg.getContact();
       const contactName = contact.pushname || contact.name || null;
-      
-      // Clean phone number (remove @c.us)
-      const phoneNumber = msg.from.replace('@c.us', '');
-      
+
       // Save message to database
       const { error } = await supa
         .from('messages')
@@ -263,18 +279,18 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
           contact_phone: phoneNumber,
           contact_name: contactName,
           message_text: msg.body,
-          direction: 'incoming',
-          sent_at: new Date().toISOString(),
-          is_read: false
+          direction,
+          sent_at: sentAt,
+          is_read: msg.fromMe ? true : false
         });
-      
+
       if (error) {
-        console.error('Error saving incoming message:', error);
+        console.error('Error saving message (message event):', error);
       } else {
-        console.log('Incoming message saved to database');
+        console.log('Message saved to database (message event)');
       }
     } catch (error) {
-      console.error('Error handling incoming message:', error);
+      console.error('Error handling message event:', error);
     }
   });
 
