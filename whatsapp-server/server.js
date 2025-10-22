@@ -270,9 +270,22 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         preview: (msg.body || '').slice(0, 50)
       });
 
-      // Get contact info
-      const contact = await msg.getContact();
-      const contactName = contact.pushname || contact.name || null;
+      // Get contact info - for outgoing messages, get the recipient's contact
+      // For incoming messages, get the sender's contact
+      let contactName = null;
+      try {
+        if (msg.fromMe) {
+          // For outgoing messages, get the recipient's contact by their JID
+          const recipientContact = await client.getContactById(peerJid);
+          contactName = recipientContact.pushname || recipientContact.name || null;
+        } else {
+          // For incoming messages, get the sender's contact
+          const contact = await msg.getContact();
+          contactName = contact.pushname || contact.name || null;
+        }
+      } catch (err) {
+        console.error('Error fetching contact name:', err);
+      }
 
       // Check if message already exists to avoid duplicates
       const { data: existing } = await supa
