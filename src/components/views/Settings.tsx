@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,9 @@ const Settings = () => {
   const [description, setDescription] = useState("");
   const [website, setWebsite] = useState("");
   const [address, setAddress] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const coverImageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingProfile, setUploadingProfile] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
 
@@ -73,6 +76,53 @@ const Settings = () => {
       setAddress(settings.global_profile_address || "");
     }
   }, [settings]);
+
+  const uploadImage = async (file: File, bucket: 'profile-images' | 'cover-images') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    setUploading(true);
+    try {
+      const url = await uploadImage(e.target.files[0], 'profile-images');
+      setProfileImage(url);
+      toast.success("Profilbild hochgeladen");
+    } catch (error: any) {
+      toast.error(`Upload fehlgeschlagen: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    setUploading(true);
+    try {
+      const url = await uploadImage(e.target.files[0], 'cover-images');
+      setCoverImage(url);
+      toast.success("Titelbild hochgeladen");
+    } catch (error: any) {
+      toast.error(`Upload fehlgeschlagen: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
