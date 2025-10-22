@@ -179,19 +179,26 @@ const Accounts = () => {
           .eq('id', initializingAccount)
           .single();
         if (!error && data) {
-          if (data.qr_code) setQrCode(data.qr_code);
+          if (data.qr_code) {
+            setQrCode(data.qr_code);
+            setLoadingQR(false);
+          }
           if (data.status === 'connected') {
             toast.success('WhatsApp erfolgreich verbunden!');
             setOpen(false);
             setInitializingAccount(null);
             setQrCode(null);
+            setLoadingQR(false);
           }
         }
       } catch (err) {
         console.error('[QR Polling Error]', err);
       }
-      if (attempts > 60) {
+      if (attempts > 30) {
         clearInterval(interval);
+        toast.error('Timeout: QR-Code konnte nicht geladen werden');
+        setInitializingAccount(null);
+        setLoadingQR(false);
       }
     }, 2000);
 
@@ -267,6 +274,25 @@ const Accounts = () => {
                   )}
                 </Button>
               </form>
+            ) : !qrCode ? (
+              <div className="space-y-4 py-8">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Warte auf QR-Code...</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => {
+                    setQrCode(null);
+                    setInitializingAccount(null);
+                    setLoadingQR(false);
+                    setOpen(false);
+                  }}
+                >
+                  Abbrechen
+                </Button>
+              </div>
             ) : (
               <div className="space-y-4">
                 <Alert>
@@ -295,6 +321,7 @@ const Accounts = () => {
                   onClick={() => {
                     setQrCode(null);
                     setInitializingAccount(null);
+                    setLoadingQR(false);
                     setOpen(false);
                   }}
                 >
