@@ -112,16 +112,35 @@ export const useMessages = () => {
 
         setMessages(typedMessages);
 
+        // Fetch contacts to override display names when available
+        let contactNameMap = new Map<string, string>();
+        try {
+          const { data: contactsData, error: contactsError } = await supabase
+            .from("contacts")
+            .select("phone_number,name");
+          if (contactsError) {
+            console.error("Error fetching contacts for name mapping:", contactsError);
+          } else {
+            contactsData?.forEach((c: any) => {
+              // Basic normalization: strip spaces and leading '+'
+              const normalized = (c.phone_number || "").toString().replace(/\s+/g, "").replace(/^\+/, "");
+              if (normalized) contactNameMap.set(normalized, c.name);
+            });
+          }
+        } catch (e) {
+          console.error("Contacts fetch exception:", e);
+        }
+
         // Group messages by contact_phone + account_id
         const groups: Record<string, ChatGroup> = {};
 
         messagesData?.forEach((msg: any) => {
           const key = `${msg.contact_phone}_${msg.account_id}`;
-          
+          const effectiveName = contactNameMap.get(msg.contact_phone) || msg.contact_name || msg.contact_phone;
           if (!groups[key]) {
             groups[key] = {
               contact_phone: msg.contact_phone,
-              contact_name: msg.contact_name || msg.contact_phone,
+              contact_name: effectiveName,
               account_id: msg.account_id,
               account_name: msg.whatsapp_accounts?.account_name || "Unbekannter Account",
               last_message: msg.message_text,

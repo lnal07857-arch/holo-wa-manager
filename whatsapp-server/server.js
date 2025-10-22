@@ -97,9 +97,20 @@ async function syncRecentMessages(client, accountId, supa) {
             const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
             const messageTime = new Date(msg.timestamp * 1000).toISOString();
             
-            // Get contact info
-            const contact = await msg.getContact();
-            const contactName = contact.pushname || contact.name || null;
+            // Get contact info - ensure correct party for outgoing vs incoming
+            let contactName = null;
+            try {
+              if (msg.fromMe) {
+                const recipientJid = msg.to; // outgoing -> recipient
+                const recipient = await client.getContactById(recipientJid);
+                contactName = recipient.pushname || recipient.name || null;
+              } else {
+                const contact = await msg.getContact(); // incoming -> sender
+                contactName = contact.pushname || contact.name || null;
+              }
+            } catch (e) {
+              console.error('Error fetching contact name during sync:', e);
+            }
 
             // Check if message already exists (to avoid duplicates)
             const { data: existing } = await supa
@@ -110,7 +121,7 @@ async function syncRecentMessages(client, accountId, supa) {
               .eq('message_text', msg.body)
               .eq('sent_at', messageTime)
               .eq('direction', direction)
-              .single();
+              .maybeSingle();
 
             if (existing) {
               totalSkipped++;
