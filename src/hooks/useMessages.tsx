@@ -11,6 +11,9 @@ export interface Message {
   direction: "incoming" | "outgoing";
   sent_at: string;
   is_read: boolean;
+  media_url?: string | null;
+  media_type?: string | null;
+  media_mimetype?: string | null;
 }
 
 export interface ChatGroup {
@@ -111,6 +114,9 @@ export const useMessages = () => {
           direction: msg.direction as "incoming" | "outgoing",
           sent_at: msg.sent_at,
           is_read: msg.is_read,
+          media_url: msg.media_url,
+          media_type: msg.media_type,
+          media_mimetype: msg.media_mimetype,
         }));
 
         setMessages(typedMessages);

@@ -222,6 +222,9 @@ export type Database = {
           id: string
           is_read: boolean
           is_warmup: boolean
+          media_mimetype: string | null
+          media_type: string | null
+          media_url: string | null
           message_text: string
           sent_at: string
         }
@@ -234,6 +237,9 @@ export type Database = {
           id?: string
           is_read?: boolean
           is_warmup?: boolean
+          media_mimetype?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_text: string
           sent_at?: string
         }
@@ -246,6 +252,9 @@ export type Database = {
           id?: string
           is_read?: boolean
           is_warmup?: boolean
+          media_mimetype?: string | null
+          media_type?: string | null
+          media_url?: string | null
           message_text?: string
           sent_at?: string
         }

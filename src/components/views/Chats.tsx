@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -546,7 +546,7 @@ const Chats = () => {
                               : "bg-muted"
                           }`}
                         >
-                          {(() => {
+                           {(() => {
                             const LONG_THRESHOLD = 400;
                             const key = `${selectedChatKey}-${message.id}`;
                             const isExpanded = expandedMessageKeys.has(key);
@@ -554,9 +554,45 @@ const Chats = () => {
                             const displayText = !isExpanded && isLong
                               ? message.message_text.slice(0, LONG_THRESHOLD).trimEnd() + "…"
                               : message.message_text;
+                            
                             return (
                               <>
-                                <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
+                                {message.media_url && message.media_type === 'image' && (
+                                  <img 
+                                    src={message.media_url} 
+                                    alt="WhatsApp Bild" 
+                                    className="max-w-full rounded-lg mb-2 max-h-96 object-contain"
+                                    loading="lazy"
+                                  />
+                                )}
+                                {message.media_url && message.media_type === 'video' && (
+                                  <video 
+                                    src={message.media_url} 
+                                    controls 
+                                    className="max-w-full rounded-lg mb-2 max-h-96"
+                                  />
+                                )}
+                                {message.media_url && message.media_type === 'audio' && (
+                                  <audio 
+                                    src={message.media_url} 
+                                    controls 
+                                    className="w-full mb-2"
+                                  />
+                                )}
+                                {message.media_url && message.media_type === 'document' && (
+                                  <a 
+                                    href={message.media_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-sm underline mb-2"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                    Dokument öffnen
+                                  </a>
+                                )}
+                                {message.message_text && (
+                                  <p className="text-sm whitespace-pre-line leading-relaxed">{displayText}</p>
+                                )}
                                 {!isExpanded && isLong && (
                                   <button
                                     type="button"

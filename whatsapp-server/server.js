@@ -412,7 +412,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         .select('id')
         .eq('account_id', accountId)
         .eq('contact_phone', phoneNumber)
-        .eq('message_text', msg.body)
+        .eq('message_text', msg.body || '')
         .eq('sent_at', sentAt)
         .eq('direction', direction)
         .maybeSingle();
@@ -422,6 +422,60 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         return;
       }
 
+      // Handle media if present
+      let mediaUrl = null;
+      let mediaType = null;
+      let mediaMimetype = null;
+
+      if (msg.hasMedia) {
+        try {
+          console.log('Message has media, downloading...');
+          const media = await msg.downloadMedia();
+          
+          if (media) {
+            const buffer = Buffer.from(media.data, 'base64');
+            const fileExt = media.mimetype.split('/')[1].split(';')[0];
+            const fileName = `${accountId}/${Date.now()}.${fileExt}`;
+            
+            console.log(`Uploading media to Supabase Storage: ${fileName}`);
+            
+            // Upload to Supabase Storage
+            const { data: uploadData, error: uploadError } = await supa.storage
+              .from('whatsapp-media')
+              .upload(fileName, buffer, {
+                contentType: media.mimetype,
+                upsert: false
+              });
+
+            if (uploadError) {
+              console.error('Error uploading media:', uploadError);
+            } else {
+              const { data: publicUrlData } = supa.storage
+                .from('whatsapp-media')
+                .getPublicUrl(fileName);
+              
+              mediaUrl = publicUrlData.publicUrl;
+              mediaMimetype = media.mimetype;
+              
+              // Determine media type
+              if (media.mimetype.startsWith('image/')) {
+                mediaType = 'image';
+              } else if (media.mimetype.startsWith('video/')) {
+                mediaType = 'video';
+              } else if (media.mimetype.startsWith('audio/')) {
+                mediaType = 'audio';
+              } else {
+                mediaType = 'document';
+              }
+              
+              console.log(`Media uploaded successfully: ${mediaUrl}`);
+            }
+          }
+        } catch (mediaError) {
+          console.error('Error processing media:', mediaError);
+        }
+      }
+
       // Save message to database
       const { error } = await supa
         .from('messages')
@@ -429,10 +483,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
           account_id: accountId,
           contact_phone: phoneNumber,
           contact_name: contactName,
-          message_text: msg.body,
+          message_text: msg.body || (mediaType ? `[${mediaType}]` : ''),
           direction,
           sent_at: sentAt,
-          is_read: msg.fromMe ? true : false
+          is_read: msg.fromMe ? true : false,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          media_mimetype: mediaMimetype
         });
 
       if (error) {
