@@ -51,6 +51,25 @@ export const AutoChat = () => {
 
   const sendMessage = async (fromAccountId: string, toPhone: string, message: string) => {
     try {
+      console.log(`[Warm-up] Sending from ${fromAccountId} to ${toPhone}:`, message);
+      
+      // Erst Status prüfen
+      const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
+        body: {
+          action: 'status',
+          accountId: fromAccountId,
+        }
+      });
+
+      if (statusError) {
+        console.error('[Warm-up Status Error]', statusError);
+        throw new Error(`Status-Prüfung fehlgeschlagen: ${statusError.message}`);
+      }
+
+      if (!statusData?.connected) {
+        throw new Error('Account ist nicht verbunden - bitte zuerst verbinden');
+      }
+
       const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
         body: {
           action: 'send-message',
@@ -60,9 +79,16 @@ export const AutoChat = () => {
         }
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error('[Warm-up Send Error]', error);
+        throw error;
+      }
+      if (data?.error) {
+        console.error('[Warm-up Railway Error]', data.error);
+        throw new Error(data.error);
+      }
 
+      console.log('[Warm-up] Message sent successfully');
       return true;
     } catch (error: any) {
       console.error('[Auto-Chat Send Error]', error);
@@ -166,6 +192,12 @@ export const AutoChat = () => {
   };
 
   const startAutoChat = () => {
+    // Prüfe ob es überhaupt verbundene Accounts gibt
+    if (connectedAccounts.length === 0) {
+      toast.error("Keine verbundenen Accounts gefunden - bitte zuerst Accounts verbinden");
+      return;
+    }
+
     if (mode === "manual") {
       if (!account1 || !account2) {
         toast.error("Bitte wähle beide Accounts aus");
@@ -197,6 +229,8 @@ export const AutoChat = () => {
     
     const modeText = mode === "rotation" ? "Rotation" : mode === "random" ? "Zufällig" : "Manuell";
     toast.success(`Auto-Chat gestartet (${modeText} Modus)`);
+    
+    console.log(`[Warm-up] Starting in ${modeText} mode with ${connectedAccounts.length} accounts`);
 
     runChatSession();
 
