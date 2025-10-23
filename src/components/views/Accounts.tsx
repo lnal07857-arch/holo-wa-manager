@@ -293,7 +293,16 @@ const Accounts = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Telefonnummer</Label>
-                  
+                  <Input 
+                    id="phoneNumber" 
+                    value={phoneNumber} 
+                    onChange={e => setPhoneNumber(e.target.value)} 
+                    placeholder="z.B. +49 151 12345678" 
+                    required 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Die Telefonnummer ist wichtig für das Warm-up, damit die Accounts sich gegenseitig anschreiben können.
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loadingQR}>
                   {loadingQR ? <>
