@@ -59,13 +59,13 @@ const BulkSender = () => {
     // Ersetze zuerst doppelte Klammern {{field_name}}
     result = result.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
       const value = contact[fieldName];
-      return value !== undefined && value !== null ? String(value) : match;
+      return value !== undefined && value !== null && value !== "" ? String(value) : "";
     });
     
     // Dann einfache Klammern {field_name}
     result = result.replace(/\{([^}]+)\}/g, (match, fieldName) => {
       const value = contact[fieldName];
-      return value !== undefined && value !== null ? String(value) : match;
+      return value !== undefined && value !== null && value !== "" ? String(value) : "";
     });
     
     return result;
