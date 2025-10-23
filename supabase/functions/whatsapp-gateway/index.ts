@@ -168,6 +168,30 @@ serve(async (req) => {
         });
       }
 
+      case 'status': {
+        // Server-Status abrufen
+        console.log(`[Status] Calling Railway at: ${BASE_URL}/api/status`);
+        
+        const response = await fetch(`${BASE_URL}/api/status`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        console.log(`[Status] Railway response status: ${response.status}`);
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[Status] Railway error: ${error}`);
+          throw new Error(`Railway error: ${error}`);
+        }
+
+        const data = await response.json();
+        console.log(`[Status] Success:`, data);
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

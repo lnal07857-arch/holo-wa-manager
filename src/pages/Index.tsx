@@ -9,6 +9,7 @@ import BulkSender from "@/components/views/BulkSender";
 import { AutoChat } from "@/components/views/AutoChat";
 import { FollowUp } from "@/components/views/FollowUp";
 import Settings from "@/components/views/Settings";
+import { ServerStatus } from "@/components/views/ServerStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,8 @@ const Index = () => {
         return <AutoChat />;
       case "followup":
         return <FollowUp />;
+      case "server-status":
+        return <ServerStatus />;
       case "settings":
         return <Settings />;
       default:

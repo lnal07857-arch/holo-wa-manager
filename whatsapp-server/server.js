@@ -66,6 +66,10 @@ class MessageQueue {
 }
 
 const messageQueues = new Map();
+const lastActivity = new Map(); // Track last activity timestamp per client
+
+// Idle timeout in milliseconds (30 minutes)
+const IDLE_TIMEOUT = 30 * 60 * 1000;
 
 // Sync all messages (no time limit)
 async function syncAllMessages(client, accountId, supa) {
@@ -241,6 +245,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // Ready event
   client.on('ready', async () => {
     console.log('Client is ready!', accountId);
+    lastActivity.set(accountId, Date.now());
     
     // Update status in Supabase
     try {
@@ -367,6 +372,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 
   // Message event - handle new messages (incoming and outgoing from device)
   client.on('message_create', async (msg) => {
+    lastActivity.set(accountId, Date.now());
     try {
       // Determine correct peer JID and direction
       const peerJid = msg.fromMe ? msg.to : msg.from;
@@ -563,6 +569,7 @@ app.post('/api/initialize', async (req, res) => {
 app.post('/api/send-message', async (req, res) => {
   try {
     const { accountId, phoneNumber, message } = req.body;
+    lastActivity.set(accountId, Date.now());
     
     if (!accountId || !phoneNumber || !message) {
       return res.status(400).json({ error: 'accountId, phoneNumber and message are required' });
@@ -627,6 +634,7 @@ app.post('/api/disconnect', async (req, res) => {
     
     clients.delete(accountId);
     messageQueues.delete(accountId);
+    lastActivity.delete(accountId);
     
     console.log(`Client ${accountId} successfully disconnected and removed`);
     res.json({ success: true, message: 'Client disconnected' });
@@ -635,6 +643,86 @@ app.post('/api/disconnect', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Server status endpoint
+app.get('/api/status', (req, res) => {
+  try {
+    const status = {
+      activeClients: clients.size,
+      clients: Array.from(clients.keys()).map(accountId => ({
+        accountId,
+        lastActivity: lastActivity.get(accountId) || null,
+        idleMinutes: lastActivity.get(accountId) 
+          ? Math.floor((Date.now() - lastActivity.get(accountId)) / 60000)
+          : null
+      })),
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    };
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Auto-cleanup idle clients every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [accountId, timestamp] of lastActivity.entries()) {
+    const idleTime = now - timestamp;
+    if (idleTime > IDLE_TIMEOUT) {
+      console.log(`Auto-cleanup: Client ${accountId} idle for ${Math.floor(idleTime / 60000)} minutes`);
+      const client = clients.get(accountId);
+      if (client) {
+        client.destroy().catch(err => console.error('Error destroying idle client:', err));
+        clients.delete(accountId);
+        messageQueues.delete(accountId);
+        lastActivity.delete(accountId);
+      }
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Server status endpoint
+app.get('/api/status', (req, res) => {
+  try {
+    const status = {
+      activeClients: clients.size,
+      clients: Array.from(clients.keys()).map(accountId => ({
+        accountId,
+        lastActivity: lastActivity.get(accountId) || null,
+        idleMinutes: lastActivity.get(accountId) 
+          ? Math.floor((Date.now() - lastActivity.get(accountId)) / 60000)
+          : null
+      })),
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    };
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Auto-cleanup idle clients
+setInterval(() => {
+  const now = Date.now();
+  for (const [accountId, timestamp] of lastActivity.entries()) {
+    const idleTime = now - timestamp;
+    if (idleTime > IDLE_TIMEOUT) {
+      console.log(`Auto-cleanup: Client ${accountId} idle for ${Math.floor(idleTime / 60000)} minutes`);
+      const client = clients.get(accountId);
+      if (client) {
+        client.destroy().catch(err => console.error('Error destroying idle client:', err));
+        clients.delete(accountId);
+        messageQueues.delete(accountId);
+        lastActivity.delete(accountId);
+      }
+    }
+  }
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 // Reset all accounts to disconnected on server start
 async function resetAccountStatuses() {
