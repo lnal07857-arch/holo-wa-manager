@@ -128,18 +128,46 @@ serve(async (req) => {
       }
 
       case 'status': {
-        // Status abrufen
-        const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
+        // Status abrufen - wenn accountId vorhanden, dann Account-Status, sonst Server-Status
+        if (accountId) {
+          console.log(`[Account Status] Calling Railway at: ${BASE_URL}/api/status/${accountId}`);
+          
+          const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
 
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Railway error: ${error}`);
+          if (!response.ok) {
+            const error = await response.text();
+            console.error(`[Account Status] Railway error: ${error}`);
+            throw new Error(`Railway error: ${error}`);
+          }
+
+          const data = await response.json();
+          console.log(`[Account Status] Success:`, data);
+          return new Response(JSON.stringify(data), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else {
+          // Server-Status abrufen (ohne accountId)
+          console.log(`[Server Status] Calling Railway at: ${BASE_URL}/api/status`);
+          
+          const response = await fetch(`${BASE_URL}/api/status`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          console.log(`[Server Status] Railway response status: ${response.status}`);
+
+          if (!response.ok) {
+            const error = await response.text();
+            console.error(`[Server Status] Railway error: ${error}`);
+            throw new Error(`Railway error: ${error}`);
+          }
+
+          const data = await response.json();
+          console.log(`[Server Status] Success:`, data);
+          return new Response(JSON.stringify(data), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
-
-        const data = await response.json();
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
       }
 
       case 'disconnect': {
@@ -163,30 +191,6 @@ serve(async (req) => {
 
         const data = await response.json();
         console.log(`[Disconnect] Success:`, data);
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      case 'status': {
-        // Server-Status abrufen
-        console.log(`[Status] Calling Railway at: ${BASE_URL}/api/status`);
-        
-        const response = await fetch(`${BASE_URL}/api/status`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        console.log(`[Status] Railway response status: ${response.status}`);
-
-        if (!response.ok) {
-          const error = await response.text();
-          console.error(`[Status] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
-        }
-
-        const data = await response.json();
-        console.log(`[Status] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
