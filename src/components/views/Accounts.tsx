@@ -207,10 +207,22 @@ const Accounts = () => {
       
       if (error) {
         console.error('[WhatsApp Init Error]', error);
+        
+        // Spezifische Fehlermeldungen für Railway Server Probleme
+        if (error.message?.includes('non-2xx status code')) {
+          throw new Error('Railway Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
+        }
+        
         throw new Error(error.message || 'Edge Function Fehler');
       }
       if (data?.error) {
         console.error('[WhatsApp Init Error from Railway]', data.error);
+        
+        // Spezifische Fehlermeldungen für Browser-Launch Probleme
+        if (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create')) {
+          throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
+        }
+        
         throw new Error(data.error);
       }
       console.log('[WhatsApp Init Success]', data);
