@@ -17,6 +17,35 @@ const Accounts = () => {
     createAccount,
     deleteAccount
   } = useWhatsAppAccounts();
+  
+  // Validate account status on mount
+  useEffect(() => {
+    const validateAccountStatuses = async () => {
+      for (const account of accounts) {
+        if (account.status === 'connected') {
+          try {
+            const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+              body: { action: 'status', accountId: account.id }
+            });
+            
+            if (!error && data && !data.connected) {
+              // Update status to disconnected if not actually connected
+              await supabase
+                .from('whatsapp_accounts')
+                .update({ status: 'disconnected', qr_code: null })
+                .eq('id', account.id);
+            }
+          } catch (err) {
+            console.error(`Failed to validate status for ${account.account_name}:`, err);
+          }
+        }
+      }
+    };
+    
+    if (accounts.length > 0) {
+      validateAccountStatuses();
+    }
+  }, [accounts.length]);
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
