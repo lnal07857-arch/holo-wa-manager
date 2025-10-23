@@ -372,22 +372,8 @@ const BulkSender = () => {
                     const contact = contacts[i];
                     const contact_phone = sanitizePhone(String(contact.phone || ""));
 
-                    // Prüfe ob bereits eine Konversation mit diesem Kontakt existiert
-                    let accountId: string;
-                    const { data: existingMessages } = await supabase
-                      .from("messages")
-                      .select("account_id")
-                      .eq("contact_phone", contact_phone)
-                      .limit(1)
-                      .single();
-
-                    if (existingMessages && connectedAccountIds.includes(existingMessages.account_id)) {
-                      // Verwende den Account, der bereits mit diesem Kontakt kommuniziert hat
-                      accountId = existingMessages.account_id;
-                    } else {
-                      // Neuer Kontakt: Verwende Rotation
-                      accountId = connectedAccountIds[i % connectedAccountIds.length];
-                    }
+                    // Account-Rotation: Verteile die Kontakte gleichmäßig über alle verbundenen Accounts
+                    const accountId = connectedAccountIds[i % connectedAccountIds.length];
 
                     const template = (textRotation && selectedTemplateObjects.length > 0)
                       ? selectedTemplateObjects[i % selectedTemplateObjects.length]
