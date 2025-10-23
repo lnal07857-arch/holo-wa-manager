@@ -248,9 +248,10 @@ export const AutoChat = () => {
         sessionMessages++;
         setMessagesSent(prev => prev + 1);
         setLastMessage(`${acc1.account_name} → ${acc2.account_name}: ${message}`);
-        // Zufällige Pause zwischen 2-5 Sekunden
-        const randomDelay = 2000 + Math.floor(Math.random() * 3000);
-        await new Promise(resolve => setTimeout(resolve, randomDelay));
+        // Pause basierend auf Nachrichtenlänge: kurze Nachrichten 2-3s, lange 4-6s
+        const baseDelay = Math.min(message.length * 50, 4000); // Max 4s Basis
+        const randomVariation = Math.floor(Math.random() * 2000); // +0-2s Variation
+        await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
       }
 
       const message2 = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
@@ -259,9 +260,10 @@ export const AutoChat = () => {
         sessionMessages++;
         setMessagesSent(prev => prev + 1);
         setLastMessage(`${acc2.account_name} → ${acc1.account_name}: ${message2}`);
-        // Zufällige Pause zwischen 2-5 Sekunden
-        const randomDelay = 2000 + Math.floor(Math.random() * 3000);
-        await new Promise(resolve => setTimeout(resolve, randomDelay));
+        // Pause basierend auf Nachrichtenlänge: kurze Nachrichten 2-3s, lange 4-6s
+        const baseDelay = Math.min(message2.length * 50, 4000); // Max 4s Basis
+        const randomVariation = Math.floor(Math.random() * 2000); // +0-2s Variation
+        await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
       }
     }
 
