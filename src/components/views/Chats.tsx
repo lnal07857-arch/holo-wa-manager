@@ -30,12 +30,36 @@ const Chats = () => {
     const saved = localStorage.getItem("favoriteChatKeys");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [disabledFollowUpContacts, setDisabledFollowUpContacts] = useState<Set<string>>(new Set());
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { templates, isLoading: templatesLoading } = useTemplates();
   const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessagesContext();
   const { accounts } = useWhatsAppAccounts();
+
+  // Load disabled follow-up contacts
+  useEffect(() => {
+    const loadDisabledContacts = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from("follow_up_disabled_contacts")
+          .select("contact_phone")
+          .eq("user_id", user.id);
+
+        if (error) throw error;
+
+        setDisabledFollowUpContacts(new Set(data.map(d => d.contact_phone)));
+      } catch (error) {
+        console.error("Error loading disabled follow-up contacts:", error);
+      }
+    };
+
+    loadDisabledContacts();
+  }, []);
 
   // Filter templates for chats only
   const chatTemplates = templates.filter(t => t.for_chats);
@@ -227,6 +251,11 @@ const Chats = () => {
   // Filter chats based on selected filter and search query
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
+    
+    // Exclude chats that are in follow-up (disabled)
+    if (disabledFollowUpContacts.has(chat.contact_phone)) {
+      return false;
+    }
     
     // Apply filter tabs
     let matchesFilter = true;
