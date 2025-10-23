@@ -257,6 +257,12 @@ const Chats = () => {
       return false;
     }
     
+    // Exclude warm-up only chats (all messages are warm-up messages)
+    const hasNonWarmupMessage = chat.messages.some(msg => !msg.is_warmup);
+    if (!hasNonWarmupMessage) {
+      return false;
+    }
+    
     // Apply filter tabs
     let matchesFilter = true;
     switch (chatFilter) {
