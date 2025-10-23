@@ -84,6 +84,9 @@ export const FollowUp = () => {
 
     // Analyze messages
     messages.forEach(msg => {
+      // Skip warm-up messages
+      if (msg.is_warmup) return;
+      
       const key = `${msg.account_id}-${msg.contact_phone}`;
       const msgTime = new Date(msg.sent_at).getTime();
 
