@@ -257,9 +257,16 @@ const Chats = () => {
       return false;
     }
     
-    // Exclude warm-up only chats (all messages are warm-up messages)
-    const hasNonWarmupMessage = chat.messages.some(msg => !msg.is_warmup);
-    if (!hasNonWarmupMessage) {
+    // Exclude chats between own WhatsApp accounts (warm-up chats)
+    // Check if the contact_phone belongs to any of the user's WhatsApp accounts
+    const isOwnAccount = accounts.some(acc => {
+      // Remove all non-digit characters for comparison
+      const cleanAccPhone = acc.phone_number.replace(/\D/g, '');
+      const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
+      return cleanAccPhone === cleanContactPhone;
+    });
+    
+    if (isOwnAccount) {
       return false;
     }
     
