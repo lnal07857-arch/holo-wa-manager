@@ -23,7 +23,7 @@ const DEFAULT_MESSAGES = [
   "Bis später!",
 ];
 
-type Mode = "manual" | "round-robin";
+type Mode = "manual" | "rotation" | "random";
 
 export const AutoChat = () => {
   const { accounts } = useWhatsAppAccounts();
@@ -36,6 +36,7 @@ export const AutoChat = () => {
   const [messagesSent, setMessagesSent] = useState<number>(0);
   const [lastMessage, setLastMessage] = useState<string>("");
   const [currentPairIndex, setCurrentPairIndex] = useState<number>(0);
+  const [allPairs, setAllPairs] = useState<[string, string][]>([]);
   const intervalRef = useRef<number | null>(null);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
@@ -70,24 +71,40 @@ export const AutoChat = () => {
     }
   };
 
-  const runChatSession = async (acc1Id?: string, acc2Id?: string) => {
+  const runChatSession = async () => {
     let acc1, acc2;
 
-    if (mode === "round-robin") {
-      // Round-Robin Modus: Paare automatisch bilden
-      const pairs = createAccountPairs(connectedAccounts);
-      if (pairs.length === 0) {
+    if (mode === "rotation") {
+      // Rotation Modus: Alle möglichen Kombinationen durchgehen
+      if (allPairs.length === 0) {
+        toast.error("Keine Paarungen verfügbar");
+        setIsRunning(false);
+        return;
+      }
+
+      const pairIds = allPairs[currentPairIndex % allPairs.length];
+      acc1 = connectedAccounts.find(a => a.id === pairIds[0]);
+      acc2 = connectedAccounts.find(a => a.id === pairIds[1]);
+      
+      if (!acc1 || !acc2) {
+        toast.error("Accounts nicht gefunden");
+        setIsRunning(false);
+        return;
+      }
+      
+      // Zum nächsten Paar wechseln
+      setCurrentPairIndex(prev => (prev + 1) % allPairs.length);
+    } else if (mode === "random") {
+      // Zufällig Modus: Bei jeder Session neue zufällige Paare
+      if (connectedAccounts.length < 2) {
         toast.error("Mindestens 2 verbundene Accounts benötigt");
         setIsRunning(false);
         return;
       }
 
-      const pair = pairs[currentPairIndex % pairs.length];
-      acc1 = pair[0];
-      acc2 = pair[1];
-      
-      // Zum nächsten Paar wechseln
-      setCurrentPairIndex(prev => (prev + 1) % pairs.length);
+      const shuffled = [...connectedAccounts].sort(() => Math.random() - 0.5);
+      acc1 = shuffled[0];
+      acc2 = shuffled[1];
     } else {
       // Manueller Modus
       if (!account1 || !account2) {
@@ -138,11 +155,11 @@ export const AutoChat = () => {
     toast.success(`Chat-Session beendet: ${sessionMessages} Nachrichten gesendet`);
   };
 
-  const createAccountPairs = (accounts: typeof connectedAccounts) => {
-    const pairs: [typeof accounts[0], typeof accounts[0]][] = [];
-    for (let i = 0; i < accounts.length - 1; i += 2) {
-      if (accounts[i + 1]) {
-        pairs.push([accounts[i], accounts[i + 1]]);
+  const createAllPossiblePairs = (accounts: typeof connectedAccounts): [string, string][] => {
+    const pairs: [string, string][] = [];
+    for (let i = 0; i < accounts.length; i++) {
+      for (let j = i + 1; j < accounts.length; j++) {
+        pairs.push([accounts[i].id, accounts[j].id]);
       }
     }
     return pairs;
@@ -158,17 +175,28 @@ export const AutoChat = () => {
         toast.error("Bitte wähle zwei verschiedene Accounts");
         return;
       }
-    } else {
-      // Round-Robin Modus
+    } else if (mode === "rotation") {
+      // Rotation Modus: Alle möglichen Kombinationen
       if (connectedAccounts.length < 2) {
         toast.error("Mindestens 2 verbundene Accounts benötigt");
         return;
       }
+      const pairs = createAllPossiblePairs(connectedAccounts);
+      setAllPairs(pairs);
       setCurrentPairIndex(0);
+      toast.success(`Rotation Modus: ${pairs.length} Paarungen werden durchlaufen`);
+    } else {
+      // Zufällig Modus
+      if (connectedAccounts.length < 2) {
+        toast.error("Mindestens 2 verbundene Accounts benötigt");
+        return;
+      }
     }
 
     setMessagesSent(0);
-    toast.success(`Auto-Chat gestartet (${mode === "round-robin" ? "Round-Robin Modus" : "Manueller Modus"})`);
+    
+    const modeText = mode === "rotation" ? "Rotation" : mode === "random" ? "Zufällig" : "Manuell";
+    toast.success(`Auto-Chat gestartet (${modeText} Modus)`);
 
     runChatSession();
 
@@ -215,12 +243,15 @@ export const AutoChat = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="manual">Manuell (2 Accounts wählen)</SelectItem>
-                  <SelectItem value="round-robin">Round-Robin (Alle Accounts)</SelectItem>
+                  <SelectItem value="rotation">Rotation (Alle Kombinationen)</SelectItem>
+                  <SelectItem value="random">Zufällig (Neue Paare)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {mode === "round-robin" 
-                  ? `Alle ${connectedAccounts.length} verbundenen Accounts werden in ${Math.floor(connectedAccounts.length / 2)} Paare aufgeteilt`
+                {mode === "rotation" 
+                  ? `${createAllPossiblePairs(connectedAccounts).length} mögliche Paarungen werden systematisch durchlaufen`
+                  : mode === "random"
+                  ? "Bei jeder Session werden neue zufällige Paare gebildet"
                   : "Wähle manuell 2 Accounts aus"}
               </p>
             </div>
