@@ -1,4 +1,4 @@
-import { MessageSquare, Users, FileText, Send, LayoutDashboard, Settings, Clock } from "lucide-react";
+import { MessageSquare, Users, FileText, Send, LayoutDashboard, Settings, Clock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ const Sidebar = ({ activeView, onViewChange, unreadCount = 0 }: SidebarProps) =>
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
     { id: "bulk", label: "Bulk Sender", icon: Send },
+    { id: "autochat", label: "Warm-up", icon: Zap },
     { id: "followup", label: "Follow-up", icon: Clock },
     { id: "settings", label: "Einstellungen", icon: Settings },
   ];

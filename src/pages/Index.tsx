@@ -6,6 +6,7 @@ import Accounts from "@/components/views/Accounts";
 import Chats from "@/components/views/Chats";
 import Templates from "@/components/views/Templates";
 import BulkSender from "@/components/views/BulkSender";
+import { AutoChat } from "@/components/views/AutoChat";
 import { FollowUp } from "@/components/views/FollowUp";
 import Settings from "@/components/views/Settings";
 import { useAuth } from "@/hooks/useAuth";
@@ -52,6 +53,8 @@ const Index = () => {
         return <Templates />;
       case "bulk":
         return <BulkSender />;
+      case "autochat":
+        return <AutoChat />;
       case "followup":
         return <FollowUp />;
       case "settings":
