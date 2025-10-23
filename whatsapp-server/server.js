@@ -67,29 +67,31 @@ class MessageQueue {
 
 const messageQueues = new Map();
 
-// Sync messages from last 72 hours
-async function syncRecentMessages(client, accountId, supa) {
+// Sync all messages (no time limit)
+async function syncAllMessages(client, accountId, supa) {
   try {
     const chats = await client.getChats();
     console.log(`Found ${chats.length} chats to sync`);
     
-    const cutoffTime = Date.now() - (72 * 60 * 60 * 1000); // 72 hours ago
     let totalSynced = 0;
     let totalSkipped = 0;
 
     for (const chat of chats) {
       try {
-        // Fetch messages from this chat
+        // Fetch messages from this chat (limit can be adjusted)
         const messages = await chat.fetchMessages({ limit: 100 });
         
-        // Filter messages from last 72 hours
-        const recentMessages = messages.filter(msg => msg.timestamp * 1000 >= cutoffTime);
-        
-        console.log(`Chat ${chat.name || chat.id.user}: ${recentMessages.length} recent messages`);
+        // Get unread count from WhatsApp
+        const unreadCount = chat.unreadCount || 0;
+        console.log(`Chat ${chat.name || chat.id.user}: ${messages.length} messages, ${unreadCount} unread`);
 
-        for (const msg of recentMessages) {
+        // Process messages in reverse order (oldest first)
+        const sortedMessages = [...messages].reverse();
+        
+        for (let i = 0; i < sortedMessages.length; i++) {
+          const msg = sortedMessages[i];
           try {
-            // Determine correct peer and direction (same logic as message event)
+            // Determine correct peer and direction
             const peerJid = msg.fromMe ? msg.to : msg.from;
             const direction = msg.fromMe ? 'outgoing' : 'incoming';
             
@@ -97,22 +99,34 @@ async function syncRecentMessages(client, accountId, supa) {
             const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
             const messageTime = new Date(msg.timestamp * 1000).toISOString();
             
-            // Get contact info - ensure correct party for outgoing vs incoming
+            // Get contact info
             let contactName = null;
             try {
               if (msg.fromMe) {
-                const recipientJid = msg.to; // outgoing -> recipient
+                const recipientJid = msg.to;
                 const recipient = await client.getContactById(recipientJid);
                 contactName = recipient.pushname || recipient.name || null;
               } else {
-                const contact = await msg.getContact(); // incoming -> sender
+                const contact = await msg.getContact();
                 contactName = contact.pushname || contact.name || null;
               }
             } catch (e) {
               console.error('Error fetching contact name during sync:', e);
             }
 
-            // Check if message already exists (to avoid duplicates)
+            // Determine if message is read based on WhatsApp status
+            // For outgoing: always read
+            // For incoming: read if not in the last 'unreadCount' messages
+            let isRead = false;
+            if (msg.fromMe) {
+              isRead = true; // Outgoing messages are always marked as read
+            } else {
+              // Incoming message: check if it's in the unread range
+              const positionFromEnd = sortedMessages.length - 1 - i;
+              isRead = positionFromEnd >= unreadCount; // If beyond unread count, it's read
+            }
+
+            // Check if message already exists
             const { data: existing } = await supa
               .from('messages')
               .select('id')
@@ -125,7 +139,7 @@ async function syncRecentMessages(client, accountId, supa) {
 
             if (existing) {
               totalSkipped++;
-              continue; // Skip if already exists
+              continue;
             }
 
             // Insert message
@@ -138,7 +152,7 @@ async function syncRecentMessages(client, accountId, supa) {
                 message_text: msg.body,
                 direction: direction,
                 sent_at: messageTime,
-                is_read: msg.fromMe || false
+                is_read: isRead
               });
 
             if (error) {
@@ -160,7 +174,7 @@ async function syncRecentMessages(client, accountId, supa) {
 
     console.log(`Sync complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped`);
   } catch (error) {
-    console.error('Error in syncRecentMessages:', error);
+    console.error('Error in syncAllMessages:', error);
   }
 }
 
@@ -342,10 +356,10 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       console.error('[Profile Sync] Unexpected error:', error.message || error);
     }
 
-    // Sync messages from last 72 hours
-    console.log('Starting message sync for last 72 hours...');
+    // Sync all messages
+    console.log('Starting full message sync...');
     try {
-      await syncRecentMessages(client, accountId, supa);
+      await syncAllMessages(client, accountId, supa);
     } catch (error) {
       console.error('Error syncing messages:', error);
     }
