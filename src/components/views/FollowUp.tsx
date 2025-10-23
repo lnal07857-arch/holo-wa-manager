@@ -42,6 +42,7 @@ export const FollowUp = () => {
   const [isSending, setIsSending] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [disabledContacts, setDisabledContacts] = useState<Set<string>>(new Set());
+  const [disabledContactsMap, setDisabledContactsMap] = useState<Map<string, string>>(new Map());
   const [contactToDisable, setContactToDisable] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export const FollowUp = () => {
 
   useEffect(() => {
     analyzeNonResponders();
+    updateDisabledContactNames();
   }, [messages, daysThreshold, disabledContacts]);
 
   const loadDisabledContacts = async () => {
@@ -68,6 +70,19 @@ export const FollowUp = () => {
     } catch (error) {
       console.error("Error loading disabled contacts:", error);
     }
+  };
+
+  const updateDisabledContactNames = () => {
+    const phoneToNameMap = new Map<string, string>();
+    
+    // Get contact names from messages
+    messages.forEach(msg => {
+      if (disabledContacts.has(msg.contact_phone) && msg.contact_name) {
+        phoneToNameMap.set(msg.contact_phone, msg.contact_name);
+      }
+    });
+    
+    setDisabledContactsMap(phoneToNameMap);
   };
 
   const analyzeNonResponders = () => {
@@ -505,22 +520,34 @@ export const FollowUp = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {Array.from(disabledContacts).map((phone) => (
-                <div
-                  key={phone}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div className="text-sm font-medium">{phone}</div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => enableContact(phone)}
+              {Array.from(disabledContacts).map((phone) => {
+                const contactName = disabledContactsMap.get(phone);
+                return (
+                  <div
+                    key={phone}
+                    className="flex items-center justify-between p-3 border rounded-lg"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Aktivieren
-                  </Button>
-                </div>
-              ))}
+                    <div>
+                      <div className="text-sm font-medium">
+                        {contactName || phone}
+                      </div>
+                      {contactName && (
+                        <div className="text-xs text-muted-foreground">
+                          {phone}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => enableContact(phone)}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Aktivieren
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
