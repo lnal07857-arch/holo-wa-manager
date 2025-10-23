@@ -106,13 +106,11 @@ const DEFAULT_MESSAGES = [
   "Ok! ✌️",
 ];
 
-type Mode = "manual" | "rotation" | "random";
+type Mode = "rotation" | "random";
 
 export const AutoChat = () => {
   const { accounts } = useWhatsAppAccounts();
-  const [mode, setMode] = useState<Mode>("manual");
-  const [account1, setAccount1] = useState<string>("");
-  const [account2, setAccount2] = useState<string>("");
+  const [mode, setMode] = useState<Mode>("rotation");
   const [interval, setInterval] = useState<number>(5);
   const [messagesPerSession, setMessagesPerSession] = useState<number>(5);
   const [isRunning, setIsRunning] = useState(false);
@@ -216,7 +214,7 @@ export const AutoChat = () => {
         return;
       }
 
-      const pairIds = allPairs[currentPairIndex % allPairs.length];
+      const pairIds = allPairs[currentPairIndex];
       acc1 = connectedAccounts.find(a => a.id === pairIds[0]);
       acc2 = connectedAccounts.find(a => a.id === pairIds[1]);
       
@@ -226,9 +224,11 @@ export const AutoChat = () => {
         return;
       }
       
+      console.log(`[Warm-up Rotation] Using pair ${currentPairIndex + 1}/${allPairs.length}: ${acc1.account_name} ↔ ${acc2.account_name}`);
+      
       // Zum nächsten Paar wechseln
       setCurrentPairIndex(prev => (prev + 1) % allPairs.length);
-    } else if (mode === "random") {
+    } else {
       // Zufällig Modus: Bei jeder Session neue zufällige Paare
       if (connectedAccounts.length < 2) {
         toast.error("Mindestens 2 verbundene Accounts benötigt");
@@ -239,20 +239,6 @@ export const AutoChat = () => {
       const shuffled = [...connectedAccounts].sort(() => Math.random() - 0.5);
       acc1 = shuffled[0];
       acc2 = shuffled[1];
-    } else {
-      // Manueller Modus
-      if (!account1 || !account2) {
-        toast.error("Bitte wähle beide Accounts aus");
-        return;
-      }
-
-      acc1 = connectedAccounts.find(a => a.id === account1);
-      acc2 = connectedAccounts.find(a => a.id === account2);
-
-      if (!acc1 || !acc2) {
-        toast.error("Accounts nicht gefunden");
-        return;
-      }
     }
 
     setIsRunning(true);
@@ -306,45 +292,34 @@ export const AutoChat = () => {
       return;
     }
 
-    if (mode === "manual") {
-      if (!account1 || !account2) {
-        toast.error("Bitte wähle beide Accounts aus");
-        return;
-      }
-      if (account1 === account2) {
-        toast.error("Bitte wähle zwei verschiedene Accounts");
-        return;
-      }
-    } else if (mode === "rotation") {
+    if (connectedAccounts.length < 2) {
+      toast.error("Mindestens 2 verbundene Accounts benötigt");
+      return;
+    }
+
+    if (mode === "rotation") {
       // Rotation Modus: Alle möglichen Kombinationen
-      if (connectedAccounts.length < 2) {
-        toast.error("Mindestens 2 verbundene Accounts benötigt");
-        return;
-      }
       const pairs = createAllPossiblePairs(connectedAccounts);
       setAllPairs(pairs);
       setCurrentPairIndex(0);
-      toast.success(`Rotation Modus: ${pairs.length} Paarungen werden durchlaufen`);
-    } else {
-      // Zufällig Modus
-      if (connectedAccounts.length < 2) {
-        toast.error("Mindestens 2 verbundene Accounts benötigt");
-        return;
-      }
+      console.log(`[Warm-up] Rotation mode with ${pairs.length} pairs:`, pairs);
     }
 
     setMessagesSent(0);
     
-    const modeText = mode === "rotation" ? "Rotation" : mode === "random" ? "Zufällig" : "Manuell";
-    toast.success(`Auto-Chat gestartet (${modeText} Modus)`);
-    
+    const modeText = mode === "rotation" ? "Rotation" : "Zufällig";
     console.log(`[Warm-up] Starting in ${modeText} mode with ${connectedAccounts.length} accounts`);
 
-    runChatSession();
-
-    intervalRef.current = window.setInterval(() => {
+    // Verzögerung vor dem ersten Durchlauf, damit State gesetzt wird
+    setTimeout(() => {
       runChatSession();
-    }, interval * 60 * 1000);
+      
+      intervalRef.current = window.setInterval(() => {
+        runChatSession();
+      }, interval * 60 * 1000);
+      
+      toast.success(`Auto-Chat gestartet (${modeText} Modus)`);
+    }, 100);
   };
 
   const stopAutoChat = () => {
@@ -384,7 +359,6 @@ export const AutoChat = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="manual">Manuell (2 Accounts wählen)</SelectItem>
                   <SelectItem value="rotation">Rotation (Alle Kombinationen)</SelectItem>
                   <SelectItem value="random">Zufällig (Neue Paare)</SelectItem>
                 </SelectContent>
@@ -392,47 +366,9 @@ export const AutoChat = () => {
               <p className="text-xs text-muted-foreground">
                 {mode === "rotation" 
                   ? `${createAllPossiblePairs(connectedAccounts).length} mögliche Paarungen werden systematisch durchlaufen`
-                  : mode === "random"
-                  ? "Bei jeder Session werden neue zufällige Paare gebildet"
-                  : "Wähle manuell 2 Accounts aus"}
+                  : "Bei jeder Session werden neue zufällige Paare gebildet"}
               </p>
             </div>
-
-            {mode === "manual" && (
-              <>
-                <div className="space-y-2">
-                  <Label>Account 1</Label>
-                  <Select value={account1} onValueChange={setAccount1} disabled={isRunning}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Wähle Account 1" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {connectedAccounts.map(acc => (
-                        <SelectItem key={acc.id} value={acc.id}>
-                          {acc.account_name} ({acc.phone_number})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Account 2</Label>
-                  <Select value={account2} onValueChange={setAccount2} disabled={isRunning}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Wähle Account 2" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {connectedAccounts.map(acc => (
-                        <SelectItem key={acc.id} value={acc.id}>
-                          {acc.account_name} ({acc.phone_number})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
