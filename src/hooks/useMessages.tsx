@@ -81,9 +81,11 @@ export const useMessages = () => {
   useEffect(() => {
     if (!user) return;
 
-    const fetchMessages = async () => {
+    const fetchMessages = async (showLoadingState = true) => {
       try {
-        setLoading(true);
+        if (showLoadingState) {
+          setLoading(true);
+        }
         
         // Fetch all messages with account info, excluding warm-up messages
         const { data: messagesData, error: messagesError } = await supabase
@@ -162,13 +164,15 @@ export const useMessages = () => {
       } catch (error) {
         console.error("Error fetching messages:", error);
       } finally {
-        setLoading(false);
+        if (showLoadingState) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchMessages();
+    fetchMessages(true);
 
-    // Subscribe to realtime updates
+    // Subscribe to realtime updates - don't show loading state on updates
     const channel = supabase
       .channel("messages-changes")
       .on(
@@ -179,7 +183,7 @@ export const useMessages = () => {
           table: "messages",
         },
         () => {
-          fetchMessages();
+          fetchMessages(false);
         }
       )
       .subscribe();
