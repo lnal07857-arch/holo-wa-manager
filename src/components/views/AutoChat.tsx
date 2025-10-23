@@ -70,11 +70,17 @@ export const AutoChat = () => {
         throw new Error('Account ist nicht verbunden - bitte zuerst verbinden');
       }
 
+      // Telefonnummer säubern (nur Ziffern, z.B. +49 157 123 → 49157123)
+      const cleaned = (toPhone || '').replace(/\D/g, '');
+      if (!cleaned) {
+        throw new Error('Ungültige Zielnummer');
+      }
+
       const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
         body: {
           action: 'send-message',
           accountId: fromAccountId,
-          phoneNumber: toPhone,
+          phoneNumber: cleaned,
           message: message,
         }
       });
@@ -152,8 +158,6 @@ export const AutoChat = () => {
 
     // Sende abwechselnd Nachrichten
     for (let i = 0; i < messagesPerSession; i++) {
-      if (!intervalRef.current) break;
-
       const message = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
       
       const success1 = await sendMessage(acc1.id, acc2.phone_number, message);
@@ -164,8 +168,6 @@ export const AutoChat = () => {
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
       }
 
-      if (!intervalRef.current) break;
-
       const message2 = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
       const success2 = await sendMessage(acc2.id, acc1.phone_number, message2);
       if (success2) {
@@ -174,8 +176,6 @@ export const AutoChat = () => {
         setLastMessage(`${acc2.account_name} → ${acc1.account_name}: ${message2}`);
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
       }
-
-      if (!intervalRef.current) break;
     }
 
     toast.success(`Chat-Session beendet: ${sessionMessages} Nachrichten gesendet`);
