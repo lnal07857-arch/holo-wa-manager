@@ -142,6 +142,32 @@ serve(async (req) => {
         });
       }
 
+      case 'disconnect': {
+        // Client-Instanz beenden und aufräumen
+        console.log(`[Disconnect] Calling Railway at: ${BASE_URL}/api/disconnect`);
+        console.log(`[Disconnect] AccountId: ${accountId}`);
+        
+        const response = await fetch(`${BASE_URL}/api/disconnect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId }),
+        });
+
+        console.log(`[Disconnect] Railway response status: ${response.status}`);
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[Disconnect] Railway error: ${error}`);
+          throw new Error(`Railway error: ${error}`);
+        }
+
+        const data = await response.json();
+        console.log(`[Disconnect] Success:`, data);
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

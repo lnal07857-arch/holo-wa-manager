@@ -63,6 +63,22 @@ export const useWhatsAppAccounts = () => {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
+      // First, disconnect the client on Railway server
+      try {
+        const { error: disconnectError } = await supabase.functions.invoke('whatsapp-gateway', {
+          body: { action: 'disconnect', accountId }
+        });
+        
+        if (disconnectError) {
+          console.warn('[Disconnect] Warning:', disconnectError.message);
+          // Continue with deletion even if disconnect fails
+        }
+      } catch (err) {
+        console.warn('[Disconnect] Warning:', err);
+        // Continue with deletion even if disconnect fails
+      }
+      
+      // Then delete from database
       const { error } = await supabase
         .from("whatsapp_accounts")
         .delete()
@@ -72,7 +88,7 @@ export const useWhatsAppAccounts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
-      toast.success("Account gelöscht");
+      toast.success("Account gelöscht und Verbindung beendet");
     },
   });
 

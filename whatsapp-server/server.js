@@ -602,6 +602,40 @@ app.get('/api/status/:accountId', (req, res) => {
   res.json({ connected: true });
 });
 
+// Disconnect endpoint to properly clean up client instances
+app.post('/api/disconnect', async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' });
+    }
+
+    const client = clients.get(accountId);
+    if (!client) {
+      return res.json({ success: true, message: 'Client not found or already disconnected' });
+    }
+
+    console.log(`Disconnecting client for account: ${accountId}`);
+    
+    // Destroy the client and clean up resources
+    try {
+      await client.destroy();
+    } catch (err) {
+      console.error('Error destroying client:', err);
+    }
+    
+    clients.delete(accountId);
+    messageQueues.delete(accountId);
+    
+    console.log(`Client ${accountId} successfully disconnected and removed`);
+    res.json({ success: true, message: 'Client disconnected' });
+  } catch (error) {
+    console.error('Error disconnecting client:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Reset all accounts to disconnected on server start
 async function resetAccountStatuses() {
   try {
