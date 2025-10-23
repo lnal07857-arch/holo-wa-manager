@@ -159,6 +159,7 @@ export const AutoChat = () => {
         throw new Error('Ungültige Zielnummer');
       }
 
+      // Nachricht über WhatsApp senden
       const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
         body: {
           action: 'send-message',
@@ -175,6 +176,24 @@ export const AutoChat = () => {
       if (data?.error) {
         console.error('[Warm-up Railway Error]', data.error);
         throw new Error(data.error);
+      }
+
+      // Nach erfolgreichem Senden: Nachricht in DB mit is_warmup=true speichern
+      const { error: dbError } = await supabase
+        .from('messages')
+        .insert({
+          account_id: fromAccountId,
+          contact_phone: toPhone,
+          contact_name: null,
+          message_text: message,
+          direction: 'outgoing',
+          is_warmup: true,
+          sent_at: new Date().toISOString(),
+        });
+
+      if (dbError) {
+        console.error('[Warm-up DB Error]', dbError);
+        // Fehler beim DB-Insert soll nicht die Funktion stoppen
       }
 
       console.log('[Warm-up] Message sent successfully');

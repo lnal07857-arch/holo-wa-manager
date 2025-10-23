@@ -85,7 +85,7 @@ export const useMessages = () => {
       try {
         setLoading(true);
         
-        // Fetch all messages with account info
+        // Fetch all messages with account info, excluding warm-up messages
         const { data: messagesData, error: messagesError } = await supabase
           .from("messages")
           .select(`
@@ -95,6 +95,7 @@ export const useMessages = () => {
               status
             )
           `)
+          .eq("is_warmup", false)
           .order("sent_at", { ascending: false });
 
         if (messagesError) throw messagesError;

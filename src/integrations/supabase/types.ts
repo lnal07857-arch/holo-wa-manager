@@ -221,6 +221,7 @@ export type Database = {
           direction: string
           id: string
           is_read: boolean
+          is_warmup: boolean
           message_text: string
           sent_at: string
         }
@@ -232,6 +233,7 @@ export type Database = {
           direction: string
           id?: string
           is_read?: boolean
+          is_warmup?: boolean
           message_text: string
           sent_at?: string
         }
@@ -243,6 +245,7 @@ export type Database = {
           direction?: string
           id?: string
           is_read?: boolean
+          is_warmup?: boolean
           message_text?: string
           sent_at?: string
         }
