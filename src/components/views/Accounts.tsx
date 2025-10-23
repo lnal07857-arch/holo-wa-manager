@@ -275,6 +275,17 @@ const Accounts = () => {
     };
   }, [initializingAccount]);
 
+  // Reset states when dialog is closed
+  useEffect(() => {
+    if (!open) {
+      setInitializingAccount(null);
+      setQrCode(null);
+      setLoadingQR(false);
+      setAccountName("");
+      setPhoneNumber("");
+    }
+  }, [open]);
+
   // Fallback-Polling, falls Realtime nicht verfügbar ist
   useEffect(() => {
     if (!initializingAccount || qrCode) return;
