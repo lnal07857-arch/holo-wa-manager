@@ -183,6 +183,14 @@ const Accounts = () => {
   const initializeWhatsApp = async (accountId: string) => {
     setLoadingQR(true);
     setInitializingAccount(accountId);
+    
+    // Timeout nach 30 Sekunden
+    const timeoutId = setTimeout(() => {
+      setLoadingQR(false);
+      setInitializingAccount(null);
+      toast.error('Timeout: Initialisierung hat zu lange gedauert. Bitte versuchen Sie es erneut.');
+    }, 30000);
+    
     try {
       const {
         data,
@@ -193,6 +201,10 @@ const Accounts = () => {
           accountId: accountId
         }
       });
+      
+      // Timeout clearen wenn erfolgreich
+      clearTimeout(timeoutId);
+      
       if (error) {
         console.error('[WhatsApp Init Error]', error);
         throw new Error(error.message || 'Edge Function Fehler');
@@ -203,7 +215,7 @@ const Accounts = () => {
       }
       console.log('[WhatsApp Init Success]', data);
 
-      // QR-Code wird über Realtime-Updates in die Datenbank geschrieben
+      // loadingQR bleibt true bis QR-Code erscheint
       toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');
     } catch (error: any) {
       console.error('[WhatsApp Init Error]', error);
@@ -248,12 +260,14 @@ const Accounts = () => {
       console.log('[Account Update]', payload);
       if (payload.new.qr_code) {
         setQrCode(payload.new.qr_code);
+        setLoadingQR(false); // QR-Code erhalten, Loading beenden
       }
       if (payload.new.status === 'connected') {
         toast.success('WhatsApp erfolgreich verbunden!');
         setOpen(false);
         setInitializingAccount(null);
         setQrCode(null);
+        setLoadingQR(false);
       }
     }).subscribe();
     return () => {
@@ -273,12 +287,17 @@ const Accounts = () => {
           error
         } = await supabase.from('whatsapp_accounts').select('qr_code,status').eq('id', initializingAccount).single();
         if (!error && data) {
-          if (data.qr_code) setQrCode(data.qr_code);
+          if (data.qr_code) {
+            setQrCode(data.qr_code);
+            setLoadingQR(false); // QR-Code erhalten, Loading beenden
+          }
           if (data.status === 'connected') {
             toast.success('WhatsApp erfolgreich verbunden!');
             setOpen(false);
             setInitializingAccount(null);
             setQrCode(null);
+            setLoadingQR(false);
+            clearInterval(interval);
           }
         }
       } catch (err) {
@@ -286,6 +305,9 @@ const Accounts = () => {
       }
       if (attempts > 60) {
         clearInterval(interval);
+        setLoadingQR(false);
+        setInitializingAccount(null);
+        toast.error('Timeout: Kein QR-Code empfangen. Bitte versuchen Sie es erneut.');
       }
     }, 2000);
     return () => clearInterval(interval);
