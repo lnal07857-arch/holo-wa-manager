@@ -425,8 +425,8 @@ const Chats = () => {
                         onClick={() => setSelectedChatKey(chatKey)}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <span className="font-semibold text-primary">{chat.contact_name.charAt(0)}</span>
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            <span className="font-semibold text-primary text-lg">{chat.contact_name.charAt(0).toUpperCase()}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
