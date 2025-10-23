@@ -11,16 +11,99 @@ import { Play, Square, Zap, Clock, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const DEFAULT_MESSAGES = [
+  // Begrüßungen
   "Hallo, wie geht es dir?",
-  "Alles klar bei dir?",
+  "Hey, alles klar?",
+  "Moin!",
+  "Guten Morgen!",
+  "Hi, was geht?",
+  "Servus!",
+  "Grüß dich!",
+  "Na, alles gut?",
+  
+  // Antworten & Bestätigungen
   "Danke, mir geht's gut!",
-  "Super, freut mich zu hören!",
+  "Alles bestens, danke!",
+  "Ja, alles super bei mir",
+  "Mir geht es sehr gut, danke der Nachfrage",
+  "Passt alles, danke!",
+  "Bestens!",
+  "Perfekt!",
+  "Alles klar!",
+  "Verstanden!",
+  "Ok, danke!",
+  "Super, danke!",
+  "Sehr gut, danke!",
+  
+  // Fragen & Small Talk
   "Was machst du gerade?",
-  "Ich arbeite gerade, und du?",
-  "Auch am Arbeiten :)",
-  "Okay, dann viel Erfolg!",
-  "Danke dir auch!",
+  "Was gibt es Neues?",
+  "Wie war dein Tag?",
+  "Alles gut bei dir?",
+  "Kommst du zurecht?",
+  "Hast du heute viel vor?",
+  "Wie läuft es bei dir?",
+  "Was treibst du so?",
+  "Arbeitest du gerade?",
+  "Schon Feierabend?",
+  "Hast du schon Pläne fürs Wochenende?",
+  "Wie war dein Wochenende?",
+  
+  // Antworten auf Fragen
+  "Ich arbeite gerade",
+  "Bin gerade unterwegs",
+  "Nichts Besonderes",
+  "Das Übliche halt",
+  "Ganz ok, nichts Besonderes",
+  "Nicht viel los heute",
+  "Bin noch im Büro",
+  "Gerade am Entspannen",
+  "Gleich Feierabend",
+  "Hab heute frei",
+  
+  // Positive Reaktionen
+  "Das freut mich!",
+  "Schön zu hören!",
+  "Cool!",
+  "Sehr schön!",
+  "Top!",
+  "Freut mich für dich!",
+  "Das klingt gut!",
+  "Prima!",
+  
+  // Verabschiedungen
   "Bis später!",
+  "Bis dann!",
+  "Mach's gut!",
+  "Bis bald!",
+  "Schönen Tag noch!",
+  "Dir auch!",
+  "Ciao!",
+  "Tschüss!",
+  "Einen schönen Abend!",
+  "Gute Nacht!",
+  
+  // Kurze Antworten
+  "Ok",
+  "Ja",
+  "Stimmt",
+  "Genau",
+  "Richtig",
+  "Klar",
+  "Sicher",
+  "Auf jeden Fall",
+  "Definitiv",
+  "Passt",
+  
+  // Mit Emojis
+  "Alles gut 👍",
+  "Danke dir! 😊",
+  "Super! 🎉",
+  "Perfekt! ✅",
+  "Freut mich! 😊",
+  "Alles klar! 👌",
+  "Top! 👍",
+  "Ok! ✌️",
 ];
 
 type Mode = "manual" | "rotation" | "random";
