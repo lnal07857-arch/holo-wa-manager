@@ -92,6 +92,15 @@ export const useMessages = () => {
           setLoading(true);
         }
         
+        // Fetch user's WhatsApp accounts to filter out chats between own accounts
+        const { data: userAccounts } = await supabase
+          .from("whatsapp_accounts")
+          .select("phone_number");
+        
+        const ownPhoneNumbers = new Set(
+          (userAccounts || []).map(acc => acc.phone_number.replace(/\D/g, ''))
+        );
+        
         // Fetch all messages with account info, excluding warm-up messages
         const { data: messagesData, error: messagesError } = await supabase
           .from("messages")
@@ -147,6 +156,12 @@ export const useMessages = () => {
         const groups: Record<string, ChatGroup> = {};
 
         messagesData?.forEach((msg: any) => {
+          // Skip chats between own accounts (filter out warm-up chats)
+          const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
+          if (ownPhoneNumbers.has(cleanContactPhone)) {
+            return; // Skip this message
+          }
+          
           const key = `${msg.contact_phone}_${msg.account_id}`;
           const effectiveName = contactNameMap.get(msg.contact_phone) || msg.contact_name || msg.contact_phone;
           if (!groups[key]) {
