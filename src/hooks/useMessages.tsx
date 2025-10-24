@@ -156,15 +156,14 @@ export const useMessages = () => {
         const groups: Record<string, ChatGroup> = {};
 
         messagesData?.forEach((msg: any) => {
-          // Skip chats between own accounts (filter out warm-up chats)
-          const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
-          if (ownPhoneNumbers.has(cleanContactPhone)) {
+          // Skip all warm-up messages
+          if (msg.is_warmup) {
             return; // Skip this message
           }
           
-          // Skip contacts with "smilework" in the name (warm-up contacts)
-          const contactNameLower = (msg.contact_name || '').toLowerCase();
-          if (contactNameLower.includes('smilework')) {
+          // Skip chats between own accounts
+          const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
+          if (ownPhoneNumbers.has(cleanContactPhone)) {
             return; // Skip this message
           }
           
