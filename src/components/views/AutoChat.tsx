@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import { useWarmupStats, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
+import { WarmupAccountStats } from "./WarmupAccountStats";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Play, Square, Zap, Clock, MessageCircle, TrendingUp, Users, AlertCircle, CheckCircle } from "lucide-react";
+import { Play, Square, Zap, Clock, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
@@ -112,7 +111,6 @@ const DEFAULT_MESSAGES = [
 
 export const AutoChat = () => {
   const { accounts } = useWhatsAppAccounts();
-  const { data: warmupStats } = useWarmupStats();
   const [interval, setInterval] = useState<number>(5);
   const [messagesPerSession, setMessagesPerSession] = useState<number>(5);
   const [isRunning, setIsRunning] = useState(false);
@@ -439,68 +437,8 @@ export const AutoChat = () => {
         </Card>
       </div>
 
-      {/* Account Statistics */}
-      {warmupStats && warmupStats.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Account Statistiken
-            </CardTitle>
-            <CardDescription>
-              Detaillierte Warm-up-Statistiken pro Account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {warmupStats.map((stat) => {
-                const uniqueContactsCount = Object.keys(stat.unique_contacts).length;
-                const avgDaily = 0; // Would need to fetch history
-                const bulkReady = isBulkReady(stat, avgDaily);
-                
-                return (
-                  <div key={stat.id} className="p-4 border rounded-lg space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold">{stat.account_name}</h4>
-                      <Badge variant={bulkReady ? "default" : stat.status === 'blocked' ? "destructive" : "secondary"}>
-                        {bulkReady ? "Bulk Ready" : stat.status === 'blocked' ? "Blockiert" : "Warming"}
-                      </Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Gesendet</p>
-                        <p className="text-lg font-semibold">{stat.sent_messages}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Kontakte</p>
-                        <p className="text-lg font-semibold flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {uniqueContactsCount}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Blocks</p>
-                        <p className={`text-lg font-semibold flex items-center gap-1 ${stat.blocks > 0 ? 'text-destructive' : 'text-green-500'}`}>
-                          {stat.blocks > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                          {stat.blocks}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Status</p>
-                        <Progress 
-                          value={Math.min((stat.sent_messages / 500) * 100, 100)} 
-                          className="mt-2"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Detailed Account Statistics */}
+      <WarmupAccountStats />
     </div>
   );
 };
