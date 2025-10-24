@@ -102,6 +102,10 @@ export const FollowUp = () => {
       // Skip warm-up messages
       if (msg.is_warmup) return;
       
+      // Skip contacts with "smilework" in the name (warm-up contacts)
+      const contactNameLower = (msg.contact_name || '').toLowerCase();
+      if (contactNameLower.includes('smilework')) return;
+      
       const key = `${msg.account_id}-${msg.contact_phone}`;
       const msgTime = new Date(msg.sent_at).getTime();
 

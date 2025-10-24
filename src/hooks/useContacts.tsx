@@ -24,7 +24,14 @@ export const useContacts = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Contact[];
+      
+      // Filter out contacts with "smilework" in the name (warm-up contacts)
+      const filtered = (data as Contact[]).filter(contact => {
+        const nameLower = (contact.name || '').toLowerCase();
+        return !nameLower.includes('smilework');
+      });
+      
+      return filtered;
     },
   });
 

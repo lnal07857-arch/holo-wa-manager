@@ -162,6 +162,12 @@ export const useMessages = () => {
             return; // Skip this message
           }
           
+          // Skip contacts with "smilework" in the name (warm-up contacts)
+          const contactNameLower = (msg.contact_name || '').toLowerCase();
+          if (contactNameLower.includes('smilework')) {
+            return; // Skip this message
+          }
+          
           const key = `${msg.contact_phone}_${msg.account_id}`;
           const effectiveName = contactNameMap.get(msg.contact_phone) || msg.contact_name || msg.contact_phone;
           if (!groups[key]) {
