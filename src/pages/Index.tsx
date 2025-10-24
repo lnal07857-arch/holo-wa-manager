@@ -8,7 +8,6 @@ import Templates from "@/components/views/Templates";
 import BulkSender from "@/components/views/BulkSender";
 import { AutoChat } from "@/components/views/AutoChat";
 import { FollowUp } from "@/components/views/FollowUp";
-import Settings from "@/components/views/Settings";
 import { ServerStatus } from "@/components/views/ServerStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
@@ -60,8 +59,6 @@ const Index = () => {
         return <FollowUp />;
       case "server-status":
         return <ServerStatus />;
-      case "settings":
-        return <Settings />;
       default:
         return <Dashboard />;
     }
