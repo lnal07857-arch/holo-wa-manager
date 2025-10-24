@@ -221,10 +221,22 @@ export const AutoChat = () => {
     }
     
     // Rotation Modus: Alle möglichen Kombinationen durchgehen
+    // Wenn keine Paare vorhanden sind UND wir laufen, dann neu generieren
     if (allPairs.length === 0) {
-      console.log("[Warm-up] Keine Paarungen verfügbar");
-      setLastMessage("⚠️ Keine Paarungen verfügbar");
-      return;
+      if (isRunning) {
+        console.log("[Warm-up] Paare werden initial generiert");
+        const newPairs = createAllPossiblePairs(currentConnectedAccounts);
+        const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+        setAllPairs(shuffledPairs);
+        setCurrentPairIndex(0);
+        // Warte kurz bis State aktualisiert ist
+        setTimeout(() => runChatSession(), 100);
+        return;
+      } else {
+        console.log("[Warm-up] Keine Paarungen verfügbar");
+        setLastMessage("⚠️ Keine Paarungen verfügbar");
+        return;
+      }
     }
 
     const pairIds = allPairs[currentPairIndex];
