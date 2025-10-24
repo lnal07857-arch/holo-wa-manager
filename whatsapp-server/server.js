@@ -67,6 +67,9 @@ class MessageQueue {
 
 const messageQueues = new Map();
 const lastActivity = new Map(); // Track last activity timestamp per client
+const reconnectAttempts = new Map(); // Track reconnect attempts
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 30000; // 30 seconds
 
 // Idle timeout in milliseconds (30 minutes)
 const IDLE_TIMEOUT = 30 * 60 * 1000;
@@ -246,6 +249,9 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   client.on('ready', async () => {
     console.log('Client is ready!', accountId);
     lastActivity.set(accountId, Date.now());
+    
+    // Reset reconnect attempts on successful connection
+    reconnectAttempts.set(accountId, 0);
     
     // Update status in Supabase
     try {
@@ -508,9 +514,9 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
   });
 
-  // Disconnected event
+  // Disconnected event with Auto-Reconnect
   client.on('disconnected', async (reason) => {
-    console.log('Client disconnected:', reason);
+    console.log('Client disconnected:', reason, 'for account:', accountId);
     clients.delete(accountId);
     messageQueues.delete(accountId);
     
@@ -531,6 +537,52 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     } catch (error) {
       console.error('Error updating status:', error);
     }
+
+    // Auto-reconnect logic
+    const attempts = reconnectAttempts.get(accountId) || 0;
+    if (attempts < MAX_RECONNECT_ATTEMPTS) {
+      console.log(`[Auto-Reconnect] Scheduling reconnect attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS} for ${accountId} in ${RECONNECT_DELAY}ms`);
+      reconnectAttempts.set(accountId, attempts + 1);
+      
+      setTimeout(async () => {
+        console.log(`[Auto-Reconnect] Attempting to reconnect ${accountId}...`);
+        try {
+          await initializeClient(accountId, userId, supabaseUrl, supabaseKey);
+        } catch (error) {
+          console.error(`[Auto-Reconnect] Failed to reconnect ${accountId}:`, error);
+        }
+      }, RECONNECT_DELAY);
+    } else {
+      console.log(`[Auto-Reconnect] Max reconnect attempts reached for ${accountId}`);
+      reconnectAttempts.delete(accountId);
+    }
+  });
+
+  // Authentication failure event
+  client.on('auth_failure', async (msg) => {
+    console.error(`[Auth Failure] Authentication failed for ${accountId}:`, msg);
+    
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        },
+        body: JSON.stringify({
+          status: 'disconnected',
+          qr_code: null,
+          updated_at: new Date().toISOString()
+        })
+      });
+    } catch (error) {
+      console.error('[Auth Failure] Error updating status:', error);
+    }
+    
+    clients.delete(accountId);
+    messageQueues.delete(accountId);
+    reconnectAttempts.delete(accountId);
   });
 
   clients.set(accountId, client);
@@ -544,6 +596,87 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 // API Routes
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', clients: clients.size });
+});
+
+// Heartbeat endpoint to keep connections alive and trigger reconnects
+app.post('/api/heartbeat', async (req, res) => {
+  console.log('[Heartbeat] Checking all client connections...');
+  
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Supabase credentials not configured' 
+      });
+    }
+
+    const results = [];
+    
+    for (const [accountId, client] of clients.entries()) {
+      try {
+        const state = await client.getState();
+        console.log(`[Heartbeat] Account ${accountId} state: ${state}`);
+        
+        results.push({
+          accountId,
+          state,
+          isReady: state === 'CONNECTED',
+        });
+
+        // If disconnected, update database and remove from map
+        if (state !== 'CONNECTED') {
+          console.log(`[Heartbeat] Account ${accountId} not connected, updating database...`);
+          
+          await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({
+              status: 'disconnected',
+              updated_at: new Date().toISOString(),
+            })
+          });
+          
+          clients.delete(accountId);
+          messageQueues.delete(accountId);
+        } else {
+          // Update last activity for active clients
+          lastActivity.set(accountId, Date.now());
+        }
+      } catch (error) {
+        console.error(`[Heartbeat] Error checking account ${accountId}:`, error);
+        results.push({
+          accountId,
+          error: error.message,
+          isReady: false,
+        });
+        
+        // Remove problematic client
+        clients.delete(accountId);
+        messageQueues.delete(accountId);
+      }
+    }
+    
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      checkedClients: results.length,
+      activeClients: clients.size,
+      results,
+    });
+  } catch (error) {
+    console.error('[Heartbeat] Error during heartbeat check:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 app.post('/api/initialize', async (req, res) => {
@@ -635,6 +768,7 @@ app.post('/api/disconnect', async (req, res) => {
     clients.delete(accountId);
     messageQueues.delete(accountId);
     lastActivity.delete(accountId);
+    reconnectAttempts.delete(accountId);
     
     console.log(`Client ${accountId} successfully disconnected and removed`);
     res.json({ success: true, message: 'Client disconnected' });
