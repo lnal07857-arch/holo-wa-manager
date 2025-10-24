@@ -180,11 +180,14 @@ Deno.serve(async (req) => {
 
         if (!acc1 || !acc2) {
           console.log(`[Warmup Runner] Pair accounts not found, skipping`);
+          const nextIndex = (settings.current_pair_index + 1) % allPairs.length;
           await supabase
             .from('warmup_settings')
             .update({
-              current_pair_index: (settings.current_pair_index + 1) % allPairs.length,
-              skipped_pairs: settings.skipped_pairs + 1
+              current_pair_index: nextIndex,
+              skipped_pairs: settings.skipped_pairs + 1,
+              last_run_at: new Date().toISOString(),
+              completed_rounds: settings.completed_rounds + (nextIndex === 0 ? 1 : 0)
             })
             .eq('id', settings.id);
           continue;
