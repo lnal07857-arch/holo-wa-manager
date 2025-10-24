@@ -121,6 +121,12 @@ export const AutoChat = () => {
   const [completedRounds, setCompletedRounds] = useState<number>(0);
   const [lastAccountCount, setLastAccountCount] = useState<number>(0);
   const intervalRef = useRef<number | null>(null);
+  const allPairsRef = useRef<[string, string][]>([]);
+  const currentPairIndexRef = useRef<number>(0);
+  const isRunningRef = useRef<boolean>(false);
+  const accountsRef = useRef<typeof accounts>(accounts);
+  const lastAccountCountRef = useRef<number>(0);
+  const processingRef = useRef<boolean>(false);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
 
@@ -131,6 +137,27 @@ export const AutoChat = () => {
       }
     };
   }, []);
+
+  // Keep refs in sync with latest state to avoid stale closures in timers
+  useEffect(() => {
+    allPairsRef.current = allPairs;
+  }, [allPairs]);
+
+  useEffect(() => {
+    currentPairIndexRef.current = currentPairIndex;
+  }, [currentPairIndex]);
+
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  useEffect(() => {
+    lastAccountCountRef.current = lastAccountCount;
+  }, [lastAccountCount]);
 
   const sendMessage = async (fromAccountId: string, toPhone: string, message: string) => {
     try {
@@ -206,116 +233,133 @@ export const AutoChat = () => {
   };
 
   const runChatSession = async () => {
-    // Accounts immer frisch holen, damit neu verbundene Accounts sofort erkannt werden
-    const currentConnectedAccounts = accounts.filter(acc => acc.status === "connected");
-    
-    // Prüfe ob sich die Anzahl der verbundenen Accounts geändert hat
-    if (currentConnectedAccounts.length !== lastAccountCount && lastAccountCount > 0) {
-      console.log(`[Warm-up] Account-Anzahl geändert von ${lastAccountCount} zu ${currentConnectedAccounts.length} - Paare werden neu erstellt`);
-      const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-      const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-      setAllPairs(shuffledPairs);
-      setCurrentPairIndex(0);
-      setLastAccountCount(currentConnectedAccounts.length);
-      toast.info(`Account-Änderung erkannt - ${newPairs.length} Paare neu erstellt`);
+    // Prevent overlapping runs
+    if (processingRef.current) {
+      console.log("[Warm-up] Session already running, skipping");
+      return;
     }
-    
-    // Rotation Modus: Alle möglichen Kombinationen durchgehen
-    // Wenn keine Paare vorhanden sind UND wir laufen, dann neu generieren
-    if (allPairs.length === 0) {
-      if (isRunning) {
-        console.log("[Warm-up] Paare werden initial generiert");
+    processingRef.current = true;
+
+    try {
+      // Always use the freshest accounts snapshot
+      const currentConnectedAccounts = accountsRef.current.filter(acc => acc.status === "connected");
+      
+      // Detect account count changes and rebuild pairs
+      if (currentConnectedAccounts.length !== lastAccountCountRef.current && lastAccountCountRef.current > 0) {
+        console.log(`[Warm-up] Account-Anzahl geändert von ${lastAccountCountRef.current} zu ${currentConnectedAccounts.length} - Paare werden neu erstellt`);
         const newPairs = createAllPossiblePairs(currentConnectedAccounts);
         const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+        allPairsRef.current = shuffledPairs;
         setAllPairs(shuffledPairs);
+        currentPairIndexRef.current = 0;
         setCurrentPairIndex(0);
-        // Warte kurz bis State aktualisiert ist
-        setTimeout(() => runChatSession(), 100);
-        return;
-      } else {
-        console.log("[Warm-up] Keine Paarungen verfügbar");
-        setLastMessage("⚠️ Keine Paarungen verfügbar");
+        lastAccountCountRef.current = currentConnectedAccounts.length;
+        setLastAccountCount(currentConnectedAccounts.length);
+        toast.info(`Account-Änderung erkannt - ${newPairs.length} Paare neu erstellt`);
+      }
+      
+      // Ensure there are pairs to work with
+      if (allPairsRef.current.length === 0) {
+        if (isRunningRef.current) {
+          console.log("[Warm-up] Paare werden initial generiert");
+          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
+          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+          allPairsRef.current = shuffledPairs;
+          setAllPairs(shuffledPairs);
+          currentPairIndexRef.current = 0;
+          setCurrentPairIndex(0);
+
+          if (shuffledPairs.length === 0) {
+            console.log("[Warm-up] Keine Paarungen verfügbar (zu wenige verbundene Accounts)");
+            setLastMessage("⚠️ Keine Paarungen verfügbar");
+            return;
+          }
+        } else {
+          console.log("[Warm-up] Keine Paarungen verfügbar");
+          setLastMessage("⚠️ Keine Paarungen verfügbar");
+          return;
+        }
+      }
+
+      const pairIds = allPairsRef.current[currentPairIndexRef.current];
+      const acc1 = currentConnectedAccounts.find(a => a.id === pairIds[0]);
+      const acc2 = currentConnectedAccounts.find(a => a.id === pairIds[1]);
+      
+      // Validate both accounts are still connected
+      if (!acc1 || !acc2 || acc1.status !== 'connected' || acc2.status !== 'connected') {
+        const reason = !acc1 || !acc2 ? "nicht gefunden" : "nicht verbunden";
+        console.log(`[Warm-up] Überspringe Paar ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: Accounts ${reason}`);
+        setSkippedPairs(prev => prev + 1);
+        setLastMessage(`⚠️ Paar übersprungen (${reason})`);
+        
+        // Move to next pair
+        const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
+        currentPairIndexRef.current = nextIndex;
+        setCurrentPairIndex(nextIndex);
+        
+        // Round completed?
+        if (nextIndex === 0) {
+          setCompletedRounds(prev => prev + 1);
+          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
+          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+          allPairsRef.current = shuffledPairs;
+          setAllPairs(shuffledPairs);
+          console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
+          toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
+        }
+        
         return;
       }
-    }
-
-    const pairIds = allPairs[currentPairIndex];
-    const acc1 = currentConnectedAccounts.find(a => a.id === pairIds[0]);
-    const acc2 = currentConnectedAccounts.find(a => a.id === pairIds[1]);
-    
-    // Prüfe ob beide Accounts noch verbunden sind
-    if (!acc1 || !acc2 || acc1.status !== 'connected' || acc2.status !== 'connected') {
-      const reason = !acc1 || !acc2 ? "nicht gefunden" : "nicht verbunden";
-      console.log(`[Warm-up] Überspringe Paar ${currentPairIndex + 1}/${allPairs.length}: Accounts ${reason}`);
-      setSkippedPairs(prev => prev + 1);
-      setLastMessage(`⚠️ Paar übersprungen (${reason})`);
       
-      // Zum nächsten Paar wechseln
-      const nextIndex = (currentPairIndex + 1) % allPairs.length;
+      console.log(`[Warm-up Rotation] Using pair ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: ${acc1.account_name} ↔ ${acc2.account_name}`);
+      
+      // Prepare next index and handle round completion
+      const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
+      currentPairIndexRef.current = nextIndex;
       setCurrentPairIndex(nextIndex);
       
-      // Wenn wir wieder am Anfang sind: Runde abgeschlossen
       if (nextIndex === 0) {
         setCompletedRounds(prev => prev + 1);
-        // Paare neu mischen für nächste Runde - mit aktuellen verbundenen Accounts
         const newPairs = createAllPossiblePairs(currentConnectedAccounts);
         const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+        allPairsRef.current = shuffledPairs;
         setAllPairs(shuffledPairs);
         console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
         toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
       }
-      
-      return;
-    }
-    
-    console.log(`[Warm-up Rotation] Using pair ${currentPairIndex + 1}/${allPairs.length}: ${acc1.account_name} ↔ ${acc2.account_name}`);
-    
-    // Zum nächsten Paar wechseln und prüfen ob Runde abgeschlossen
-    const nextIndex = (currentPairIndex + 1) % allPairs.length;
-    setCurrentPairIndex(nextIndex);
-    
-    // Wenn wir wieder am Anfang sind: Runde abgeschlossen
-    if (nextIndex === 0) {
-      setCompletedRounds(prev => prev + 1);
-      // Paare neu mischen für nächste Runde - mit aktuellen verbundenen Accounts
-      const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-      const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-      setAllPairs(shuffledPairs);
-      console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
-      toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
-    }
 
-    let sessionMessages = 0;
+      let sessionMessages = 0;
 
-    // Sende abwechselnd Nachrichten
-    for (let i = 0; i < messagesPerSession; i++) {
-      const message = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
-      
-      const success1 = await sendMessage(acc1.id, acc2.phone_number, message);
-      if (success1) {
-        sessionMessages++;
-        setMessagesSent(prev => prev + 1);
-        setLastMessage(`${acc1.account_name} → ${acc2.account_name}: ${message}`);
-        // Pause basierend auf Nachrichtenlänge: kurze Nachrichten 2-3s, lange 4-6s
-        const baseDelay = Math.min(message.length * 50, 4000); // Max 4s Basis
-        const randomVariation = Math.floor(Math.random() * 2000); // +0-2s Variation
-        await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
+      // Alternate sending messages
+      for (let i = 0; i < messagesPerSession; i++) {
+        const message = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
+        
+        const success1 = await sendMessage(acc1.id, acc2.phone_number, message);
+        if (success1) {
+          sessionMessages++;
+          setMessagesSent(prev => prev + 1);
+          setLastMessage(`${acc1.account_name} → ${acc2.account_name}: ${message}`);
+          const baseDelay = Math.min(message.length * 50, 4000);
+          const randomVariation = Math.floor(Math.random() * 2000);
+          await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
+        }
+
+        const message2 = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
+        const success2 = await sendMessage(acc2.id, acc1.phone_number, message2);
+        if (success2) {
+          sessionMessages++;
+          setMessagesSent(prev => prev + 1);
+          setLastMessage(`${acc2.account_name} → ${acc1.account_name}: ${message2}`);
+          const baseDelay = Math.min(message2.length * 50, 4000);
+          const randomVariation = Math.floor(Math.random() * 2000);
+          await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
+        }
       }
 
-      const message2 = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
-      const success2 = await sendMessage(acc2.id, acc1.phone_number, message2);
-      if (success2) {
-        sessionMessages++;
-        setMessagesSent(prev => prev + 1);
-        setLastMessage(`${acc2.account_name} → ${acc1.account_name}: ${message2}`);
-        // Pause basierend auf Nachrichtenlänge: kurze Nachrichten 2-3s, lange 4-6s
-        const baseDelay = Math.min(message2.length * 50, 4000); // Max 4s Basis
-        const randomVariation = Math.floor(Math.random() * 2000); // +0-2s Variation
-        await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
-      }
+      toast.success(`Chat-Session beendet: ${sessionMessages} Nachrichten gesendet`);
+    } finally {
+      processingRef.current = false;
     }
-
-    toast.success(`Chat-Session beendet: ${sessionMessages} Nachrichten gesendet`);
   };
 
   const createAllPossiblePairs = (accounts: typeof connectedAccounts): [string, string][] => {
@@ -346,18 +390,21 @@ export const AutoChat = () => {
     
     console.log(`[Warm-up] Starting Rotation mode with ${connectedAccounts.length} accounts, ${pairs.length} pairs`);
 
+    // Update state and refs in sync to avoid stale state in timers
+    allPairsRef.current = shuffledPairs;
     setAllPairs(shuffledPairs);
+    currentPairIndexRef.current = 0;
     setCurrentPairIndex(0);
     setMessagesSent(0);
     setSkippedPairs(0);
     setCompletedRounds(0);
+    lastAccountCountRef.current = connectedAccounts.length;
     setLastAccountCount(connectedAccounts.length);
+    isRunningRef.current = true;
     setIsRunning(true);
     
-    // Ersten Chat sofort starten
-    setTimeout(() => {
-      runChatSession();
-    }, 500);
+    // Ersten Chat sofort starten (keine Wartezeit, da wir Refs nutzen)
+    runChatSession();
     
     // Dann im Intervall weitermachen
     intervalRef.current = window.setInterval(() => {
@@ -372,6 +419,8 @@ export const AutoChat = () => {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    isRunningRef.current = false;
+    processingRef.current = false;
     setIsRunning(false);
     toast.info("Auto-Chat gestoppt");
   };
