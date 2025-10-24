@@ -118,6 +118,8 @@ export const AutoChat = () => {
   const [lastMessage, setLastMessage] = useState<string>("");
   const [currentPairIndex, setCurrentPairIndex] = useState<number>(0);
   const [allPairs, setAllPairs] = useState<[string, string][]>([]);
+  const [skippedPairs, setSkippedPairs] = useState<number>(0);
+  const [completedRounds, setCompletedRounds] = useState<number>(0);
   const intervalRef = useRef<number | null>(null);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
@@ -218,16 +220,47 @@ export const AutoChat = () => {
       acc1 = connectedAccounts.find(a => a.id === pairIds[0]);
       acc2 = connectedAccounts.find(a => a.id === pairIds[1]);
       
-      if (!acc1 || !acc2) {
-        toast.error("Accounts nicht gefunden");
-        setIsRunning(false);
+      // Prüfe ob beide Accounts noch verbunden sind
+      if (!acc1 || !acc2 || acc1.status !== 'connected' || acc2.status !== 'connected') {
+        const reason = !acc1 || !acc2 ? "nicht gefunden" : "nicht verbunden";
+        console.log(`[Warm-up] Überspringe Paar ${currentPairIndex + 1}/${allPairs.length}: Accounts ${reason}`);
+        setSkippedPairs(prev => prev + 1);
+        setLastMessage(`⚠️ Paar übersprungen (${reason})`);
+        
+        // Zum nächsten Paar wechseln
+        const nextIndex = (currentPairIndex + 1) % allPairs.length;
+        setCurrentPairIndex(nextIndex);
+        
+        // Wenn wir wieder am Anfang sind: Runde abgeschlossen
+        if (nextIndex === 0) {
+          setCompletedRounds(prev => prev + 1);
+          // Paare neu mischen für nächste Runde
+          const newPairs = createAllPossiblePairs(connectedAccounts);
+          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+          setAllPairs(shuffledPairs);
+          console.log(`[Warm-up] Runde abgeschlossen, Paare neu gemischt`);
+          toast.success("Warm-up Runde abgeschlossen - Paare neu gemischt");
+        }
+        
         return;
       }
       
       console.log(`[Warm-up Rotation] Using pair ${currentPairIndex + 1}/${allPairs.length}: ${acc1.account_name} ↔ ${acc2.account_name}`);
       
-      // Zum nächsten Paar wechseln
-      setCurrentPairIndex(prev => (prev + 1) % allPairs.length);
+      // Zum nächsten Paar wechseln und prüfen ob Runde abgeschlossen
+      const nextIndex = (currentPairIndex + 1) % allPairs.length;
+      setCurrentPairIndex(nextIndex);
+      
+      // Wenn wir wieder am Anfang sind: Runde abgeschlossen
+      if (nextIndex === 0) {
+        setCompletedRounds(prev => prev + 1);
+        // Paare neu mischen für nächste Runde
+        const newPairs = createAllPossiblePairs(connectedAccounts);
+        const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+        setAllPairs(shuffledPairs);
+        console.log(`[Warm-up] Runde abgeschlossen, Paare neu gemischt`);
+        toast.success("Warm-up Runde abgeschlossen - Paare neu gemischt");
+      }
     } else {
       // Zufällig Modus: Bei jeder Session neue zufällige Paare
       if (connectedAccounts.length < 2) {
@@ -239,6 +272,14 @@ export const AutoChat = () => {
       const shuffled = [...connectedAccounts].sort(() => Math.random() - 0.5);
       acc1 = shuffled[0];
       acc2 = shuffled[1];
+      
+      // Prüfe ob beide Accounts verbunden sind
+      if (acc1.status !== 'connected' || acc2.status !== 'connected') {
+        console.log(`[Warm-up Random] Überspringe Session: Accounts nicht verbunden`);
+        setSkippedPairs(prev => prev + 1);
+        setLastMessage(`⚠️ Session übersprungen (Accounts nicht verbunden)`);
+        return;
+      }
     }
 
     setIsRunning(true);
@@ -298,14 +339,17 @@ export const AutoChat = () => {
     }
 
     if (mode === "rotation") {
-      // Rotation Modus: Alle möglichen Kombinationen
+      // Rotation Modus: Alle möglichen Kombinationen, direkt gemischt
       const pairs = createAllPossiblePairs(connectedAccounts);
-      setAllPairs(pairs);
+      const shuffledPairs = pairs.sort(() => Math.random() - 0.5);
+      setAllPairs(shuffledPairs);
       setCurrentPairIndex(0);
-      console.log(`[Warm-up] Rotation mode with ${pairs.length} pairs:`, pairs);
+      console.log(`[Warm-up] Rotation mode with ${pairs.length} pairs (shuffled):`, shuffledPairs);
     }
 
     setMessagesSent(0);
+    setSkippedPairs(0);
+    setCompletedRounds(0);
     
     const modeText = mode === "rotation" ? "Rotation" : "Zufällig";
     console.log(`[Warm-up] Starting in ${modeText} mode with ${connectedAccounts.length} accounts`);
@@ -442,9 +486,21 @@ export const AutoChat = () => {
               <span className="text-2xl font-bold">{messagesSent}</span>
             </div>
 
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <span className="text-sm font-medium">Übersprungene Paare</span>
+              <span className="text-2xl font-bold text-orange-500">{skippedPairs}</span>
+            </div>
+
+            {mode === "rotation" && (
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <span className="text-sm font-medium">Abgeschlossene Runden</span>
+                <span className="text-2xl font-bold text-green-500">{completedRounds}</span>
+              </div>
+            )}
+
             {lastMessage && (
               <div className="p-4 border rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">Letzte Nachricht</p>
+                <p className="text-xs text-muted-foreground mb-2">Letzte Aktivität</p>
                 <p className="text-sm">{lastMessage}</p>
               </div>
             )}
