@@ -224,7 +224,10 @@ Deno.serve(async (req) => {
               sent_at: new Date().toISOString(),
             });
 
-            await new Promise(resolve => setTimeout(resolve, Math.min(message1.length * 50, 4000) + Math.random() * 2000));
+            // Random delay between 5-15 seconds
+            const delay1 = 5000 + Math.random() * 10000;
+            console.log(`[Warmup] Waiting ${Math.round(delay1/1000)}s before next message`);
+            await new Promise(resolve => setTimeout(resolve, delay1));
           }
 
           // Message 2: acc2 -> acc1
@@ -254,7 +257,10 @@ Deno.serve(async (req) => {
               sent_at: new Date().toISOString(),
             });
 
-            await new Promise(resolve => setTimeout(resolve, Math.min(message2.length * 50, 4000) + Math.random() * 2000));
+            // Random delay between 5-15 seconds
+            const delay2 = 5000 + Math.random() * 10000;
+            console.log(`[Warmup] Waiting ${Math.round(delay2/1000)}s before next message`);
+            await new Promise(resolve => setTimeout(resolve, delay2));
           }
         }
 
