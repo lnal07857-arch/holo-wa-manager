@@ -206,6 +206,8 @@ export const AutoChat = () => {
   };
 
   const runChatSession = async () => {
+    // Accounts immer frisch holen, damit neu verbundene Accounts sofort erkannt werden
+    const currentConnectedAccounts = accounts.filter(acc => acc.status === "connected");
     let acc1, acc2;
 
     if (mode === "rotation") {
@@ -217,8 +219,8 @@ export const AutoChat = () => {
       }
 
       const pairIds = allPairs[currentPairIndex];
-      acc1 = connectedAccounts.find(a => a.id === pairIds[0]);
-      acc2 = connectedAccounts.find(a => a.id === pairIds[1]);
+      acc1 = currentConnectedAccounts.find(a => a.id === pairIds[0]);
+      acc2 = currentConnectedAccounts.find(a => a.id === pairIds[1]);
       
       // Prüfe ob beide Accounts noch verbunden sind
       if (!acc1 || !acc2 || acc1.status !== 'connected' || acc2.status !== 'connected') {
@@ -234,12 +236,12 @@ export const AutoChat = () => {
         // Wenn wir wieder am Anfang sind: Runde abgeschlossen
         if (nextIndex === 0) {
           setCompletedRounds(prev => prev + 1);
-          // Paare neu mischen für nächste Runde
-          const newPairs = createAllPossiblePairs(connectedAccounts);
+          // Paare neu mischen für nächste Runde - mit aktuellen verbundenen Accounts
+          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
           const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
           setAllPairs(shuffledPairs);
-          console.log(`[Warm-up] Runde abgeschlossen, Paare neu gemischt`);
-          toast.success("Warm-up Runde abgeschlossen - Paare neu gemischt");
+          console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
+          toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
         }
         
         return;
@@ -254,22 +256,22 @@ export const AutoChat = () => {
       // Wenn wir wieder am Anfang sind: Runde abgeschlossen
       if (nextIndex === 0) {
         setCompletedRounds(prev => prev + 1);
-        // Paare neu mischen für nächste Runde
-        const newPairs = createAllPossiblePairs(connectedAccounts);
+        // Paare neu mischen für nächste Runde - mit aktuellen verbundenen Accounts
+        const newPairs = createAllPossiblePairs(currentConnectedAccounts);
         const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
         setAllPairs(shuffledPairs);
-        console.log(`[Warm-up] Runde abgeschlossen, Paare neu gemischt`);
-        toast.success("Warm-up Runde abgeschlossen - Paare neu gemischt");
+        console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
+        toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
       }
     } else {
       // Zufällig Modus: Bei jeder Session neue zufällige Paare
-      if (connectedAccounts.length < 2) {
-        toast.error("Mindestens 2 verbundene Accounts benötigt");
-        setIsRunning(false);
+      if (currentConnectedAccounts.length < 2) {
+        console.log(`[Warm-up Random] Zu wenig verbundene Accounts: ${currentConnectedAccounts.length}`);
+        setLastMessage(`⚠️ Mindestens 2 Accounts benötigt (aktuell: ${currentConnectedAccounts.length})`);
         return;
       }
 
-      const shuffled = [...connectedAccounts].sort(() => Math.random() - 0.5);
+      const shuffled = [...currentConnectedAccounts].sort(() => Math.random() - 0.5);
       acc1 = shuffled[0];
       acc2 = shuffled[1];
       
