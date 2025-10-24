@@ -127,6 +127,7 @@ export const AutoChat = () => {
   const accountsRef = useRef<typeof accounts>(accounts);
   const lastAccountCountRef = useRef<number>(0);
   const processingRef = useRef<boolean>(false);
+  const statusCacheRef = useRef<Map<string, { connected: boolean; ts: number }>>(new Map());
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
 
@@ -159,24 +160,38 @@ export const AutoChat = () => {
     lastAccountCountRef.current = lastAccountCount;
   }, [lastAccountCount]);
 
+  const STATUS_TTL_MS = 30000;
+  const checkAccountConnected = async (accountId: string): Promise<boolean> => {
+    const cached = statusCacheRef.current.get(accountId);
+    const now = Date.now();
+    if (cached && now - cached.ts < STATUS_TTL_MS) {
+      return cached.connected;
+    }
+
+    const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
+      body: {
+        action: 'status',
+        accountId,
+      }
+    });
+
+    if (statusError) {
+      console.error('[Warm-up Status Error]', statusError);
+      throw new Error(`Status-Prüfung fehlgeschlagen: ${statusError.message}`);
+    }
+
+    const connected = !!statusData?.connected;
+    statusCacheRef.current.set(accountId, { connected, ts: now });
+    return connected;
+  };
+
   const sendMessage = async (fromAccountId: string, toPhone: string, message: string) => {
     try {
       console.log(`[Warm-up] Sending from ${fromAccountId} to ${toPhone}:`, message);
       
-      // Erst Status prüfen
-      const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
-        body: {
-          action: 'status',
-          accountId: fromAccountId,
-        }
-      });
-
-      if (statusError) {
-        console.error('[Warm-up Status Error]', statusError);
-        throw new Error(`Status-Prüfung fehlgeschlagen: ${statusError.message}`);
-      }
-
-      if (!statusData?.connected) {
+      // Status mit Cache prüfen (verhindert übermäßige Status-Calls)
+      const isConnected = await checkAccountConnected(fromAccountId);
+      if (!isConnected) {
         throw new Error('Account ist nicht verbunden - bitte zuerst verbinden');
       }
 
@@ -255,6 +270,7 @@ export const AutoChat = () => {
         setCurrentPairIndex(0);
         lastAccountCountRef.current = currentConnectedAccounts.length;
         setLastAccountCount(currentConnectedAccounts.length);
+        statusCacheRef.current.clear();
         toast.info(`Account-Änderung erkannt - ${newPairs.length} Paare neu erstellt`);
       }
       
@@ -285,19 +301,15 @@ export const AutoChat = () => {
       const acc1 = currentConnectedAccounts.find(a => a.id === pairIds[0]);
       const acc2 = currentConnectedAccounts.find(a => a.id === pairIds[1]);
       
-      // Validate both accounts are still connected
-      if (!acc1 || !acc2 || acc1.status !== 'connected' || acc2.status !== 'connected') {
-        const reason = !acc1 || !acc2 ? "nicht gefunden" : "nicht verbunden";
+      // Validate both accounts are still connected (live status)
+      if (!acc1 || !acc2) {
+        const reason = !acc1 || !acc2 ? "nicht gefunden" : "unbekannt";
         console.log(`[Warm-up] Überspringe Paar ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: Accounts ${reason}`);
         setSkippedPairs(prev => prev + 1);
         setLastMessage(`⚠️ Paar übersprungen (${reason})`);
-        
-        // Move to next pair
         const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
         currentPairIndexRef.current = nextIndex;
         setCurrentPairIndex(nextIndex);
-        
-        // Round completed?
         if (nextIndex === 0) {
           setCompletedRounds(prev => prev + 1);
           const newPairs = createAllPossiblePairs(currentConnectedAccounts);
@@ -307,7 +319,31 @@ export const AutoChat = () => {
           console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
           toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
         }
-        
+        return;
+      }
+
+      const [acc1Connected, acc2Connected] = await Promise.all([
+        checkAccountConnected(acc1.id),
+        checkAccountConnected(acc2.id)
+      ]);
+
+      if (!acc1Connected || !acc2Connected) {
+        const reason = !acc1Connected || !acc2Connected ? "nicht verbunden" : "unbekannt";
+        console.log(`[Warm-up] Überspringe Paar ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: Accounts ${reason}`);
+        setSkippedPairs(prev => prev + 1);
+        setLastMessage(`⚠️ Paar übersprungen (${reason})`);
+        const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
+        currentPairIndexRef.current = nextIndex;
+        setCurrentPairIndex(nextIndex);
+        if (nextIndex === 0) {
+          setCompletedRounds(prev => prev + 1);
+          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
+          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+          allPairsRef.current = shuffledPairs;
+          setAllPairs(shuffledPairs);
+          console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
+          toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
+        }
         return;
       }
       
