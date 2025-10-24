@@ -316,6 +316,57 @@ export type Database = {
         }
         Relationships: []
       }
+      warmup_settings: {
+        Row: {
+          all_pairs: Json | null
+          completed_rounds: number
+          created_at: string
+          current_pair_index: number
+          id: string
+          interval_minutes: number
+          is_running: boolean
+          last_message: string | null
+          last_run_at: string | null
+          messages_per_session: number
+          messages_sent: number
+          skipped_pairs: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          all_pairs?: Json | null
+          completed_rounds?: number
+          created_at?: string
+          current_pair_index?: number
+          id?: string
+          interval_minutes?: number
+          is_running?: boolean
+          last_message?: string | null
+          last_run_at?: string | null
+          messages_per_session?: number
+          messages_sent?: number
+          skipped_pairs?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          all_pairs?: Json | null
+          completed_rounds?: number
+          created_at?: string
+          current_pair_index?: number
+          id?: string
+          interval_minutes?: number
+          is_running?: boolean
+          last_message?: string | null
+          last_run_at?: string | null
+          messages_per_session?: number
+          messages_sent?: number
+          skipped_pairs?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_accounts: {
         Row: {
           account_name: string

@@ -115,301 +115,75 @@ export const AutoChat = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [messagesSent, setMessagesSent] = useState<number>(0);
   const [lastMessage, setLastMessage] = useState<string>("");
-  const [currentPairIndex, setCurrentPairIndex] = useState<number>(0);
-  const [allPairs, setAllPairs] = useState<[string, string][]>([]);
   const [skippedPairs, setSkippedPairs] = useState<number>(0);
   const [completedRounds, setCompletedRounds] = useState<number>(0);
-  const [lastAccountCount, setLastAccountCount] = useState<number>(0);
-  const intervalRef = useRef<number | null>(null);
-  const allPairsRef = useRef<[string, string][]>([]);
-  const currentPairIndexRef = useRef<number>(0);
-  const isRunningRef = useRef<boolean>(false);
-  const accountsRef = useRef<typeof accounts>(accounts);
-  const lastAccountCountRef = useRef<number>(0);
-  const processingRef = useRef<boolean>(false);
-  const statusCacheRef = useRef<Map<string, { connected: boolean; ts: number }>>(new Map());
+  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
 
+  // Load warmup settings from DB on mount
   useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    const loadSettings = async () => {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return;
+
+      const { data: settings, error } = await supabase
+        .from('warmup_settings')
+        .select('*')
+        .eq('user_id', user.user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('[AutoChat] Error loading settings:', error);
+        return;
+      }
+
+      if (settings) {
+        setSettingsId(settings.id);
+        setInterval(settings.interval_minutes);
+        setMessagesPerSession(settings.messages_per_session);
+        setIsRunning(settings.is_running);
+        setMessagesSent(settings.messages_sent);
+        setSkippedPairs(settings.skipped_pairs);
+        setCompletedRounds(settings.completed_rounds);
+        setLastMessage(settings.last_message || "");
       }
     };
+
+    loadSettings();
   }, []);
 
-  // Keep refs in sync with latest state to avoid stale closures in timers
+  // Subscribe to realtime updates
   useEffect(() => {
-    allPairsRef.current = allPairs;
-  }, [allPairs]);
+    if (!settingsId) return;
 
-  useEffect(() => {
-    currentPairIndexRef.current = currentPairIndex;
-  }, [currentPairIndex]);
-
-  useEffect(() => {
-    isRunningRef.current = isRunning;
-  }, [isRunning]);
-
-  useEffect(() => {
-    accountsRef.current = accounts;
-  }, [accounts]);
-
-  useEffect(() => {
-    lastAccountCountRef.current = lastAccountCount;
-  }, [lastAccountCount]);
-
-  const STATUS_TTL_MS = 30000;
-  const checkAccountConnected = async (accountId: string): Promise<boolean> => {
-    const cached = statusCacheRef.current.get(accountId);
-    const now = Date.now();
-    if (cached && now - cached.ts < STATUS_TTL_MS) {
-      return cached.connected;
-    }
-
-    const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
-      body: {
-        action: 'status',
-        accountId,
-      }
-    });
-
-    if (statusError) {
-      console.error('[Warm-up Status Error]', statusError);
-      throw new Error(`Status-Prüfung fehlgeschlagen: ${statusError.message}`);
-    }
-
-    const connected = !!statusData?.connected;
-    statusCacheRef.current.set(accountId, { connected, ts: now });
-    return connected;
-  };
-
-  const sendMessage = async (fromAccountId: string, toPhone: string, message: string) => {
-    try {
-      console.log(`[Warm-up] Sending from ${fromAccountId} to ${toPhone}:`, message);
-      
-      // Status mit Cache prüfen (verhindert übermäßige Status-Calls)
-      const isConnected = await checkAccountConnected(fromAccountId);
-      if (!isConnected) {
-        throw new Error('Account ist nicht verbunden - bitte zuerst verbinden');
-      }
-
-      // Telefonnummer säubern (nur Ziffern, z.B. +49 157 123 → 49157123)
-      const cleaned = (toPhone || '').replace(/\D/g, '');
-      if (!cleaned) {
-        throw new Error('Ungültige Zielnummer');
-      }
-
-      // Nachricht über WhatsApp senden
-      const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
-        body: {
-          action: 'send-message',
-          accountId: fromAccountId,
-          phoneNumber: cleaned,
-          message: message,
+    const channel = supabase
+      .channel(`warmup-${settingsId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'warmup_settings',
+          filter: `id=eq.${settingsId}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          setMessagesSent(updated.messages_sent);
+          setSkippedPairs(updated.skipped_pairs);
+          setCompletedRounds(updated.completed_rounds);
+          setLastMessage(updated.last_message || "");
+          setIsRunning(updated.is_running);
         }
-      });
+      )
+      .subscribe();
 
-      if (error) {
-        console.error('[Warm-up Send Error]', error);
-        throw error;
-      }
-      if (data?.error) {
-        console.error('[Warm-up Railway Error]', data.error);
-        throw new Error(data.error);
-      }
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [settingsId]);
 
-      // Nach erfolgreichem Senden: Nachricht in DB mit is_warmup=true speichern
-      const { error: dbError } = await supabase
-        .from('messages')
-        .insert({
-          account_id: fromAccountId,
-          contact_phone: toPhone,
-          contact_name: null,
-          message_text: message,
-          direction: 'outgoing',
-          is_warmup: true,
-          sent_at: new Date().toISOString(),
-        });
-
-      if (dbError) {
-        console.error('[Warm-up DB Error]', dbError);
-        // Fehler beim DB-Insert soll nicht die Funktion stoppen
-      }
-
-      console.log('[Warm-up] Message sent successfully');
-      return true;
-    } catch (error: any) {
-      console.error('[Auto-Chat Send Error]', error);
-      toast.error(`Fehler beim Senden: ${error.message}`);
-      return false;
-    }
-  };
-
-  const runChatSession = async () => {
-    // Prevent overlapping runs
-    if (processingRef.current) {
-      console.log("[Warm-up] Session already running, skipping");
-      return;
-    }
-    processingRef.current = true;
-
-    try {
-      // Always use the freshest accounts snapshot
-      const currentConnectedAccounts = accountsRef.current.filter(acc => acc.status === "connected");
-      
-      // Detect account count changes and rebuild pairs
-      if (currentConnectedAccounts.length !== lastAccountCountRef.current && lastAccountCountRef.current > 0) {
-        console.log(`[Warm-up] Account-Anzahl geändert von ${lastAccountCountRef.current} zu ${currentConnectedAccounts.length} - Paare werden neu erstellt`);
-        const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-        const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-        allPairsRef.current = shuffledPairs;
-        setAllPairs(shuffledPairs);
-        currentPairIndexRef.current = 0;
-        setCurrentPairIndex(0);
-        lastAccountCountRef.current = currentConnectedAccounts.length;
-        setLastAccountCount(currentConnectedAccounts.length);
-        statusCacheRef.current.clear();
-        toast.info(`Account-Änderung erkannt - ${newPairs.length} Paare neu erstellt`);
-      }
-      
-      // Ensure there are pairs to work with
-      if (allPairsRef.current.length === 0) {
-        if (isRunningRef.current) {
-          console.log("[Warm-up] Paare werden initial generiert");
-          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-          allPairsRef.current = shuffledPairs;
-          setAllPairs(shuffledPairs);
-          currentPairIndexRef.current = 0;
-          setCurrentPairIndex(0);
-
-          if (shuffledPairs.length === 0) {
-            console.log("[Warm-up] Keine Paarungen verfügbar (zu wenige verbundene Accounts)");
-            setLastMessage("⚠️ Keine Paarungen verfügbar");
-            return;
-          }
-        } else {
-          console.log("[Warm-up] Keine Paarungen verfügbar");
-          setLastMessage("⚠️ Keine Paarungen verfügbar");
-          return;
-        }
-      }
-
-      const pairIds = allPairsRef.current[currentPairIndexRef.current];
-      const acc1 = currentConnectedAccounts.find(a => a.id === pairIds[0]);
-      const acc2 = currentConnectedAccounts.find(a => a.id === pairIds[1]);
-      
-      // Validate both accounts are still connected (live status)
-      if (!acc1 || !acc2) {
-        const reason = !acc1 || !acc2 ? "nicht gefunden" : "unbekannt";
-        console.log(`[Warm-up] Überspringe Paar ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: Accounts ${reason}`);
-        setSkippedPairs(prev => prev + 1);
-        setLastMessage(`⚠️ Paar übersprungen (${reason})`);
-        const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
-        currentPairIndexRef.current = nextIndex;
-        setCurrentPairIndex(nextIndex);
-        if (nextIndex === 0) {
-          setCompletedRounds(prev => prev + 1);
-          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-          allPairsRef.current = shuffledPairs;
-          setAllPairs(shuffledPairs);
-          console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
-          toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
-        }
-        return;
-      }
-
-      const [acc1Connected, acc2Connected] = await Promise.all([
-        checkAccountConnected(acc1.id),
-        checkAccountConnected(acc2.id)
-      ]);
-
-      if (!acc1Connected || !acc2Connected) {
-        const reason = !acc1Connected || !acc2Connected ? "nicht verbunden" : "unbekannt";
-        console.log(`[Warm-up] Überspringe Paar ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: Accounts ${reason}`);
-        setSkippedPairs(prev => prev + 1);
-        setLastMessage(`⚠️ Paar übersprungen (${reason})`);
-        const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
-        currentPairIndexRef.current = nextIndex;
-        setCurrentPairIndex(nextIndex);
-        if (nextIndex === 0) {
-          setCompletedRounds(prev => prev + 1);
-          const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-          const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-          allPairsRef.current = shuffledPairs;
-          setAllPairs(shuffledPairs);
-          console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
-          toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
-        }
-        return;
-      }
-      
-      console.log(`[Warm-up Rotation] Using pair ${currentPairIndexRef.current + 1}/${allPairsRef.current.length}: ${acc1.account_name} ↔ ${acc2.account_name}`);
-      
-      // Prepare next index and handle round completion
-      const nextIndex = (currentPairIndexRef.current + 1) % allPairsRef.current.length;
-      currentPairIndexRef.current = nextIndex;
-      setCurrentPairIndex(nextIndex);
-      
-      if (nextIndex === 0) {
-        setCompletedRounds(prev => prev + 1);
-        const newPairs = createAllPossiblePairs(currentConnectedAccounts);
-        const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
-        allPairsRef.current = shuffledPairs;
-        setAllPairs(shuffledPairs);
-        console.log(`[Warm-up] Runde abgeschlossen, ${newPairs.length} Paare neu gemischt mit ${currentConnectedAccounts.length} Accounts`);
-        toast.success(`Warm-up Runde abgeschlossen - ${newPairs.length} Paare neu gemischt`);
-      }
-
-      let sessionMessages = 0;
-
-      // Alternate sending messages
-      for (let i = 0; i < messagesPerSession; i++) {
-        const message = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
-        
-        const success1 = await sendMessage(acc1.id, acc2.phone_number, message);
-        if (success1) {
-          sessionMessages++;
-          setMessagesSent(prev => prev + 1);
-          setLastMessage(`${acc1.account_name} → ${acc2.account_name}: ${message}`);
-          const baseDelay = Math.min(message.length * 50, 4000);
-          const randomVariation = Math.floor(Math.random() * 2000);
-          await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
-        }
-
-        const message2 = DEFAULT_MESSAGES[Math.floor(Math.random() * DEFAULT_MESSAGES.length)];
-        const success2 = await sendMessage(acc2.id, acc1.phone_number, message2);
-        if (success2) {
-          sessionMessages++;
-          setMessagesSent(prev => prev + 1);
-          setLastMessage(`${acc2.account_name} → ${acc1.account_name}: ${message2}`);
-          const baseDelay = Math.min(message2.length * 50, 4000);
-          const randomVariation = Math.floor(Math.random() * 2000);
-          await new Promise(resolve => setTimeout(resolve, baseDelay + randomVariation));
-        }
-      }
-
-      toast.success(`Chat-Session beendet: ${sessionMessages} Nachrichten gesendet`);
-    } finally {
-      processingRef.current = false;
-    }
-  };
-
-  const createAllPossiblePairs = (accounts: typeof connectedAccounts): [string, string][] => {
-    const pairs: [string, string][] = [];
-    for (let i = 0; i < accounts.length; i++) {
-      for (let j = i + 1; j < accounts.length; j++) {
-        pairs.push([accounts[i].id, accounts[j].id]);
-      }
-    }
-    return pairs;
-  };
-
-  const startAutoChat = () => {
-    // Prüfe ob es überhaupt verbundene Accounts gibt
+  const startAutoChat = async () => {
     if (connectedAccounts.length === 0) {
       toast.error("Keine verbundenen Accounts gefunden - bitte zuerst Accounts verbinden");
       return;
@@ -420,45 +194,86 @@ export const AutoChat = () => {
       return;
     }
 
-    // Rotation Modus: Alle möglichen Kombinationen, direkt gemischt
-    const pairs = createAllPossiblePairs(connectedAccounts);
-    const shuffledPairs = pairs.sort(() => Math.random() - 0.5);
-    
-    console.log(`[Warm-up] Starting Rotation mode with ${connectedAccounts.length} accounts, ${pairs.length} pairs`);
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        toast.error("Nicht angemeldet");
+        return;
+      }
 
-    // Update state and refs in sync to avoid stale state in timers
-    allPairsRef.current = shuffledPairs;
-    setAllPairs(shuffledPairs);
-    currentPairIndexRef.current = 0;
-    setCurrentPairIndex(0);
-    setMessagesSent(0);
-    setSkippedPairs(0);
-    setCompletedRounds(0);
-    lastAccountCountRef.current = connectedAccounts.length;
-    setLastAccountCount(connectedAccounts.length);
-    isRunningRef.current = true;
-    setIsRunning(true);
-    
-    // Ersten Chat sofort starten (keine Wartezeit, da wir Refs nutzen)
-    runChatSession();
-    
-    // Dann im Intervall weitermachen
-    intervalRef.current = window.setInterval(() => {
-      runChatSession();
-    }, interval * 60 * 1000);
-    
-    toast.success(`Auto-Chat gestartet mit ${pairs.length} Paarungen`);
+      // Create or update warmup settings
+      const pairs: [string, string][] = [];
+      for (let i = 0; i < connectedAccounts.length; i++) {
+        for (let j = i + 1; j < connectedAccounts.length; j++) {
+          pairs.push([connectedAccounts[i].id, connectedAccounts[j].id]);
+        }
+      }
+      const shuffledPairs = pairs.sort(() => Math.random() - 0.5);
+
+      if (settingsId) {
+        // Update existing
+        const { error } = await supabase
+          .from('warmup_settings')
+          .update({
+            is_running: true,
+            interval_minutes: interval,
+            messages_per_session: messagesPerSession,
+            all_pairs: shuffledPairs,
+            current_pair_index: 0,
+          })
+          .eq('id', settingsId);
+
+        if (error) throw error;
+      } else {
+        // Create new
+        const { data, error } = await supabase
+          .from('warmup_settings')
+          .insert({
+            user_id: user.user.id,
+            is_running: true,
+            interval_minutes: interval,
+            messages_per_session: messagesPerSession,
+            all_pairs: shuffledPairs,
+            current_pair_index: 0,
+            messages_sent: 0,
+            skipped_pairs: 0,
+            completed_rounds: 0,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setSettingsId(data.id);
+      }
+
+      setIsRunning(true);
+      toast.success(`Auto-Chat gestartet - läuft automatisch im Hintergrund`);
+    } catch (error: any) {
+      console.error('[AutoChat] Start error:', error);
+      toast.error(`Fehler beim Starten: ${error.message}`);
+    }
   };
 
-  const stopAutoChat = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const stopAutoChat = async () => {
+    if (!settingsId) {
+      setIsRunning(false);
+      return;
     }
-    isRunningRef.current = false;
-    processingRef.current = false;
-    setIsRunning(false);
-    toast.info("Auto-Chat gestoppt");
+
+    try {
+      const { error } = await supabase
+        .from('warmup_settings')
+        .update({ is_running: false })
+        .eq('id', settingsId);
+
+      if (error) throw error;
+
+      setIsRunning(false);
+      toast.info("Auto-Chat gestoppt");
+    } catch (error: any) {
+      console.error('[AutoChat] Stop error:', error);
+      toast.error(`Fehler beim Stoppen: ${error.message}`);
+    }
   };
 
   return (
@@ -483,9 +298,9 @@ export const AutoChat = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm font-medium mb-1">Rotation Modus</p>
+              <p className="text-sm font-medium mb-1">Automatischer Hintergrund-Modus</p>
               <p className="text-xs text-muted-foreground">
-                {createAllPossiblePairs(connectedAccounts).length} mögliche Paarungen werden systematisch durchlaufen
+                Läuft automatisch im Hintergrund - auch wenn du die Seite wechselst oder schließt
               </p>
             </div>
 
@@ -581,8 +396,8 @@ export const AutoChat = () => {
             <div className="p-4 bg-muted rounded-lg">
               <p className="text-xs text-muted-foreground mb-2">ℹ️ Hinweis</p>
               <p className="text-sm">
-                Die Accounts senden sich gegenseitig harmlose Nachrichten, um die Verbindung 
-                aktiv und "warm" zu halten. Dies kann helfen, Account-Beschränkungen zu vermeiden.
+                Der Warm-up läuft automatisch im Hintergrund auf dem Server. Du musst diese Seite 
+                nicht geöffnet lassen - der Prozess läuft weiter, auch wenn du die App schließt.
               </p>
             </div>
           </CardContent>
