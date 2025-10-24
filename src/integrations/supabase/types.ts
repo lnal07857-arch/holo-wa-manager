@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_warmup_stats: {
+        Row: {
+          account_id: string
+          blocks: number | null
+          created_at: string | null
+          id: string
+          received_messages: number | null
+          sent_messages: number | null
+          status: string | null
+          unique_contacts: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          blocks?: number | null
+          created_at?: string | null
+          id?: string
+          received_messages?: number | null
+          sent_messages?: number | null
+          status?: string | null
+          unique_contacts?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          blocks?: number | null
+          created_at?: string | null
+          id?: string
+          received_messages?: number | null
+          sent_messages?: number | null
+          status?: string | null
+          unique_contacts?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_warmup_stats_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_campaigns: {
         Row: {
           account_id: string
@@ -316,8 +363,45 @@ export type Database = {
         }
         Relationships: []
       }
+      warmup_daily_history: {
+        Row: {
+          account_id: string
+          created_at: string | null
+          date: string
+          id: string
+          received_count: number | null
+          sent_count: number | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string | null
+          date: string
+          id?: string
+          received_count?: number | null
+          sent_count?: number | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string | null
+          date?: string
+          id?: string
+          received_count?: number | null
+          sent_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warmup_daily_history_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warmup_settings: {
         Row: {
+          active_end_hour: number | null
+          active_start_hour: number | null
           all_pairs: Json | null
           completed_rounds: number
           created_at: string
@@ -327,13 +411,23 @@ export type Database = {
           is_running: boolean
           last_message: string | null
           last_run_at: string | null
+          max_delay_sec: number | null
+          max_typing_ms: number | null
           messages_per_session: number
           messages_sent: number
+          min_delay_sec: number | null
+          min_typing_ms: number | null
+          phase: string | null
           skipped_pairs: number
+          sleep_end_hour: number | null
+          sleep_start_hour: number | null
+          started_at: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          active_end_hour?: number | null
+          active_start_hour?: number | null
           all_pairs?: Json | null
           completed_rounds?: number
           created_at?: string
@@ -343,13 +437,23 @@ export type Database = {
           is_running?: boolean
           last_message?: string | null
           last_run_at?: string | null
+          max_delay_sec?: number | null
+          max_typing_ms?: number | null
           messages_per_session?: number
           messages_sent?: number
+          min_delay_sec?: number | null
+          min_typing_ms?: number | null
+          phase?: string | null
           skipped_pairs?: number
+          sleep_end_hour?: number | null
+          sleep_start_hour?: number | null
+          started_at?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          active_end_hour?: number | null
+          active_start_hour?: number | null
           all_pairs?: Json | null
           completed_rounds?: number
           created_at?: string
@@ -359,9 +463,17 @@ export type Database = {
           is_running?: boolean
           last_message?: string | null
           last_run_at?: string | null
+          max_delay_sec?: number | null
+          max_typing_ms?: number | null
           messages_per_session?: number
           messages_sent?: number
+          min_delay_sec?: number | null
+          min_typing_ms?: number | null
+          phase?: string | null
           skipped_pairs?: number
+          sleep_end_hour?: number | null
+          sleep_start_hour?: number | null
+          started_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -411,7 +523,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_warmup_stats: {
+        Args: { p_account_id: string; p_count?: number; p_to_phone: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

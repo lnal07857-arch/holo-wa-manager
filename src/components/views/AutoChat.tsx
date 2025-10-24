@@ -5,10 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useWarmupStats, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Play, Square, Zap, Clock, MessageCircle } from "lucide-react";
+import { Play, Square, Zap, Clock, MessageCircle, TrendingUp, Users, AlertCircle, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 const DEFAULT_MESSAGES = [
   // Begrüßungen
@@ -110,6 +112,7 @@ const DEFAULT_MESSAGES = [
 
 export const AutoChat = () => {
   const { accounts } = useWhatsAppAccounts();
+  const { data: warmupStats } = useWarmupStats();
   const [interval, setInterval] = useState<number>(5);
   const [messagesPerSession, setMessagesPerSession] = useState<number>(5);
   const [isRunning, setIsRunning] = useState(false);
@@ -118,6 +121,7 @@ export const AutoChat = () => {
   const [skippedPairs, setSkippedPairs] = useState<number>(0);
   const [completedRounds, setCompletedRounds] = useState<number>(0);
   const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<string>("phase1");
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
 
@@ -147,6 +151,7 @@ export const AutoChat = () => {
         setSkippedPairs(settings.skipped_pairs);
         setCompletedRounds(settings.completed_rounds);
         setLastMessage(settings.last_message || "");
+        setPhase(settings.phase || "phase1");
       }
     };
 
@@ -174,6 +179,7 @@ export const AutoChat = () => {
           setCompletedRounds(updated.completed_rounds);
           setLastMessage(updated.last_message || "");
           setIsRunning(updated.is_running);
+          setPhase(updated.phase || "phase1");
         }
       )
       .subscribe();
@@ -276,14 +282,43 @@ export const AutoChat = () => {
     }
   };
 
+  const getPhaseInfo = (p: string) => {
+    switch (p) {
+      case 'phase1':
+        return { label: 'Phase 1: Sanft', days: '0-7 Tage', color: 'bg-blue-500' };
+      case 'phase2':
+        return { label: 'Phase 2: Moderat', days: '7-14 Tage', color: 'bg-yellow-500' };
+      case 'phase3':
+        return { label: 'Phase 3: Intensiv', days: '14+ Tage', color: 'bg-green-500' };
+      default:
+        return { label: 'Phase 1', days: '0-7 Tage', color: 'bg-blue-500' };
+    }
+  };
+
+  const phaseInfo = getPhaseInfo(phase);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Account Warm-up</h1>
         <p className="text-muted-foreground">
-          Lasse verbundene Accounts automatisch miteinander kommunizieren
+          Professionelles 3-Phasen-System über 21 Tage für sicheres Account-Warming
         </p>
       </div>
+
+      {/* Phase Indicator */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold">{phaseInfo.label}</h3>
+              <p className="text-sm text-muted-foreground">{phaseInfo.days}</p>
+            </div>
+            <Badge className={phaseInfo.color}>{phase.toUpperCase()}</Badge>
+          </div>
+          <Progress value={phase === 'phase1' ? 33 : phase === 'phase2' ? 66 : 100} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -403,6 +438,69 @@ export const AutoChat = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Account Statistics */}
+      {warmupStats && warmupStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Account Statistiken
+            </CardTitle>
+            <CardDescription>
+              Detaillierte Warm-up-Statistiken pro Account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {warmupStats.map((stat) => {
+                const uniqueContactsCount = Object.keys(stat.unique_contacts).length;
+                const avgDaily = 0; // Would need to fetch history
+                const bulkReady = isBulkReady(stat, avgDaily);
+                
+                return (
+                  <div key={stat.id} className="p-4 border rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold">{stat.account_name}</h4>
+                      <Badge variant={bulkReady ? "default" : stat.status === 'blocked' ? "destructive" : "secondary"}>
+                        {bulkReady ? "Bulk Ready" : stat.status === 'blocked' ? "Blockiert" : "Warming"}
+                      </Badge>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Gesendet</p>
+                        <p className="text-lg font-semibold">{stat.sent_messages}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Kontakte</p>
+                        <p className="text-lg font-semibold flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          {uniqueContactsCount}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Blocks</p>
+                        <p className={`text-lg font-semibold flex items-center gap-1 ${stat.blocks > 0 ? 'text-destructive' : 'text-green-500'}`}>
+                          {stat.blocks > 0 ? <AlertCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                          {stat.blocks}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <Progress 
+                          value={Math.min((stat.sent_messages / 500) * 100, 100)} 
+                          className="mt-2"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
