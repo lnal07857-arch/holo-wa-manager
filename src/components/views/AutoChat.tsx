@@ -119,6 +119,7 @@ export const AutoChat = () => {
   const [allPairs, setAllPairs] = useState<[string, string][]>([]);
   const [skippedPairs, setSkippedPairs] = useState<number>(0);
   const [completedRounds, setCompletedRounds] = useState<number>(0);
+  const [lastAccountCount, setLastAccountCount] = useState<number>(0);
   const intervalRef = useRef<number | null>(null);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
@@ -207,6 +208,17 @@ export const AutoChat = () => {
   const runChatSession = async () => {
     // Accounts immer frisch holen, damit neu verbundene Accounts sofort erkannt werden
     const currentConnectedAccounts = accounts.filter(acc => acc.status === "connected");
+    
+    // Prüfe ob sich die Anzahl der verbundenen Accounts geändert hat
+    if (currentConnectedAccounts.length !== lastAccountCount && lastAccountCount > 0) {
+      console.log(`[Warm-up] Account-Anzahl geändert von ${lastAccountCount} zu ${currentConnectedAccounts.length} - Paare werden neu erstellt`);
+      const newPairs = createAllPossiblePairs(currentConnectedAccounts);
+      const shuffledPairs = newPairs.sort(() => Math.random() - 0.5);
+      setAllPairs(shuffledPairs);
+      setCurrentPairIndex(0);
+      setLastAccountCount(currentConnectedAccounts.length);
+      toast.info(`Account-Änderung erkannt - ${newPairs.length} Paare neu erstellt`);
+    }
     
     // Rotation Modus: Alle möglichen Kombinationen durchgehen
     if (allPairs.length === 0) {
@@ -327,6 +339,7 @@ export const AutoChat = () => {
     setMessagesSent(0);
     setSkippedPairs(0);
     setCompletedRounds(0);
+    setLastAccountCount(connectedAccounts.length);
     setIsRunning(true);
     
     // Ersten Chat sofort starten
