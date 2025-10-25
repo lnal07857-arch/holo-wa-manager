@@ -600,7 +600,8 @@ app.get('/health', (req, res) => {
 
 // Heartbeat endpoint to keep connections alive and trigger reconnects
 app.post('/api/heartbeat', async (req, res) => {
-  console.log('[Heartbeat] Checking all client connections...');
+  const timestamp = new Date().toISOString();
+  console.log(`[Heartbeat] Received at ${timestamp}, checking ${clients.size} clients...`);
   
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -665,7 +666,7 @@ app.post('/api/heartbeat', async (req, res) => {
     
     res.json({
       success: true,
-      timestamp: new Date().toISOString(),
+      timestamp,
       checkedClients: results.length,
       activeClients: clients.size,
       results,

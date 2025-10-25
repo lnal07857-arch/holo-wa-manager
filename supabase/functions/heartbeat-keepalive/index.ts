@@ -11,10 +11,15 @@ Deno.serve(async (req) => {
   try {
     console.log('[Heartbeat Keepalive] Starting heartbeat check');
 
-    const railwayServerUrl = Deno.env.get('RAILWAY_SERVER_URL');
+    let railwayServerUrl = Deno.env.get('RAILWAY_SERVER_URL');
     
     if (!railwayServerUrl) {
       throw new Error('RAILWAY_SERVER_URL environment variable is not set');
+    }
+
+    // Ensure URL has protocol
+    if (!railwayServerUrl.startsWith('http://') && !railwayServerUrl.startsWith('https://')) {
+      railwayServerUrl = `https://${railwayServerUrl}`;
     }
 
     // Call the heartbeat endpoint on the Railway server
