@@ -11,12 +11,14 @@ const Dashboard = () => {
 
   const connectedAccounts = accounts.filter((a) => a.status === "connected").length;
 
-  // Calculate warmup statistics
+  // Calculate warmup statistics without using hooks inside
   const warmupMetrics = warmupStats?.reduce((acc, stat) => {
-    const { data: dailyHistory } = useWarmupDailyHistory(stat.account_id);
-    const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
     const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
-    const bulkReady = isBulkReady(stat, avgDaily);
+    
+    // Simple bulk ready check without daily history for dashboard overview
+    const bulkReady = stat.sent_messages >= 500 && 
+                      uniqueContactsCount >= 15 && 
+                      stat.blocks === 0;
 
     // Determine phase
     let phase = 1;
@@ -26,8 +28,7 @@ const Dashboard = () => {
     // Calculate readiness
     const messagesProgress = Math.min((stat.sent_messages / 500) * 100, 100);
     const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
-    const avgDailyProgress = Math.min((avgDaily / 50) * 100, 100);
-    const readinessScore = Math.round((messagesProgress + contactsProgress + avgDailyProgress) / 3);
+    const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
 
     return {
       phase1Count: acc.phase1Count + (phase === 1 ? 1 : 0),
