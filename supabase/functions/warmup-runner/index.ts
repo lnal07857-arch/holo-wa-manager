@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
           .eq('user_id', settings.user_id);
       }
 
-      // Generate pairs if needed (filter out inactive accounts from existing pairs)
+      // Generate all possible pairs (filter out inactive accounts from existing pairs)
       const activeIds = new Set(activeAccounts.map((a: any) => a.id));
       let accountPairs = (settings.all_pairs as [string, string][]) || [];
       let currentPairIndex = settings.current_pair_index || 0;
@@ -248,20 +248,26 @@ Deno.serve(async (req) => {
         (p) => activeIds.has(p[0]) && activeIds.has(p[1])
       );
       
-      if (!accountPairs || accountPairs.length === 0 || currentPairIndex >= accountPairs.length) {
-        const shuffledAccounts = [...activeAccounts].sort(() => Math.random() - 0.5);
+      // Calculate expected number of pairs: n*(n-1)/2 for n accounts
+      const expectedPairs = (activeAccounts.length * (activeAccounts.length - 1)) / 2;
+      
+      if (!accountPairs || accountPairs.length !== expectedPairs || currentPairIndex >= accountPairs.length) {
         accountPairs = [];
         
-        for (let i = 0; i < shuffledAccounts.length; i++) {
-          for (let j = i + 1; j < shuffledAccounts.length; j++) {
-            accountPairs.push([shuffledAccounts[i].id, shuffledAccounts[j].id]);
+        // Generate ALL possible pairs systematically
+        for (let i = 0; i < activeAccounts.length; i++) {
+          for (let j = i + 1; j < activeAccounts.length; j++) {
+            accountPairs.push([activeAccounts[i].id, activeAccounts[j].id]);
           }
         }
         
+        // Shuffle pairs for variety
         accountPairs.sort(() => Math.random() - 0.5);
         currentPairIndex = 0;
         
-        console.log(`[Warmup Runner] Generated ${accountPairs.length} pairs`);
+        console.log(`[Warmup Runner] Generated ALL ${accountPairs.length} pairs (expected: ${expectedPairs})`);
+      } else {
+        console.log(`[Warmup Runner] Using existing pairs: ${accountPairs.length}/${expectedPairs}`);
       }
 
       const currentPair = accountPairs[currentPairIndex];
@@ -319,14 +325,16 @@ Deno.serve(async (req) => {
         console.error('[Warmup Runner] Initialize call failed:', e);
       }
 
-      // Reduce messages per session for more natural flow
-      const messagesToSend = Math.min(settings.messages_per_session || 3, 2);
+      // Reduce messages per session for more natural flow (1-2 messages)
+      const messagesToSend = Math.random() < 0.7 ? 1 : 2;
       let sentCount = 0;
       
-      // Sometimes let the receiver respond instead
-      const shouldReceiverRespond = Math.random() < 0.4; // 40% chance receiver responds
+      // 50% chance receiver responds instead (better balance)
+      const shouldReceiverRespond = Math.random() < 0.5;
       const actualSender = shouldReceiverRespond ? receiverAccount : senderAccount;
       const actualReceiver = shouldReceiverRespond ? senderAccount : receiverAccount;
+      
+      console.log(`[Warmup Runner] ${actualSender.account_name} → ${actualReceiver.account_name} (${messagesToSend} msg${messagesToSend > 1 ? 's' : ''})`);
 
       for (let i = 0; i < messagesToSend; i++) {
         // Select message based on phase with more variety
@@ -346,13 +354,12 @@ Deno.serve(async (req) => {
         }
 
         try {
-          // Simulate typing delay
+          // Simulate typing delay (shorter for more natural feel)
           const typingMs = randInt(settings.min_typing_ms, settings.max_typing_ms);
-          console.log(`[Warmup Runner] Typing simulation: ${typingMs}ms`);
           await sleep(typingMs);
 
-          // Inter-message delay
-          const delaySec = randInt(settings.min_delay_sec, settings.max_delay_sec);
+          // Variable inter-message delay (2-20 seconds)
+          const delaySec = randInt(settings.min_delay_sec, Math.min(settings.max_delay_sec, 20));
           await sleep(delaySec * 1000);
 
           // Send message (using actual sender/receiver which might be reversed)
@@ -387,7 +394,7 @@ Deno.serve(async (req) => {
             break;
           }
 
-          // Store message
+          // Store outgoing message
           await supabase.from('messages').insert({
             account_id: actualSender.id,
             contact_phone: actualReceiver.phone_number,
@@ -398,15 +405,43 @@ Deno.serve(async (req) => {
             sent_at: now.toISOString()
           });
 
-          // Update stats
+          // Store incoming message for receiver (simulate conversation)
+          await supabase.from('messages').insert({
+            account_id: actualReceiver.id,
+            contact_phone: actualSender.phone_number,
+            contact_name: actualSender.account_name,
+            message_text: message,
+            direction: 'incoming',
+            is_warmup: true,
+            sent_at: now.toISOString()
+          });
+
+          // Update stats for sender
           await supabase.rpc('increment_warmup_stats', {
             p_account_id: actualSender.id,
             p_to_phone: cleanedPhone,
             p_count: 1
           });
+          
+          // Update received stats for receiver
+          const { data: receiverStats } = await supabase
+            .from('account_warmup_stats')
+            .select('received_messages')
+            .eq('account_id', actualReceiver.id)
+            .single();
+          
+          await supabase
+            .from('account_warmup_stats')
+            .upsert({
+              user_id: settings.user_id,
+              account_id: actualReceiver.id,
+              received_messages: (receiverStats?.received_messages || 0) + 1
+            }, {
+              onConflict: 'account_id'
+            });
 
           sentCount++;
-          console.log(`[Warmup Runner] Sent ${i + 1}/${messagesToSend}: ${message.substring(0, 30)}...`);
+          console.log(`[Warmup Runner] ✓ ${i + 1}/${messagesToSend}: "${message.substring(0, 40)}${message.length > 40 ? '...' : ''}"`);
           
         } catch (error) {
           console.error(`[Warmup Runner] Error:`, error);
@@ -432,7 +467,7 @@ Deno.serve(async (req) => {
         })
         .eq('user_id', settings.user_id);
 
-      console.log(`[Warmup Runner] Cycle complete: ${sentCount} messages sent, phase ${phase}`);
+      console.log(`[Warmup Runner] ✅ Cycle complete: ${sentCount} msg sent | ${actualSender.account_name}→${actualReceiver.account_name} | Phase: ${phase} | Round: ${completedRounds}`);
     }
 
     return new Response(
