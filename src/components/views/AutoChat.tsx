@@ -318,8 +318,7 @@ export const AutoChat = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+      <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="w-5 h-5" />
@@ -426,55 +425,7 @@ export const AutoChat = () => {
               )}
             </div>
           </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Status</CardTitle>
-            <CardDescription>
-              Aktuelle Aktivität des Auto-Chats
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <span className="text-sm font-medium">Status</span>
-              <Badge variant={isRunning ? "default" : "secondary"}>
-                {isRunning ? "Aktiv" : "Inaktiv"}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <span className="text-sm font-medium">Gesendete Nachrichten</span>
-              <span className="text-2xl font-bold">{messagesSent}</span>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <span className="text-sm font-medium">Übersprungene Paare</span>
-              <span className="text-2xl font-bold text-orange-500">{skippedPairs}</span>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <span className="text-sm font-medium">Abgeschlossene Runden</span>
-              <span className="text-2xl font-bold text-green-500">{completedRounds}</span>
-            </div>
-
-            {lastMessage && (
-              <div className="p-4 border rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">Letzte Aktivität</p>
-                <p className="text-sm">{lastMessage}</p>
-              </div>
-            )}
-
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground mb-2">ℹ️ Hinweis</p>
-              <p className="text-sm">
-                Der Warm-up läuft automatisch im Hintergrund auf dem Server. Du musst diese Seite 
-                nicht geöffnet lassen - der Prozess läuft weiter, auch wenn du die App schließt.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      </Card>
 
       {/* Detailed Account Statistics */}
       <WarmupAccountStats />
