@@ -130,8 +130,27 @@ Deno.serve(async (req) => {
 
       if (accountsError) throw accountsError;
 
-      if (!accounts || accounts.length < 2) {
-        console.log(`[Warmup Runner] Not enough accounts`);
+      // Verify live status with gateway to avoid pairing with offline clients
+      const activeAccounts: any[] = [];
+      for (const acc of accounts || []) {
+        try {
+          const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
+            body: { action: 'status', accountId: acc.id },
+          });
+          const isLive = !statusError && statusData && (
+            statusData.ready === true ||
+            statusData.status === 'connected' ||
+            statusData.state === 'CONNECTED'
+          );
+          if (isLive) activeAccounts.push(acc);
+        } catch (_) {
+          // ignore
+        }
+      }
+      console.log(`[Warmup Runner] Active accounts after verification: ${activeAccounts.length}`);
+
+      if (!activeAccounts || activeAccounts.length < 2) {
+        console.log(`[Warmup Runner] Not enough live accounts`);
         await supabase
           .from('warmup_settings')
           .update({ last_run_at: now.toISOString() })
@@ -156,7 +175,7 @@ Deno.serve(async (req) => {
       let currentPairIndex = settings.current_pair_index || 0;
       
       if (!accountPairs || accountPairs.length === 0 || currentPairIndex >= accountPairs.length) {
-        const shuffledAccounts = [...accounts].sort(() => Math.random() - 0.5);
+        const shuffledAccounts = [...activeAccounts].sort(() => Math.random() - 0.5);
         accountPairs = [];
         
         for (let i = 0; i < shuffledAccounts.length; i++) {
@@ -192,8 +211,8 @@ Deno.serve(async (req) => {
       }
 
       const [senderId, receiverId] = currentPair;
-      const senderAccount = accounts.find(a => a.id === senderId);
-      const receiverAccount = accounts.find(a => a.id === receiverId);
+      const senderAccount = activeAccounts.find(a => a.id === senderId);
+      const receiverAccount = activeAccounts.find(a => a.id === receiverId);
 
       if (!senderAccount || !receiverAccount) {
         console.log(`[Warmup Runner] Accounts not found`);
