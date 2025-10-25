@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, MessageSquare, Send, CheckCircle2, Zap, TrendingUp, Shield } from "lucide-react";
+import { Users, MessageSquare, Send, CheckCircle2, Zap, TrendingUp, Shield, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
@@ -177,27 +177,107 @@ const Dashboard = () => {
             </p>
           ) : (
             <div className="space-y-4">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card hover:shadow-md transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Users className="w-6 h-6 text-primary" />
+              {accounts.map((account) => {
+                const accountStat = warmupStats?.find(stat => stat.account_id === account.id);
+                const uniqueContactsCount = accountStat ? Object.keys(accountStat.unique_contacts || {}).length : 0;
+                
+                // Calculate phase
+                let phase = 1;
+                let phaseLabel = "Phase 1 (Sanft)";
+                let phaseBadgeClass = "bg-blue-500/10 text-blue-600";
+                
+                if (accountStat) {
+                  if (accountStat.sent_messages >= 150) {
+                    phase = 3;
+                    phaseLabel = "Phase 3 (Intensiv)";
+                    phaseBadgeClass = "bg-green-500/10 text-green-600";
+                  } else if (accountStat.sent_messages >= 50) {
+                    phase = 2;
+                    phaseLabel = "Phase 2 (Moderat)";
+                    phaseBadgeClass = "bg-yellow-500/10 text-yellow-600";
+                  }
+                }
+                
+                // Check bulk readiness
+                const bulkReady = accountStat && 
+                                 accountStat.sent_messages >= 500 && 
+                                 uniqueContactsCount >= 15 && 
+                                 accountStat.blocks === 0;
+                
+                // Calculate readiness score
+                const messagesProgress = accountStat ? Math.min((accountStat.sent_messages / 500) * 100, 100) : 0;
+                const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
+                const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
+                
+                return (
+                  <div
+                    key={account.id}
+                    className="flex flex-col gap-3 p-4 rounded-lg border bg-card hover:shadow-md transition-all"
+                  >
+                    {/* Account Info */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Users className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">{account.account_name}</p>
+                          <p className="text-sm text-muted-foreground">{account.phone_number}</p>
+                        </div>
+                      </div>
+                      <Badge variant={account.status === "connected" ? "default" : "secondary"} className={account.status === "connected" ? "bg-green-600" : ""}>
+                        {account.status === "connected" ? "Verbunden" : "Getrennt"}
+                      </Badge>
                     </div>
-                    <div>
-                      <p className="font-semibold">{account.account_name}</p>
-                      <p className="text-sm text-muted-foreground">{account.phone_number}</p>
-                    </div>
+
+                    {/* Warmup Stats */}
+                    {accountStat && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t">
+                        {/* Phase */}
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground font-medium">Warmup Phase</p>
+                          <Badge variant="secondary" className={phaseBadgeClass}>
+                            {phaseLabel}
+                          </Badge>
+                        </div>
+
+                        {/* Bulk Readiness */}
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground font-medium">Bulk Bereitschaft</p>
+                          <div className="flex items-center gap-2">
+                            {bulkReady ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-600">Bereit</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-4 h-4 text-yellow-600" />
+                                <span className="text-sm font-medium text-yellow-600">In Vorbereitung</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Readiness Score */}
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground font-medium">Bereitschaft</p>
+                          <div className="flex items-center gap-2">
+                            <Progress value={readinessScore} className="h-2 flex-1" />
+                            <span className="text-sm font-bold min-w-[3ch]">{readinessScore}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!accountStat && account.status === "connected" && (
+                      <div className="pt-3 border-t">
+                        <p className="text-sm text-muted-foreground">Noch keine Warmup-Daten vorhanden</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4">
-                    <Badge variant={account.status === "connected" ? "default" : "secondary"} className={account.status === "connected" ? "bg-green-600" : ""}>
-                      {account.status === "connected" ? "Verbunden" : "Getrennt"}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
