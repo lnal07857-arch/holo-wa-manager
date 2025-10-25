@@ -201,6 +201,18 @@ Deno.serve(async (req) => {
       }
 
       // Send messages with typing simulation
+      // Ensure WhatsApp client is initialized for sender
+      try {
+        const { data: initData, error: initError } = await supabase.functions.invoke('whatsapp-gateway', {
+          body: { action: 'initialize', accountId: senderId },
+        });
+        if (initError || initData?.error) {
+          console.error('[Warmup Runner] Initialize error:', initError || initData?.error);
+        }
+      } catch (e) {
+        console.error('[Warmup Runner] Initialize call failed:', e);
+      }
+
       const messagesToSend = settings.messages_per_session || 3;
       let sentCount = 0;
 
