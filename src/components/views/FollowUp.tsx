@@ -85,83 +85,121 @@ export const FollowUp = () => {
     setDisabledContactsMap(phoneToNameMap);
   };
 
-  const analyzeNonResponders = () => {
+  const analyzeNonResponders = async () => {
     setIsAnalyzing(true);
     const threshold = parseInt(daysThreshold);
     const cutoffTime = Date.now() - (threshold * 24 * 60 * 60 * 1000);
     
-    const contactLastActivity = new Map<string, {
-      lastOutgoing: number;
-      hasResponse: boolean;
-      contactName: string | null;
-      accountId: string;
-    }>();
-
-    // Analyze messages
-    messages.forEach(msg => {
-      // Skip warm-up messages
-      if (msg.is_warmup) return;
-      
-      // Skip contacts with "smilework" in the name (warm-up contacts)
-      const contactNameLower = (msg.contact_name || '').toLowerCase();
-      if (contactNameLower.includes('smilework')) return;
-      
-      const key = `${msg.account_id}-${msg.contact_phone}`;
-      const msgTime = new Date(msg.sent_at).getTime();
-
-      if (!contactLastActivity.has(key)) {
-        contactLastActivity.set(key, {
-          lastOutgoing: 0,
-          hasResponse: false,
-          contactName: msg.contact_name,
-          accountId: msg.account_id
-        });
+    try {
+      // Get all bulk campaign recipients that were sent
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsAnalyzing(false);
+        return;
       }
 
-      const activity = contactLastActivity.get(key)!;
+      const { data: recipients, error: recipientsError } = await supabase
+        .from('campaign_recipients')
+        .select(`
+          contact_id,
+          sent_at,
+          campaign_id,
+          contacts (
+            phone_number,
+            name
+          ),
+          bulk_campaigns (
+            account_id
+          )
+        `)
+        .eq('status', 'sent')
+        .not('sent_at', 'is', null);
 
-      if (msg.direction === "outgoing") {
-        if (msgTime > activity.lastOutgoing) {
-          activity.lastOutgoing = msgTime;
-          // Reset response flag for new outgoing message
-          if (msgTime >= cutoffTime) {
-            activity.hasResponse = false;
+      if (recipientsError) {
+        console.error('Error fetching recipients:', recipientsError);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (!recipients || recipients.length === 0) {
+        setNonResponders([]);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Map: contactPhone -> { lastBulkSentAt, accountId, contactName }
+      const bulkContacts = new Map<string, {
+        lastBulkSentAt: number;
+        accountId: string;
+        contactName: string | null;
+      }>();
+
+      recipients.forEach((recipient: any) => {
+        if (!recipient.contacts || !recipient.bulk_campaigns) return;
+        
+        const phone = recipient.contacts.phone_number;
+        const sentTime = new Date(recipient.sent_at).getTime();
+        const accountId = recipient.bulk_campaigns.account_id;
+        const contactName = recipient.contacts.name;
+
+        if (sentTime >= cutoffTime) {
+          const existing = bulkContacts.get(phone);
+          if (!existing || sentTime > existing.lastBulkSentAt) {
+            bulkContacts.set(phone, {
+              lastBulkSentAt: sentTime,
+              accountId,
+              contactName
+            });
           }
         }
-      } else if (msg.direction === "incoming") {
-        // Check if this is a response to an outgoing message
-        if (activity.lastOutgoing > 0 && msgTime > activity.lastOutgoing) {
-          activity.hasResponse = true;
-        }
-      }
-    });
+      });
 
-    // Filter non-responders (exclude disabled contacts)
-    const nonRespondersArray: NonResponder[] = [];
-    contactLastActivity.forEach((activity, key) => {
-      const [accountId, contactPhone] = key.split('-');
+      // Check for responses after bulk messages
+      const contactResponses = new Map<string, boolean>();
       
-      if (
-        activity.lastOutgoing >= cutoffTime &&
-        !activity.hasResponse &&
-        !disabledContacts.has(contactPhone)
-      ) {
-        const daysSince = Math.floor((Date.now() - activity.lastOutgoing) / (24 * 60 * 60 * 1000));
-        nonRespondersArray.push({
-          contactPhone,
-          contactName: activity.contactName,
-          lastSentAt: new Date(activity.lastOutgoing).toISOString(),
-          daysSinceLastSent: daysSince,
-          accountId
-        });
-      }
-    });
+      messages.forEach(msg => {
+        if (msg.direction === "incoming") {
+          const bulkInfo = bulkContacts.get(msg.contact_phone);
+          if (bulkInfo) {
+            const msgTime = new Date(msg.sent_at).getTime();
+            // If incoming message is after bulk message
+            if (msgTime > bulkInfo.lastBulkSentAt) {
+              contactResponses.set(msg.contact_phone, true);
+            }
+          }
+        }
+      });
 
-    // Sort by days since last sent (descending)
-    nonRespondersArray.sort((a, b) => b.daysSinceLastSent - a.daysSinceLastSent);
-    
-    setNonResponders(nonRespondersArray);
-    setIsAnalyzing(false);
+      // Build non-responders list (exclude disabled contacts)
+      const nonRespondersArray: NonResponder[] = [];
+      
+      bulkContacts.forEach((info, contactPhone) => {
+        const hasResponded = contactResponses.get(contactPhone) || false;
+        
+        if (
+          !hasResponded &&
+          !disabledContacts.has(contactPhone)
+        ) {
+          const daysSince = Math.floor((Date.now() - info.lastBulkSentAt) / (24 * 60 * 60 * 1000));
+          nonRespondersArray.push({
+            contactPhone,
+            contactName: info.contactName,
+            lastSentAt: new Date(info.lastBulkSentAt).toISOString(),
+            daysSinceLastSent: daysSince,
+            accountId: info.accountId
+          });
+        }
+      });
+
+      // Sort by days since last sent (descending)
+      nonRespondersArray.sort((a, b) => b.daysSinceLastSent - a.daysSinceLastSent);
+      
+      setNonResponders(nonRespondersArray);
+    } catch (error) {
+      console.error('Error analyzing non-responders:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const toggleContact = (contactPhone: string) => {
@@ -336,7 +374,7 @@ export const FollowUp = () => {
       <div>
         <h1 className="text-3xl font-bold">Follow-up Nachrichten</h1>
         <p className="text-muted-foreground mt-2">
-          Kontakte die nicht geantwortet haben
+          Kontakte die auf Bulk-Kampagnen nicht geantwortet haben
         </p>
       </div>
 
