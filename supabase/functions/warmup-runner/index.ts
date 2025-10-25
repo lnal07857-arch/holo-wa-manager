@@ -170,9 +170,15 @@ Deno.serve(async (req) => {
           .eq('user_id', settings.user_id);
       }
 
-      // Generate pairs if needed
-      let accountPairs = settings.all_pairs as [string, string][];
+      // Generate pairs if needed (filter out inactive accounts from existing pairs)
+      const activeIds = new Set(activeAccounts.map((a: any) => a.id));
+      let accountPairs = (settings.all_pairs as [string, string][]) || [];
       let currentPairIndex = settings.current_pair_index || 0;
+
+      // Filter existing pairs to only include active accounts
+      accountPairs = accountPairs.filter(
+        (p) => activeIds.has(p[0]) && activeIds.has(p[1])
+      );
       
       if (!accountPairs || accountPairs.length === 0 || currentPairIndex >= accountPairs.length) {
         const shuffledAccounts = [...activeAccounts].sort(() => Math.random() - 0.5);
@@ -215,7 +221,20 @@ Deno.serve(async (req) => {
       const receiverAccount = activeAccounts.find(a => a.id === receiverId);
 
       if (!senderAccount || !receiverAccount) {
-        console.log(`[Warmup Runner] Accounts not found`);
+        console.log(`[Warmup Runner] Accounts not found in active set, advancing pair index`);
+        const nextIndex = currentPairIndex + 1;
+        const completedRounds = nextIndex >= accountPairs.length 
+          ? (settings.completed_rounds || 0) + 1 
+          : settings.completed_rounds;
+        await supabase
+          .from('warmup_settings')
+          .update({ 
+            last_run_at: now.toISOString(),
+            current_pair_index: nextIndex >= accountPairs.length ? 0 : nextIndex,
+            completed_rounds: completedRounds,
+            all_pairs: accountPairs
+          })
+          .eq('user_id', settings.user_id);
         continue;
       }
 
