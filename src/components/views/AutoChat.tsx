@@ -7,7 +7,7 @@ import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { WarmupAccountStats } from "./WarmupAccountStats";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Play, Square, Zap, Clock, MessageCircle } from "lucide-react";
+import { Play, Square, Zap, Clock, MessageCircle, Moon, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
@@ -111,8 +111,6 @@ const DEFAULT_MESSAGES = [
 
 export const AutoChat = () => {
   const { accounts } = useWhatsAppAccounts();
-  const [interval, setInterval] = useState<number>(5);
-  const [messagesPerSession, setMessagesPerSession] = useState<number>(5);
   const [isRunning, setIsRunning] = useState(false);
   const [messagesSent, setMessagesSent] = useState<number>(0);
   const [lastMessage, setLastMessage] = useState<string>("");
@@ -120,6 +118,12 @@ export const AutoChat = () => {
   const [completedRounds, setCompletedRounds] = useState<number>(0);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [phase, setPhase] = useState<string>("phase1");
+  
+  // New warmup settings
+  const [activeStartHour, setActiveStartHour] = useState<number>(8);
+  const [activeEndHour, setActiveEndHour] = useState<number>(22);
+  const [sleepStartHour, setSleepStartHour] = useState<number>(23);
+  const [sleepEndHour, setSleepEndHour] = useState<number>(7);
 
   const connectedAccounts = accounts.filter(acc => acc.status === "connected");
 
@@ -142,14 +146,16 @@ export const AutoChat = () => {
 
       if (settings) {
         setSettingsId(settings.id);
-        setInterval(settings.interval_minutes);
-        setMessagesPerSession(settings.messages_per_session);
         setIsRunning(settings.is_running);
         setMessagesSent(settings.messages_sent);
         setSkippedPairs(settings.skipped_pairs);
         setCompletedRounds(settings.completed_rounds);
         setLastMessage(settings.last_message || "");
         setPhase(settings.phase || "phase1");
+        setActiveStartHour(settings.active_start_hour || 8);
+        setActiveEndHour(settings.active_end_hour || 22);
+        setSleepStartHour(settings.sleep_start_hour || 23);
+        setSleepEndHour(settings.sleep_end_hour || 7);
       }
     };
 
@@ -220,10 +226,13 @@ export const AutoChat = () => {
           .from('warmup_settings')
           .update({
             is_running: true,
-            interval_minutes: interval,
-            messages_per_session: messagesPerSession,
             all_pairs: shuffledPairs,
             current_pair_index: 0,
+            active_start_hour: activeStartHour,
+            active_end_hour: activeEndHour,
+            sleep_start_hour: sleepStartHour,
+            sleep_end_hour: sleepEndHour,
+            started_at: new Date().toISOString(), // Reset start time for phase calculation
           })
           .eq('id', settingsId);
 
@@ -235,13 +244,16 @@ export const AutoChat = () => {
           .insert({
             user_id: user.user.id,
             is_running: true,
-            interval_minutes: interval,
-            messages_per_session: messagesPerSession,
             all_pairs: shuffledPairs,
             current_pair_index: 0,
             messages_sent: 0,
             skipped_pairs: 0,
             completed_rounds: 0,
+            active_start_hour: activeStartHour,
+            active_end_hour: activeEndHour,
+            sleep_start_hour: sleepStartHour,
+            sleep_end_hour: sleepEndHour,
+            started_at: new Date().toISOString(),
           })
           .select()
           .single();
@@ -331,45 +343,84 @@ export const AutoChat = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm font-medium mb-1">Automatischer Hintergrund-Modus</p>
+              <p className="text-sm font-medium mb-1">Automatisches 3-Phasen-System</p>
               <p className="text-xs text-muted-foreground">
-                Läuft automatisch im Hintergrund - auch wenn du die Seite wechselst oder schließt
+                Läuft 24/7 auf dem Server - respektiert Aktiv- und Schlafzeiten
               </p>
             </div>
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Intervall (Minuten)
+                <Sun className="w-4 h-4" />
+                Aktive Zeiten (Stunden)
               </Label>
-              <Input
-                type="number"
-                min="1"
-                max="60"
-                value={interval}
-                onChange={(e) => setInterval(parseInt(e.target.value) || 5)}
-                disabled={isRunning}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Start</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={activeStartHour}
+                    onChange={(e) => setActiveStartHour(parseInt(e.target.value) || 8)}
+                    disabled={isRunning}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Ende</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={activeEndHour}
+                    onChange={(e) => setActiveEndHour(parseInt(e.target.value) || 22)}
+                    disabled={isRunning}
+                  />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Wie oft sollen die Accounts miteinander chatten?
+                In diesen Stunden werden Nachrichten gesendet (z.B. 8-22 Uhr)
               </p>
             </div>
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4" />
-                Nachrichten pro Session
+                <Moon className="w-4 h-4" />
+                Schlafzeiten (Stunden)
               </Label>
-              <Input
-                type="number"
-                min="2"
-                max="20"
-                value={messagesPerSession}
-                onChange={(e) => setMessagesPerSession(parseInt(e.target.value) || 5)}
-                disabled={isRunning}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Start</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={sleepStartHour}
+                    onChange={(e) => setSleepStartHour(parseInt(e.target.value) || 23)}
+                    disabled={isRunning}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Ende</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={sleepEndHour}
+                    onChange={(e) => setSleepEndHour(parseInt(e.target.value) || 7)}
+                    disabled={isRunning}
+                  />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Anzahl der Nachrichten die pro Chat-Session ausgetauscht werden (pro Account)
+                In diesen Stunden ruht der Warm-up (z.B. 23-7 Uhr)
+              </p>
+            </div>
+
+            <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">ℹ️ Automatische Anpassung</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Die Nachrichtenfrequenz und Typing-Simulationen passen sich automatisch an die aktuelle Phase an.
               </p>
             </div>
 
@@ -377,7 +428,7 @@ export const AutoChat = () => {
               {!isRunning ? (
                 <Button onClick={startAutoChat} className="flex-1 gap-2">
                   <Play className="w-4 h-4" />
-                  Starten
+                  Warm-up Starten
                 </Button>
               ) : (
                 <Button onClick={stopAutoChat} variant="destructive" className="flex-1 gap-2">
