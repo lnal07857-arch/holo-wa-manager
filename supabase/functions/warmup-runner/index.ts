@@ -103,17 +103,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check time interval
+      // Time values (defer interval check until after verifying live accounts)
       const now = new Date();
       const lastRun = settings.last_run_at ? new Date(settings.last_run_at) : null;
-      
-      if (lastRun) {
-        const minutesSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60);
-        if (minutesSinceLastRun < settings.interval_minutes) {
-          console.log(`[Warmup Runner] Not enough time passed, skipping`);
-          continue;
-        }
-      }
+      const minutesSinceLastRun = lastRun
+        ? (now.getTime() - lastRun.getTime()) / (1000 * 60)
+        : Infinity;
 
       // Allow some activity outside active hours with low probability
       if (!inActiveHours(settings) && Math.random() > 0.05) {
@@ -137,11 +132,12 @@ Deno.serve(async (req) => {
           const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
             body: { action: 'status', accountId: acc.id },
           });
-          const isLive = !statusError && statusData && (
-            statusData.ready === true ||
-            statusData.status === 'connected' ||
-            statusData.state === 'CONNECTED'
-          );
+           const isLive = !statusError && statusData && (
+             statusData.ready === true ||
+             statusData.status === 'connected' ||
+             statusData.state === 'CONNECTED' ||
+             statusData.connected === true
+           );
           if (isLive) activeAccounts.push(acc);
         } catch (_) {
           // ignore
@@ -151,17 +147,19 @@ Deno.serve(async (req) => {
 
       if (!activeAccounts || activeAccounts.length < 2) {
         console.log(`[Warmup Runner] Not enough live accounts`);
-        await supabase
-          .from('warmup_settings')
-          .update({ last_run_at: now.toISOString() })
-          .eq('user_id', settings.user_id);
+        // Do not update last_run_at here, retry next minute
+        continue;
+      }
+
+      // Time interval check (after verifying live accounts)
+      if (minutesSinceLastRun < settings.interval_minutes) {
+        console.log(`[Warmup Runner] Not enough time passed (${minutesSinceLastRun.toFixed(1)}m < ${settings.interval_minutes}m), skipping`);
         continue;
       }
 
       // Compute current phase
       const phase = computePhase(settings.started_at ? new Date(settings.started_at) : now);
       console.log(`[Warmup Runner] Current phase: ${phase}`);
-
       // Update phase if changed
       if (settings.phase !== phase) {
         await supabase
