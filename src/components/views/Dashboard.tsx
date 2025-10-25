@@ -86,8 +86,8 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Warmup Stats Overview */}
-      {!isLoadingWarmup && warmupStats && warmupStats.length > 0 && (
+      {/* Warmup Stats Overview or Empty State */}
+      {!isLoadingWarmup && warmupStats && warmupStats.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -164,7 +164,24 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+      ) : (
+        !isLoadingWarmup && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                Warm-up Übersicht
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Noch keine Warm-up-Daten vorhanden. Starte den Auto-Chat im Reiter "Warm-up", um Phasen und Bulk-Bereitschaft aufzubauen.
+              </p>
+            </CardContent>
+          </Card>
+        )
       )}
+
 
       <Card>
         <CardHeader>
@@ -270,7 +287,7 @@ const Dashboard = () => {
                       </div>
                     )}
                     
-                    {!accountStat && account.status === "connected" && (
+                    {!accountStat && (
                       <div className="pt-3 border-t">
                         <p className="text-sm text-muted-foreground">Noch keine Warmup-Daten vorhanden</p>
                       </div>
