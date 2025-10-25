@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
+import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -10,13 +11,15 @@ import {
   MessageCircle, 
   Clock,
   Shield,
-  Activity
+  Activity,
+  PlayCircle
 } from "lucide-react";
 
 export const WarmupAccountStats = () => {
-  const { data: warmupStats, isLoading } = useWarmupStats();
+  const { data: warmupStats, isLoading: statsLoading } = useWarmupStats();
+  const { accounts, isLoading: accountsLoading } = useWhatsAppAccounts();
 
-  if (isLoading) {
+  if (statsLoading || accountsLoading) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -28,20 +31,29 @@ export const WarmupAccountStats = () => {
     );
   }
 
-  if (!warmupStats || warmupStats.length === 0) {
+  if (!accounts || accounts.length === 0) {
     return (
       <Card>
         <CardContent className="pt-6">
           <div className="text-center py-8">
             <Activity className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">
-              Keine Warm-up Statistiken verfügbar. Starte den Auto-Chat um Daten zu sammeln.
+              Keine WhatsApp Accounts gefunden. Füge zuerst Accounts hinzu.
             </p>
           </div>
         </CardContent>
       </Card>
     );
   }
+
+  // Merge accounts with their warmup stats
+  const accountsWithStats = accounts.map(account => {
+    const stats = warmupStats?.find(s => s.account_id === account.id);
+    return {
+      ...account,
+      warmup_stats: stats || null
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -53,8 +65,8 @@ export const WarmupAccountStats = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {warmupStats.map((stat) => (
-          <AccountStatCard key={stat.id} stat={stat} />
+        {accountsWithStats.map((account) => (
+          <AccountStatCard key={account.id} account={account} />
         ))}
       </div>
     </div>
@@ -62,10 +74,60 @@ export const WarmupAccountStats = () => {
 };
 
 interface AccountStatCardProps {
-  stat: any;
+  account: any;
 }
 
-const AccountStatCard = ({ stat }: AccountStatCardProps) => {
+const AccountStatCard = ({ account }: AccountStatCardProps) => {
+  const stat = account.warmup_stats;
+  
+  // If no warmup stats exist yet, show a starter card
+  if (!stat) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-gray-50 dark:bg-gray-950/30 border-b-4 border-gray-400">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-xl">{account.account_name}</CardTitle>
+              <Badge className="bg-gray-500 text-white">NICHT GESTARTET</Badge>
+            </div>
+            <PlayCircle className="w-8 h-8 text-gray-400" />
+          </div>
+          
+          <CardDescription className="font-medium mb-3">
+            Noch keine Warm-up Aktivität
+          </CardDescription>
+          
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-3 bg-background rounded-lg border">
+              <div className="text-2xl font-bold text-gray-400">0</div>
+              <div className="text-xs text-muted-foreground mt-1">Nachrichten</div>
+            </div>
+            <div className="text-center p-3 bg-background rounded-lg border">
+              <div className="text-2xl font-bold text-gray-400">0</div>
+              <div className="text-xs text-muted-foreground mt-1">Kontakte</div>
+            </div>
+            <div className="text-center p-3 bg-background rounded-lg border">
+              <div className="text-2xl font-bold text-gray-400">0%</div>
+              <div className="text-xs text-muted-foreground mt-1">Bereitschaft</div>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="pt-6">
+          <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
+            <PlayCircle className="w-10 h-10 mx-auto mb-2 text-blue-600" />
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+              Starte den Auto-Chat
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              Dieser Account benötigt Warm-up bevor er für Bulk-Kampagnen verwendet werden kann.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const { data: dailyHistory } = useWarmupDailyHistory(stat.account_id);
   const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
   const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
@@ -104,7 +166,7 @@ const AccountStatCard = ({ stat }: AccountStatCardProps) => {
       }`}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-xl">{stat.account_name}</CardTitle>
+            <CardTitle className="text-xl">{account.account_name}</CardTitle>
             <Badge className={`${phaseColor} text-white`}>
               {phase.toUpperCase()}
             </Badge>
