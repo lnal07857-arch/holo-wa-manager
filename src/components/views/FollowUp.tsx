@@ -37,7 +37,6 @@ export const FollowUp = () => {
   const [daysThreshold, setDaysThreshold] = useState("7");
   const [nonResponders, setNonResponders] = useState<NonResponder[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -170,7 +169,11 @@ export const FollowUp = () => {
         }
       });
 
-      // Build non-responders list (exclude disabled contacts)
+      // Build non-responders list (exclude disabled contacts and contacts with disconnected accounts)
+      const connectedAccountIds = new Set(
+        accounts?.filter(acc => acc.status === "connected").map(acc => acc.id) || []
+      );
+      
       const nonRespondersArray: NonResponder[] = [];
       
       bulkContacts.forEach((info, contactPhone) => {
@@ -178,7 +181,8 @@ export const FollowUp = () => {
         
         if (
           !hasResponded &&
-          !disabledContacts.has(contactPhone)
+          !disabledContacts.has(contactPhone) &&
+          connectedAccountIds.has(info.accountId) // Only include if original account is still connected
         ) {
           const daysSince = Math.floor((Date.now() - info.lastBulkSentAt) / (24 * 60 * 60 * 1000));
           nonRespondersArray.push({
@@ -271,25 +275,9 @@ export const FollowUp = () => {
     }
   };
 
-  const toggleAccount = (accountId: string) => {
-    setSelectedAccounts(prev => 
-      prev.includes(accountId) 
-        ? prev.filter(id => id !== accountId)
-        : [...prev, accountId]
-    );
-  };
-
-  const selectAllAccounts = () => {
-    setSelectedAccounts(connectedAccounts.map(acc => acc.id));
-  };
-
-  const deselectAllAccounts = () => {
-    setSelectedAccounts([]);
-  };
-
   const sendFollowUpMessages = async () => {
-    if (selectedAccounts.length === 0 || !selectedTemplate) {
-      toast.error("Bitte mindestens einen Account und Template auswählen");
+    if (!selectedTemplate) {
+      toast.error("Bitte Template auswählen");
       return;
     }
 
@@ -310,14 +298,10 @@ export const FollowUp = () => {
 
     const selectedNonResponders = nonResponders.filter(nr => selectedContacts.has(nr.contactPhone));
 
-    // Account rotation
-    let accountIndex = 0;
-
     for (const contact of selectedNonResponders) {
       try {
-        // Select account in rotation
-        const currentAccount = selectedAccounts[accountIndex % selectedAccounts.length];
-        accountIndex++;
+        // Use the original account that sent the bulk campaign
+        const currentAccount = contact.accountId;
 
         // Replace placeholders
         let messageText = template.template_text;
@@ -386,7 +370,7 @@ export const FollowUp = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Zeitraum (Tage ohne Antwort)</label>
               <Select value={daysThreshold} onValueChange={setDaysThreshold}>
@@ -403,46 +387,6 @@ export const FollowUp = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">WhatsApp Accounts ({selectedAccounts.length})</label>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={selectAllAccounts}
-                  >
-                    Alle
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={deselectAllAccounts}
-                  >
-                    Keine
-                  </Button>
-                </div>
-              </div>
-              <div className="border rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
-                {connectedAccounts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Keine verbundenen Accounts</p>
-                ) : (
-                  connectedAccounts.map((acc) => (
-                    <div key={acc.id} className="flex items-center gap-2">
-                      <Checkbox
-                        checked={selectedAccounts.includes(acc.id)}
-                        onCheckedChange={() => toggleAccount(acc.id)}
-                      />
-                      <label className="text-sm cursor-pointer" onClick={() => toggleAccount(acc.id)}>
-                        {acc.account_name}
-                      </label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Nachrichtenvorlage</label>
@@ -471,9 +415,9 @@ export const FollowUp = () => {
                 Kontakte ohne Antwort
                 {isAnalyzing && <Loader2 className="inline ml-2 h-4 w-4 animate-spin" />}
               </CardTitle>
-              <CardDescription>
-                {nonResponders.length} Kontakte gefunden • {selectedContacts.size} ausgewählt
-              </CardDescription>
+        <CardDescription>
+          {nonResponders.length} Kontakte gefunden • {selectedContacts.size} ausgewählt • Nutzt automatisch den ursprünglichen Account
+        </CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={selectAll}>
@@ -536,7 +480,7 @@ export const FollowUp = () => {
         <Button
           size="lg"
           onClick={sendFollowUpMessages}
-          disabled={isSending || selectedContacts.size === 0 || selectedAccounts.length === 0 || !selectedTemplate}
+          disabled={isSending || selectedContacts.size === 0 || !selectedTemplate}
         >
           {isSending ? (
             <>
