@@ -98,10 +98,20 @@ const AccountStatCard = ({ stat }: AccountStatCardProps) => {
     <Card className={bulkReady ? "border-green-500 border-2" : ""}>
       <CardHeader>
         <div className="flex items-start justify-between">
-          <div>
+          <div className="space-y-2 flex-1">
             <CardTitle className="text-xl">{stat.account_name}</CardTitle>
-            <CardDescription className="mt-1">{phaseLabel}</CardDescription>
+            
+            {/* Phase Indicator - Prominent */}
+            <div className="flex items-center gap-3">
+              <Badge className={phaseColor}>{phase.toUpperCase()}</Badge>
+              <span className="text-sm text-muted-foreground">{phaseLabel}</span>
+            </div>
+            <Progress 
+              value={phase === 'phase1' ? 33 : phase === 'phase2' ? 66 : 100} 
+              className="h-2 w-48"
+            />
           </div>
+          
           {bulkReady ? (
             <Badge className="bg-green-500 text-white">
               <CheckCircle className="w-3 h-3 mr-1" />
@@ -122,30 +132,6 @@ const AccountStatCard = ({ stat }: AccountStatCardProps) => {
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {/* Overall Readiness */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Gesamtbereitschaft
-            </span>
-            <span className="text-2xl font-bold">{readinessScore}%</span>
-          </div>
-          <Progress value={readinessScore} className="h-3" />
-        </div>
-
-        {/* Phase Indicator */}
-        <div className="p-3 bg-muted rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Aktuelle Phase</span>
-            <Badge className={phaseColor}>{phase.toUpperCase()}</Badge>
-          </div>
-          <Progress 
-            value={phase === 'phase1' ? 33 : phase === 'phase2' ? 66 : 100} 
-            className="h-2"
-          />
-        </div>
-
         {/* Metrics Grid */}
         <div className="grid grid-cols-2 gap-4">
           {/* Messages Sent */}
