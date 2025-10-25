@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2 } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Clock, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useWarmupStats } from "@/hooks/useWarmupStats";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 const Accounts = () => {
@@ -17,6 +19,7 @@ const Accounts = () => {
     createAccount,
     deleteAccount
   } = useWhatsAppAccounts();
+  const { data: warmupStats } = useWarmupStats();
   
   // Validate account status on mount
   useEffect(() => {
@@ -415,43 +418,136 @@ const Accounts = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {accounts.map(account => <Card key={account.id} className="hover:shadow-lg transition-all">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg">{account.account_name}</CardTitle>
-                  <CardDescription className="flex items-center gap-1">
-                    <Smartphone className="w-3 h-3" />
-                    {account.phone_number}
-                  </CardDescription>
+        {accounts.map(account => {
+          const accountStat = warmupStats?.find(stat => stat.account_id === account.id);
+          const uniqueContactsCount = accountStat ? Object.keys(accountStat.unique_contacts || {}).length : 0;
+          
+          // Calculate phase
+          let phaseLabel = "Phase 1 (Sanft)";
+          let phaseBadgeClass = "bg-blue-500/10 text-blue-600";
+          
+          if (accountStat) {
+            if (accountStat.sent_messages >= 150) {
+              phaseLabel = "Phase 3 (Intensiv)";
+              phaseBadgeClass = "bg-green-500/10 text-green-600";
+            } else if (accountStat.sent_messages >= 50) {
+              phaseLabel = "Phase 2 (Moderat)";
+              phaseBadgeClass = "bg-yellow-500/10 text-yellow-600";
+            }
+          }
+          
+          // Check bulk readiness
+          const bulkReady = accountStat && 
+                           accountStat.sent_messages >= 500 && 
+                           uniqueContactsCount >= 15 && 
+                           accountStat.blocks === 0;
+          
+          // Calculate readiness score
+          const messagesProgress = accountStat ? Math.min((accountStat.sent_messages / 500) * 100, 100) : 0;
+          const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
+          const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
+          
+          return (
+            <Card key={account.id} className="hover:shadow-lg transition-all">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">{account.account_name}</CardTitle>
+                    <CardDescription className="flex items-center gap-1">
+                      <Smartphone className="w-3 h-3" />
+                      {account.phone_number}
+                    </CardDescription>
+                  </div>
+                  {account.status === "connected" ? (
+                    <Badge variant="default" className="bg-green-600 gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Verbunden
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="gap-1">
+                      <XCircle className="w-3 h-3" />
+                      Getrennt
+                    </Badge>
+                  )}
                 </div>
-                {account.status === "connected" ? <Badge variant="default" className="bg-green-600 gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    Verbunden
-                  </Badge> : <Badge variant="destructive" className="gap-1">
-                    <XCircle className="w-3 h-3" />
-                    Getrennt
-                  </Badge>}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => {
-                setQrCode(null);
-                setInitializingAccount(account.id);
-                setOpen(true);
-                initializeWhatsApp(account.id);
-              }}>
-                    {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-destructive" onClick={() => deleteAccount.mutate(account.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Warmup Stats */}
+                  {accountStat && (
+                    <div className="space-y-3 pb-3 border-b">
+                      {/* Phase */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Warmup Phase</p>
+                        <Badge variant="secondary" className={phaseBadgeClass}>
+                          {phaseLabel}
+                        </Badge>
+                      </div>
+
+                      {/* Bulk Readiness */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Bulk Bereitschaft</p>
+                        <div className="flex items-center gap-2">
+                          {bulkReady ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-600">Bereit</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-4 h-4 text-yellow-600" />
+                              <span className="text-sm font-medium text-yellow-600">In Vorbereitung</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Readiness Score */}
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Bereitschaft</p>
+                        <div className="flex items-center gap-2">
+                          <Progress value={readinessScore} className="h-2 flex-1" />
+                          <span className="text-xs font-bold min-w-[3ch]">{readinessScore}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!accountStat && (
+                    <div className="pb-3 border-b">
+                      <p className="text-xs text-muted-foreground">Noch keine Warmup-Daten</p>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1" 
+                      onClick={() => {
+                        setQrCode(null);
+                        setInitializingAccount(account.id);
+                        setOpen(true);
+                        initializeWhatsApp(account.id);
+                      }}
+                    >
+                      {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-destructive" 
+                      onClick={() => deleteAccount.mutate(account.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>)}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
