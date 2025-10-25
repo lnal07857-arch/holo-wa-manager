@@ -5,14 +5,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Phase-based message pools
+// Phase-based message pools with more variety
 const MESSAGE_POOLS = {
   phase1: [
     "Hey 👋",
     "Wie läuft dein Tag so?",
     "Alles klar bei dir?",
     "Kleiner Check-in: alles okay?",
-    "Bin gleich wieder da, kurze Pause."
+    "Bin gleich wieder da, kurze Pause.",
+    "Na, was geht?",
+    "Alles fit?",
+    "Kurze Frage: bist du erreichbar?",
+    "Hey! Wie siehts aus?",
+    "Moin!",
+    "Servus 👋",
+    "Hallo! Kurz Zeit?",
+    "Yo, alles gut?",
+    "Was machst du gerade?",
+    "Bist du noch wach?",
+    "Kurzes Update von mir",
+    "Mal melden wollte ich",
+    "Lange nichts gehört!",
+    "Grüße!"
   ],
   phase2: [
     "Haha das war wirklich lustig 😂",
@@ -21,7 +35,27 @@ const MESSAGE_POOLS = {
     "Welchen Kaffee trinkst du heute?",
     "Das Meeting wurde verschoben, kein Stress.",
     "Hast du die Nachricht bekommen?",
-    "Perfekt, genau so machen wir das!"
+    "Perfekt, genau so machen wir das!",
+    "Wie lief dein Termin?",
+    "Das Wetter ist ja heute mega gut ☀️",
+    "Hab grade an dich gedacht",
+    "Kennst du das auch? 😅",
+    "Bin gespannt was du dazu sagst",
+    "Lass mal telefonieren die Tage",
+    "Schau dir das mal an wenn du Zeit hast",
+    "Genau mein Ding!",
+    "Das passt perfekt",
+    "Hätte nicht gedacht dass das klappt",
+    "Mega interessant",
+    "Hast du schon gehört?",
+    "Weißt du noch von neulich?",
+    "Das müssen wir nochmal machen",
+    "War ne coole Sache",
+    "Danke nochmal fürs letzte Mal",
+    "Fand ich richtig gut",
+    "Läuft bei dir soweit?",
+    "Alles entspannt?",
+    "Hoffe bei dir läuft alles smooth"
   ],
   phase3: [
     "Hier der Link, den ich meinte: https://example.com",
@@ -30,10 +64,46 @@ const MESSAGE_POOLS = {
     "Ich schicke dir mal die Info.",
     "Top, danke für die schnelle Rückmeldung!",
     "Das klingt nach einem guten Plan.",
-    "Lass uns das so umsetzen wie besprochen."
+    "Lass uns das so umsetzen wie besprochen.",
+    "Hab dir ne Mail geschickt dazu",
+    "Schau mal in die Gruppe rein",
+    "Können wir das diese Woche noch klären?",
+    "Passt mir gut, sag Bescheid",
+    "Ich meld mich dann nochmal",
+    "Lass uns das finalisieren",
+    "Bin dabei, kein Problem",
+    "Verstehe ich gut",
+    "Macht absolut Sinn",
+    "Guter Punkt!",
+    "Da hast du recht",
+    "Stimmt, daran hab ich nicht gedacht",
+    "Super Idee eigentlich",
+    "Können wir gerne machen",
+    "Passt für mich",
+    "Hab ich notiert",
+    "Bin dran",
+    "Mach ich heute noch",
+    "Schaue ich mir an",
+    "Danke für den Hinweis",
+    "Wird erledigt",
+    "Alles klar, verstanden"
   ],
-  emojis: ["😊", "👍", "😂", "🙌", "👌", "🔥"],
-  smallReplies: ["Ok", "Cool", "Klar", "Danke!", "Perfekt", "Super"]
+  emojis: ["😊", "👍", "😂", "🙌", "👌", "🔥", "✌️", "💪", "🤝", "⭐", "✨", "💯"],
+  smallReplies: ["Ok", "Cool", "Klar", "Danke!", "Perfekt", "Super", "👍", "Genau", "Stimmt", "Ja", "Geht klar", "Mach ich", "Verstanden", "Alles gut", "Jo"],
+  responses: [
+    "Ja genau",
+    "Seh ich auch so",
+    "Bei mir auch",
+    "Stimmt total",
+    "Auf jeden Fall",
+    "Kann ich bestätigen",
+    "Geht mir genauso",
+    "Absolut",
+    "100%",
+    "Sehe ich genauso",
+    "Exakt",
+    "Genau das!"
+  ]
 };
 
 // Helper functions
@@ -249,18 +319,28 @@ Deno.serve(async (req) => {
         console.error('[Warmup Runner] Initialize call failed:', e);
       }
 
-      const messagesToSend = settings.messages_per_session || 3;
+      // Reduce messages per session for more natural flow
+      const messagesToSend = Math.min(settings.messages_per_session || 3, 2);
       let sentCount = 0;
+      
+      // Sometimes let the receiver respond instead
+      const shouldReceiverRespond = Math.random() < 0.4; // 40% chance receiver responds
+      const actualSender = shouldReceiverRespond ? receiverAccount : senderAccount;
+      const actualReceiver = shouldReceiverRespond ? senderAccount : receiverAccount;
 
       for (let i = 0; i < messagesToSend; i++) {
-        // Select message based on phase
+        // Select message based on phase with more variety
         let message: string;
         const r = Math.random();
         
-        if (r < 0.12) {
+        if (r < 0.15) {
           message = pick(MESSAGE_POOLS.smallReplies);
-        } else if (r < 0.3) {
+        } else if (r < 0.25) {
+          message = pick(MESSAGE_POOLS.responses);
+        } else if (r < 0.35) {
           message = `${pick(MESSAGE_POOLS.emojis)} ${pick(MESSAGE_POOLS[phase])}`;
+        } else if (r < 0.45) {
+          message = pick(MESSAGE_POOLS.emojis);
         } else {
           message = pick(MESSAGE_POOLS[phase]);
         }
@@ -275,12 +355,12 @@ Deno.serve(async (req) => {
           const delaySec = randInt(settings.min_delay_sec, settings.max_delay_sec);
           await sleep(delaySec * 1000);
 
-          // Send message
-          const cleanedPhone = (receiverAccount.phone_number || '').replace(/\D/g, '');
+          // Send message (using actual sender/receiver which might be reversed)
+          const cleanedPhone = (actualReceiver.phone_number || '').replace(/\D/g, '');
           const { data: sendData, error: sendError } = await supabase.functions.invoke('whatsapp-gateway', {
             body: {
               action: 'send-message',
-              accountId: senderId,
+              accountId: actualSender.id,
               phoneNumber: cleanedPhone,
               message: message
             }
@@ -292,14 +372,14 @@ Deno.serve(async (req) => {
             const { data: statsData } = await supabase
               .from('account_warmup_stats')
               .select('blocks')
-              .eq('account_id', senderId)
+              .eq('account_id', actualSender.id)
               .single();
             
             await supabase
               .from('account_warmup_stats')
               .upsert({
                 user_id: settings.user_id,
-                account_id: senderId,
+                account_id: actualSender.id,
                 blocks: (statsData?.blocks || 0) + 1
               }, {
                 onConflict: 'account_id'
@@ -309,9 +389,9 @@ Deno.serve(async (req) => {
 
           // Store message
           await supabase.from('messages').insert({
-            account_id: senderId,
-            contact_phone: receiverAccount.phone_number,
-            contact_name: receiverAccount.account_name,
+            account_id: actualSender.id,
+            contact_phone: actualReceiver.phone_number,
+            contact_name: actualReceiver.account_name,
             message_text: message,
             direction: 'outgoing',
             is_warmup: true,
@@ -320,7 +400,7 @@ Deno.serve(async (req) => {
 
           // Update stats
           await supabase.rpc('increment_warmup_stats', {
-            p_account_id: senderId,
+            p_account_id: actualSender.id,
             p_to_phone: cleanedPhone,
             p_count: 1
           });
@@ -348,7 +428,7 @@ Deno.serve(async (req) => {
           all_pairs: accountPairs,
           current_pair_index: nextPairIndex >= accountPairs.length ? 0 : nextPairIndex,
           completed_rounds: completedRounds,
-          last_message: sentCount > 0 ? `${senderAccount.account_name} → ${receiverAccount.account_name}` : settings.last_message
+          last_message: sentCount > 0 ? `${actualSender.account_name} → ${actualReceiver.account_name}` : settings.last_message
         })
         .eq('user_id', settings.user_id);
 
