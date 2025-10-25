@@ -95,28 +95,46 @@ const AccountStatCard = ({ stat }: AccountStatCardProps) => {
   }
 
   return (
-    <Card className={bulkReady ? "border-green-500 border-2" : ""}>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
+    <Card className="overflow-hidden">
+      <CardHeader className={`${
+        bulkReady ? 'bg-green-50 dark:bg-green-950/30 border-b-4 border-green-500' :
+        readinessScore >= 66 ? 'bg-yellow-50 dark:bg-yellow-950/30 border-b-4 border-yellow-500' :
+        readinessScore >= 33 ? 'bg-blue-50 dark:bg-blue-950/30 border-b-4 border-blue-500' :
+        'bg-red-50 dark:bg-red-950/30 border-b-4 border-red-500'
+      }`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
             <CardTitle className="text-xl">{stat.account_name}</CardTitle>
+            <Badge className={`${phaseColor} text-white`}>
+              {phase.toUpperCase()}
+            </Badge>
           </div>
-          {bulkReady ? (
-            <Badge className="bg-green-500 text-white">
-              <CheckCircle className="w-3 h-3 mr-1" />
-              Bulk Ready
-            </Badge>
-          ) : stat.status === 'blocked' ? (
-            <Badge variant="destructive">
-              <AlertCircle className="w-3 h-3 mr-1" />
-              Blockiert
-            </Badge>
-          ) : (
-            <Badge variant="secondary">
-              <Clock className="w-3 h-3 mr-1" />
-              Warming
-            </Badge>
+          {bulkReady && (
+            <CheckCircle className="w-8 h-8 text-green-600" />
           )}
+        </div>
+        
+        <CardDescription className="font-medium mb-3">{phaseLabel}</CardDescription>
+        
+        {/* Nachrichtenanzahl und Bereitschaft prominent */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="text-center p-3 bg-background rounded-lg border">
+            <div className="text-2xl font-bold">{stat.sent_messages}</div>
+            <div className="text-xs text-muted-foreground mt-1">Nachrichten</div>
+          </div>
+          <div className="text-center p-3 bg-background rounded-lg border">
+            <div className="text-2xl font-bold">{uniqueContactsCount}</div>
+            <div className="text-xs text-muted-foreground mt-1">Kontakte</div>
+          </div>
+          <div className="text-center p-3 bg-background rounded-lg border">
+            <div className={`text-2xl font-bold ${
+              bulkReady ? 'text-green-600' :
+              readinessScore >= 66 ? 'text-yellow-600' :
+              readinessScore >= 33 ? 'text-blue-600' :
+              'text-red-600'
+            }`}>{readinessScore}%</div>
+            <div className="text-xs text-muted-foreground mt-1">Bereitschaft</div>
+          </div>
         </div>
       </CardHeader>
       
