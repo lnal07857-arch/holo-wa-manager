@@ -540,7 +540,7 @@ const Accounts = () => {
                     </div>
                   )}
                   
-                  {!accountStat && (
+                  {!stat && (
                     <div className="pb-3 border-b">
                       <p className="text-xs text-muted-foreground">Noch keine Warmup-Daten</p>
                     </div>
