@@ -1,12 +1,54 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, MessageSquare, Send, CheckCircle2 } from "lucide-react";
+import { Users, MessageSquare, Send, CheckCircle2, Zap, TrendingUp, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
+import { Progress } from "@/components/ui/progress";
 
 const Dashboard = () => {
   const { accounts, isLoading } = useWhatsAppAccounts();
+  const { data: warmupStats, isLoading: isLoadingWarmup } = useWarmupStats();
 
   const connectedAccounts = accounts.filter((a) => a.status === "connected").length;
+
+  // Calculate warmup statistics
+  const warmupMetrics = warmupStats?.reduce((acc, stat) => {
+    const { data: dailyHistory } = useWarmupDailyHistory(stat.account_id);
+    const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
+    const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
+    const bulkReady = isBulkReady(stat, avgDaily);
+
+    // Determine phase
+    let phase = 1;
+    if (stat.sent_messages >= 150) phase = 3;
+    else if (stat.sent_messages >= 50) phase = 2;
+
+    // Calculate readiness
+    const messagesProgress = Math.min((stat.sent_messages / 500) * 100, 100);
+    const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
+    const avgDailyProgress = Math.min((avgDaily / 50) * 100, 100);
+    const readinessScore = Math.round((messagesProgress + contactsProgress + avgDailyProgress) / 3);
+
+    return {
+      phase1Count: acc.phase1Count + (phase === 1 ? 1 : 0),
+      phase2Count: acc.phase2Count + (phase === 2 ? 1 : 0),
+      phase3Count: acc.phase3Count + (phase === 3 ? 1 : 0),
+      bulkReadyCount: acc.bulkReadyCount + (bulkReady ? 1 : 0),
+      totalReadiness: acc.totalReadiness + readinessScore,
+      accountCount: acc.accountCount + 1,
+    };
+  }, {
+    phase1Count: 0,
+    phase2Count: 0,
+    phase3Count: 0,
+    bulkReadyCount: 0,
+    totalReadiness: 0,
+    accountCount: 0,
+  }) || { phase1Count: 0, phase2Count: 0, phase3Count: 0, bulkReadyCount: 0, totalReadiness: 0, accountCount: 0 };
+
+  const avgReadiness = warmupMetrics.accountCount > 0 
+    ? Math.round(warmupMetrics.totalReadiness / warmupMetrics.accountCount) 
+    : 0;
 
   const stats = [
     { label: "Aktive Accounts", value: connectedAccounts.toString(), icon: Users, color: "text-primary" },
@@ -42,6 +84,86 @@ const Dashboard = () => {
           );
         })}
       </div>
+
+      {/* Warmup Stats Overview */}
+      {!isLoadingWarmup && warmupStats && warmupStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-primary" />
+              Warm-up Übersicht
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Phase Distribution */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                  Phasen-Verteilung
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Phase 1 (Sanft)</span>
+                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-600">
+                      {warmupMetrics.phase1Count}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Phase 2 (Moderat)</span>
+                    <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">
+                      {warmupMetrics.phase2Count}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Phase 3 (Intensiv)</span>
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-600">
+                      {warmupMetrics.phase3Count}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bulk Ready */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                  Bulk-Bereitschaft
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl font-bold text-green-600">
+                    {warmupMetrics.bulkReadyCount}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    von {warmupMetrics.accountCount} Accounts
+                  </div>
+                </div>
+                <Progress 
+                  value={warmupMetrics.accountCount > 0 ? (warmupMetrics.bulkReadyCount / warmupMetrics.accountCount) * 100 : 0} 
+                  className="h-2"
+                />
+              </div>
+
+              {/* Average Readiness */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  Ø Bereitschaft
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl font-bold">
+                    {avgReadiness}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    über alle Accounts
+                  </div>
+                </div>
+                <Progress value={avgReadiness} className="h-2" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
