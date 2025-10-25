@@ -233,6 +233,7 @@ export const AutoChat = () => {
             sleep_start_hour: sleepStartHour,
             sleep_end_hour: sleepEndHour,
             started_at: new Date().toISOString(), // Reset start time for phase calculation
+            last_run_at: null, // trigger immediate first cycle
           })
           .eq('id', settingsId);
 
@@ -254,6 +255,7 @@ export const AutoChat = () => {
             sleep_start_hour: sleepStartHour,
             sleep_end_hour: sleepEndHour,
             started_at: new Date().toISOString(),
+            last_run_at: null,
           })
           .select()
           .single();
