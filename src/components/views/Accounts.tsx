@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Clock, CheckCircle2 } from "lucide-react";
@@ -20,6 +21,33 @@ const Accounts = () => {
     deleteAccount
   } = useWhatsAppAccounts();
   const { data: warmupStats } = useWarmupStats();
+
+  // Fallback: aggregate warmup from messages if no stats yet
+  const accountIds = accounts.map((a) => a.id);
+  const { data: warmupFallback } = useQuery({
+    queryKey: ["warmup-fallback", accountIds],
+    enabled: accountIds.length > 0 && (!warmupStats || warmupStats.length === 0),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("account_id, contact_phone, is_warmup")
+        .eq("is_warmup", true)
+        .in("account_id", accountIds);
+      if (error) throw error;
+      const map: Record<string, { sent: number; contacts: Set<string> }> = {};
+      (data as any[]).forEach((row) => {
+        const id = row.account_id as string;
+        if (!map[id]) map[id] = { sent: 0, contacts: new Set<string>() };
+        map[id].sent += 1;
+        if (row.contact_phone) map[id].contacts.add(row.contact_phone as string);
+      });
+      const result: Record<string, { sent: number; uniqueContacts: number }> = {};
+      Object.entries(map).forEach(([id, v]) => {
+        result[id] = { sent: v.sent, uniqueContacts: v.contacts.size };
+      });
+      return result;
+    },
+  });
   
   // Validate account status on mount
   useEffect(() => {
@@ -419,31 +447,30 @@ const Accounts = () => {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {accounts.map(account => {
-          const accountStat = warmupStats?.find(stat => stat.account_id === account.id);
-          const uniqueContactsCount = accountStat ? Object.keys(accountStat.unique_contacts || {}).length : 0;
+          const stat: any = warmupStats?.find((s: any) => s.account_id === account.id);
+          const sentMessages = stat ? stat.sent_messages : (warmupFallback?.[account.id]?.sent || 0);
+          const uniqueContactsCount = stat 
+            ? Object.keys(stat.unique_contacts || {}).length 
+            : (warmupFallback?.[account.id]?.uniqueContacts || 0);
           
           // Calculate phase
           let phaseLabel = "Phase 1 (Sanft)";
           let phaseBadgeClass = "bg-blue-500/10 text-blue-600";
           
-          if (accountStat) {
-            if (accountStat.sent_messages >= 150) {
-              phaseLabel = "Phase 3 (Intensiv)";
-              phaseBadgeClass = "bg-green-500/10 text-green-600";
-            } else if (accountStat.sent_messages >= 50) {
-              phaseLabel = "Phase 2 (Moderat)";
-              phaseBadgeClass = "bg-yellow-500/10 text-yellow-600";
-            }
+          if (sentMessages >= 150) {
+            phaseLabel = "Phase 3 (Intensiv)";
+            phaseBadgeClass = "bg-green-500/10 text-green-600";
+          } else if (sentMessages >= 50) {
+            phaseLabel = "Phase 2 (Moderat)";
+            phaseBadgeClass = "bg-yellow-500/10 text-yellow-600";
           }
           
-          // Check bulk readiness
-          const bulkReady = accountStat && 
-                           accountStat.sent_messages >= 500 && 
-                           uniqueContactsCount >= 15 && 
-                           accountStat.blocks === 0;
+          // Check bulk readiness (fallback assumes no Blocks)
+          const blocks = stat?.blocks ?? 0;
+          const bulkReady = sentMessages >= 500 && uniqueContactsCount >= 15 && blocks === 0;
           
           // Calculate readiness score
-          const messagesProgress = accountStat ? Math.min((accountStat.sent_messages / 500) * 100, 100) : 0;
+          const messagesProgress = Math.min((sentMessages / 500) * 100, 100);
           const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
           const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
           
@@ -474,7 +501,7 @@ const Accounts = () => {
               <CardContent>
                 <div className="space-y-3">
                   {/* Warmup Stats */}
-                  {accountStat && (
+                  {stat && (
                     <div className="space-y-3 pb-3 border-b">
                       {/* Phase */}
                       <div className="space-y-1">
