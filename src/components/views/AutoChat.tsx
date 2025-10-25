@@ -318,20 +318,6 @@ export const AutoChat = () => {
         </p>
       </div>
 
-      {/* Phase Indicator */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold">{phaseInfo.label}</h3>
-              <p className="text-sm text-muted-foreground">{phaseInfo.days}</p>
-            </div>
-            <Badge className={phaseInfo.color}>{phase.toUpperCase()}</Badge>
-          </div>
-          <Progress value={phase === 'phase1' ? 33 : phase === 'phase2' ? 66 : 100} />
-        </CardContent>
-      </Card>
-
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
