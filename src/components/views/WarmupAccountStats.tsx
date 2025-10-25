@@ -98,20 +98,9 @@ const AccountStatCard = ({ stat }: AccountStatCardProps) => {
     <Card className={bulkReady ? "border-green-500 border-2" : ""}>
       <CardHeader>
         <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
+          <div>
             <CardTitle className="text-xl">{stat.account_name}</CardTitle>
-            
-            {/* Phase Indicator - Prominent */}
-            <div className="flex items-center gap-3">
-              <Badge className={phaseColor}>{phase.toUpperCase()}</Badge>
-              <span className="text-sm text-muted-foreground">{phaseLabel}</span>
-            </div>
-            <Progress 
-              value={phase === 'phase1' ? 33 : phase === 'phase2' ? 66 : 100} 
-              className="h-2 w-48"
-            />
           </div>
-          
           {bulkReady ? (
             <Badge className="bg-green-500 text-white">
               <CheckCircle className="w-3 h-3 mr-1" />
