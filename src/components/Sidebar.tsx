@@ -21,7 +21,8 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ activeView, onViewChange, unreadCount = 0 }: SidebarProps) => {
-  const { open } = useSidebar();
+  const sidebar = useSidebar();
+  const open = sidebar?.open ?? true; // Default to true for mobile Sheet context
   
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
