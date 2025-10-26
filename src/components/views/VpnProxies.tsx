@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Activity, CheckCircle, XCircle, RefreshCw, Eraser } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Activity, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { useMullvadProxy } from "@/hooks/useMullvadProxy";
@@ -12,7 +12,7 @@ import { useFingerprint } from "@/hooks/useFingerprint";
 import { useVpnHealth, useRunHealthCheck } from "@/hooks/useVpnHealth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy, assignPending }: { 
@@ -162,6 +162,8 @@ export const VpnProxies = () => {
   const [open, setOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [showHealthResults, setShowHealthResults] = useState(false);
+  const healthTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAssignAllProxies = async () => {
     if (mullvadAccounts.length === 0) {
@@ -178,10 +180,33 @@ export const VpnProxies = () => {
 
   const handleRunHealthCheck = async () => {
     setIsCheckingHealth(true);
+    
+    // Clear existing timer
+    if (healthTimerRef.current) {
+      clearTimeout(healthTimerRef.current);
+    }
+    
     try {
       await runHealthCheck();
       await refetchHealth();
-      toast.success("VPN-Health-Check abgeschlossen");
+      setShowHealthResults(true);
+      toast.success("VPN-Health-Check abgeschlossen - Ergebnisse werden für 15 Sekunden angezeigt");
+      
+      // Auto-hide and clear after 15 seconds
+      healthTimerRef.current = setTimeout(async () => {
+        setShowHealthResults(false);
+        
+        // Delete health check data
+        const { error } = await supabase
+          .from('vpn_server_health')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        if (!error) {
+          await refetchHealth();
+        }
+      }, 15000);
+      
     } catch (error) {
       toast.error("Fehler beim Health-Check");
       console.error(error);
@@ -190,22 +215,14 @@ export const VpnProxies = () => {
     }
   };
 
-  const handleClearHealthCheck = async () => {
-    try {
-      const { error } = await supabase
-        .from('vpn_server_health')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
-      
-      if (error) throw error;
-      
-      await refetchHealth();
-      toast.success("Health-Check-Daten zurückgesetzt");
-    } catch (error) {
-      toast.error("Fehler beim Zurücksetzen");
-      console.error(error);
-    }
-  };
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (healthTimerRef.current) {
+        clearTimeout(healthTimerRef.current);
+      }
+    };
+  }, []);
 
   const healthyServers = vpnHealth?.filter(s => s.is_healthy).length || 0;
   const totalServers = vpnHealth?.length || 0;
@@ -222,14 +239,14 @@ export const VpnProxies = () => {
       </div>
 
       {/* VPN Server Health Status */}
-      <Card className="border-primary/20">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              <CardTitle>VPN Server Status</CardTitle>
-            </div>
-            <div className="flex gap-2">
+      {showHealthResults && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <CardTitle>VPN Server Status</CardTitle>
+              </div>
               <Button
                 onClick={handleRunHealthCheck}
                 disabled={isCheckingHealth}
@@ -238,25 +255,14 @@ export const VpnProxies = () => {
                 className="gap-2"
               >
                 <RefreshCw className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`} />
-                Health-Check
-              </Button>
-              <Button
-                onClick={handleClearHealthCheck}
-                disabled={isCheckingHealth}
-                size="sm"
-                variant="outline"
-                className="gap-2"
-              >
-                <Eraser className="w-4 h-4" />
-                Daten löschen
+                Erneut prüfen
               </Button>
             </div>
-          </div>
-          <CardDescription>
-            Echtzeit-Status aller Mullvad VPN-Server
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <CardDescription>
+              Ergebnisse werden automatisch in 15 Sekunden ausgeblendet
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-background p-3 rounded border">
               <p className="text-sm text-muted-foreground">Gesamt Server</p>
@@ -333,8 +339,35 @@ export const VpnProxies = () => {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Health Check Button when results are hidden */}
+      {!showHealthResults && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              <CardTitle>VPN Server Status</CardTitle>
+            </div>
+            <CardDescription>
+              Führen Sie einen Health-Check durch, um den Status aller VPN-Server zu überprüfen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={handleRunHealthCheck}
+              disabled={isCheckingHealth}
+              size="lg"
+              className="gap-2 w-full"
+            >
+              <RefreshCw className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`} />
+              {isCheckingHealth ? 'Prüfe Server...' : 'Health-Check starten'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Mullvad VPN Settings */}
       <Card>
