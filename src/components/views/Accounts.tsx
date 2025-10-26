@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Clock, CheckCircle2, Power, PowerOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -84,6 +84,8 @@ const Accounts = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [initializingAccount, setInitializingAccount] = useState<string | null>(null);
   const [loadingQR, setLoadingQR] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [disconnectingAll, setDisconnectingAll] = useState(false);
   const createDemoData = async () => {
     setCreatingDemo(true);
     try {
@@ -296,6 +298,80 @@ const Accounts = () => {
       setLoadingQR(false);
     }
   };
+  const disconnectAccount = async (accountId: string) => {
+    setDisconnecting(accountId);
+    try {
+      const { error } = await supabase.functions.invoke('whatsapp-gateway', {
+        body: { action: 'disconnect', accountId }
+      });
+      
+      if (error) {
+        console.error('[Disconnect Error]', error);
+        toast.error('Fehler beim Trennen der Instanz');
+      } else {
+        // Update status in database
+        await supabase
+          .from('whatsapp_accounts')
+          .update({ status: 'disconnected', qr_code: null })
+          .eq('id', accountId);
+        
+        toast.success('Instanz erfolgreich getrennt');
+      }
+    } catch (error: any) {
+      console.error('[Disconnect Error]', error);
+      toast.error(error.message || 'Fehler beim Trennen der Instanz');
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  const disconnectAllAccounts = async () => {
+    setDisconnectingAll(true);
+    try {
+      const connectedAccounts = accounts.filter(acc => acc.status === 'connected');
+      
+      if (connectedAccounts.length === 0) {
+        toast.info('Keine verbundenen Accounts gefunden');
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const account of connectedAccounts) {
+        try {
+          const { error } = await supabase.functions.invoke('whatsapp-gateway', {
+            body: { action: 'disconnect', accountId: account.id }
+          });
+          
+          if (!error) {
+            await supabase
+              .from('whatsapp_accounts')
+              .update({ status: 'disconnected', qr_code: null })
+              .eq('id', account.id);
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
+          console.error(`[Disconnect Error] ${account.account_name}:`, err);
+          errorCount++;
+        }
+      }
+
+      if (errorCount === 0) {
+        toast.success(`Alle ${successCount} Instanzen erfolgreich getrennt`);
+      } else {
+        toast.warning(`${successCount} Instanzen getrennt, ${errorCount} Fehler`);
+      }
+    } catch (error: any) {
+      console.error('[Disconnect All Error]', error);
+      toast.error('Fehler beim Trennen der Instanzen');
+    } finally {
+      setDisconnectingAll(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -405,6 +481,24 @@ const Accounts = () => {
           <p className="text-muted-foreground">Verwalten Sie Ihre WhatsApp-Konten</p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2 text-destructive border-destructive hover:bg-destructive/10"
+            onClick={disconnectAllAccounts}
+            disabled={disconnectingAll || accounts.filter(a => a.status === 'connected').length === 0}
+          >
+            {disconnectingAll ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Trenne...
+              </>
+            ) : (
+              <>
+                <PowerOff className="w-4 h-4" />
+                Alle Instanzen trennen
+              </>
+            )}
+          </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -586,6 +680,21 @@ const Accounts = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
+                    {account.status === "connected" && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        onClick={() => disconnectAccount(account.id)}
+                        disabled={disconnecting === account.id}
+                      >
+                        {disconnecting === account.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Power className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm" 
