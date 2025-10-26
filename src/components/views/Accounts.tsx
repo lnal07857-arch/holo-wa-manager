@@ -643,7 +643,6 @@ const Accounts = () => {
           <CardTitle>Wichtige Hinweise</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>• Sie können bis zu 10 WhatsApp-Konten gleichzeitig verbinden</p>
           <p>• Jedes Konto benötigt eine separate Authentifizierung über QR-Code</p>
           <p>• Die Verbindung bleibt aktiv, solange die App geöffnet ist</p>
           <p>• Stellen Sie sicher, dass Ihr Gerät mit dem Internet verbunden ist</p>
