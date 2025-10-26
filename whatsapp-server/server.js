@@ -168,6 +168,22 @@ async function syncAllMessages(client, accountId, supa) {
           continue;
         }
 
+        // Get all incoming messages to determine which are unread
+        const incomingMessages = recentMessages.filter(msg => !msg.fromMe);
+        console.log(`[Sync] Found ${incomingMessages.length} incoming messages, ${unreadCount} should be unread`);
+        
+        // The last N incoming messages are unread (where N = unreadCount)
+        const unreadMessageIds = new Set();
+        if (unreadCount > 0 && incomingMessages.length > 0) {
+          const unreadIncoming = incomingMessages.slice(-unreadCount);
+          unreadIncoming.forEach(msg => {
+            if (msg.id && msg.id._serialized) {
+              unreadMessageIds.add(msg.id._serialized);
+            }
+          });
+          console.log(`[Sync] Marked ${unreadMessageIds.size} messages as unread`);
+        }
+
         // Process messages in reverse order (oldest first)
         const sortedMessages = [...recentMessages].reverse();
         
@@ -198,14 +214,11 @@ async function syncAllMessages(client, accountId, supa) {
             }
 
             // Determine if message is read
-            // Outgoing: always read. Incoming: unread if in the last 'unreadCount' items of the processed list
-            let isRead;
-            if (msg.fromMe) {
-              isRead = true;
-            } else {
-              const effectiveUnread = Math.min(unreadCount, sortedMessages.length);
-              const positionFromEnd = sortedMessages.length - 1 - i; // 0 = newest
-              isRead = positionFromEnd >= effectiveUnread; // last N are unread
+            // Outgoing messages are always read
+            // Incoming messages are unread if they're in the unreadMessageIds set
+            let isRead = true;
+            if (!msg.fromMe && msg.id && msg.id._serialized) {
+              isRead = !unreadMessageIds.has(msg.id._serialized);
             }
 
             // Check if message already exists
