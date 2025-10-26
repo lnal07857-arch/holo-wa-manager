@@ -52,6 +52,23 @@ Deno.serve(async (req) => {
         throw new Error('No Mullvad accounts found. Please add at least one Mullvad account first.');
       }
 
+      // Get healthy servers from health check table
+      const { data: healthyServers } = await supabase
+        .from('vpn_server_health')
+        .select('server_host, response_time_ms')
+        .eq('is_healthy', true)
+        .eq('server_region', 'DE')
+        .order('response_time_ms', { ascending: true });
+
+      // Use healthy servers if available, otherwise fall back to default list
+      let availableServers = DE_SERVERS;
+      if (healthyServers && healthyServers.length > 0) {
+        availableServers = healthyServers.map(s => s.server_host);
+        console.log(`Using ${availableServers.length} healthy servers`);
+      } else {
+        console.warn('No health data available, using default server list');
+      }
+
       // Get all WhatsApp accounts to determine the index
       const { data: allAccounts } = await supabase
         .from('whatsapp_accounts')
@@ -70,10 +87,10 @@ Deno.serve(async (req) => {
 
       // Calculate which Mullvad account to use (5 WhatsApp accounts per Mullvad account)
       const mullvadIndex = Math.floor(accountIndex / 5) % mullvadAccounts.length;
-      const serverIndex = accountIndex % 5;
+      const serverIndex = accountIndex % availableServers.length;
       
       const mullvadAccount = mullvadAccounts[mullvadIndex];
-      const proxyServer = DE_SERVERS[serverIndex % DE_SERVERS.length];
+      const proxyServer = availableServers[serverIndex];
 
       // Create proxy configuration
       const proxyConfig = {

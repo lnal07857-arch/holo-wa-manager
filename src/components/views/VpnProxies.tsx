@@ -4,11 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Activity, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { useMullvadProxy } from "@/hooks/useMullvadProxy";
 import { useFingerprint } from "@/hooks/useFingerprint";
+import { useVpnHealth, useRunHealthCheck } from "@/hooks/useVpnHealth";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -141,8 +142,11 @@ export const VpnProxies = () => {
   const { accounts } = useWhatsAppAccounts();
   const { accounts: mullvadAccounts, createAccount, deleteAccount } = useMullvadAccounts();
   const { assignProxy } = useMullvadProxy();
+  const { data: vpnHealth, isLoading: healthLoading, refetch: refetchHealth } = useVpnHealth();
+  const { runHealthCheck } = useRunHealthCheck();
   const [open, setOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   const handleAssignAllProxies = async () => {
     if (mullvadAccounts.length === 0) {
@@ -157,6 +161,23 @@ export const VpnProxies = () => {
     toast.success("Alle Proxies zugewiesen!");
   };
 
+  const handleRunHealthCheck = async () => {
+    setIsCheckingHealth(true);
+    try {
+      await runHealthCheck();
+      await refetchHealth();
+      toast.success("VPN-Health-Check abgeschlossen");
+    } catch (error) {
+      toast.error("Fehler beim Health-Check");
+      console.error(error);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
+  const healthyServers = vpnHealth?.filter(s => s.is_healthy).length || 0;
+  const totalServers = vpnHealth?.length || 0;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -167,6 +188,109 @@ export const VpnProxies = () => {
           </p>
         </div>
       </div>
+
+      {/* VPN Server Health Status */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              <CardTitle>VPN Server Status</CardTitle>
+            </div>
+            <Button
+              onClick={handleRunHealthCheck}
+              disabled={isCheckingHealth}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`} />
+              Health-Check
+            </Button>
+          </div>
+          <CardDescription>
+            Echtzeit-Status aller Mullvad VPN-Server
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-background p-3 rounded border">
+              <p className="text-sm text-muted-foreground">Gesamt Server</p>
+              <p className="text-2xl font-bold">{totalServers}</p>
+            </div>
+            <div className="bg-green-500/10 p-3 rounded border border-green-500/20">
+              <p className="text-sm text-green-600 dark:text-green-400">Gesund</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{healthyServers}</p>
+            </div>
+            <div className="bg-red-500/10 p-3 rounded border border-red-500/20">
+              <p className="text-sm text-red-600 dark:text-red-400">Nicht erreichbar</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{totalServers - healthyServers}</p>
+            </div>
+            <div className="bg-background p-3 rounded border">
+              <p className="text-sm text-muted-foreground">Durchschn. Response</p>
+              <p className="text-2xl font-bold">
+                {vpnHealth && healthyServers > 0
+                  ? Math.round(
+                      vpnHealth
+                        .filter(s => s.is_healthy && s.response_time_ms)
+                        .reduce((acc, s) => acc + (s.response_time_ms || 0), 0) / healthyServers
+                    )
+                  : '—'}
+                {vpnHealth && healthyServers > 0 && 'ms'}
+              </p>
+            </div>
+          </div>
+
+          {healthLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Lade Server-Status...</p>
+          ) : vpnHealth && vpnHealth.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {vpnHealth.map((server) => (
+                <div
+                  key={server.id}
+                  className={`flex items-center justify-between p-3 rounded border ${
+                    server.is_healthy
+                      ? 'bg-green-500/5 border-green-500/20'
+                      : 'bg-red-500/5 border-red-500/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {server.is_healthy ? (
+                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    )}
+                    <div>
+                      <p className="font-mono text-xs">{server.server_host}</p>
+                      {server.is_healthy && server.response_time_ms && (
+                        <p className="text-xs text-muted-foreground">{server.response_time_ms}ms</p>
+                      )}
+                      {!server.is_healthy && server.error_message && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{server.error_message}</p>
+                      )}
+                    </div>
+                  </div>
+                  {server.consecutive_failures > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {server.consecutive_failures}x failed
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm text-muted-foreground mb-3">
+                Noch keine Health-Daten verfügbar
+              </p>
+              <Button onClick={handleRunHealthCheck} disabled={isCheckingHealth} size="sm">
+                Ersten Health-Check starten
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Mullvad VPN Settings */}
       <Card>
@@ -343,23 +467,26 @@ export const VpnProxies = () => {
       {/* Info Box */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-lg">Wichtige Hinweise</CardTitle>
+          <CardTitle className="text-lg">Automatisches Failover-System</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            • Jeder Mullvad-Account kann maximal 5 gleichzeitige Verbindungen verwalten
+            • <strong>Automatische Health-Checks:</strong> Alle VPN-Server werden regelmäßig auf Erreichbarkeit geprüft
           </p>
           <p>
-            • Alle Verbindungen werden über deutsche Server (DE) geleitet
+            • <strong>Intelligente Server-Auswahl:</strong> Nur gesunde Server werden für neue Verbindungen verwendet
           </p>
           <p>
-            • Die Server-Auswahl erfolgt automatisch und rotierend
+            • <strong>Automatische Neuzuweisung:</strong> Bei Server-Ausfall werden Accounts automatisch auf funktionierende Server umgeleitet
           </p>
           <p>
-            • SOCKS5 Proxy wird für optimale Kompatibilität mit WhatsApp Web verwendet
+            • <strong>Echtzeit-Monitoring:</strong> Server-Status wird alle 30 Sekunden aktualisiert
           </p>
           <p>
-            • Nach der Aktivierung müssen die WhatsApp-Accounts neu verbunden werden
+            • <strong>SOCKS5 Proxy:</strong> Optimale Kompatibilität mit WhatsApp Web
+          </p>
+          <p>
+            • <strong>Load Balancing:</strong> Server mit bester Response-Zeit werden priorisiert
           </p>
         </CardContent>
       </Card>

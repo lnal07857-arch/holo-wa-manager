@@ -393,6 +393,54 @@ export type Database = {
         }
         Relationships: []
       }
+      vpn_server_health: {
+        Row: {
+          consecutive_failures: number
+          created_at: string
+          error_message: string | null
+          failure_count: number
+          id: string
+          is_healthy: boolean
+          last_check_at: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          response_time_ms: number | null
+          server_host: string
+          server_region: string
+          updated_at: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          is_healthy?: boolean
+          last_check_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          response_time_ms?: number | null
+          server_host: string
+          server_region?: string
+          updated_at?: string
+        }
+        Update: {
+          consecutive_failures?: number
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          is_healthy?: boolean
+          last_check_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          response_time_ms?: number | null
+          server_host?: string
+          server_region?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       warmup_daily_history: {
         Row: {
           account_id: string
@@ -564,6 +612,14 @@ export type Database = {
     Functions: {
       increment_warmup_stats: {
         Args: { p_account_id: string; p_count?: number; p_to_phone: string }
+        Returns: undefined
+      }
+      mark_vpn_server_healthy: {
+        Args: { p_response_time_ms?: number; p_server_host: string }
+        Returns: undefined
+      }
+      mark_vpn_server_unhealthy: {
+        Args: { p_error_message?: string; p_server_host: string }
         Returns: undefined
       }
     }
