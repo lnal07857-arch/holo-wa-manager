@@ -198,9 +198,17 @@ serve(async (req) => {
 
       case 'get-fingerprint': {
         // Fingerprint-Informationen abrufen
-        console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint/${accountId}`);
+        console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint`);
         
-        const response = await fetch(`${BASE_URL}/api/fingerprint/${accountId}`);
+        const response = await fetch(`${BASE_URL}/api/fingerprint`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId,
+            supabaseUrl: Deno.env.get('SUPABASE_URL'),
+            supabaseKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+          }),
+        });
 
         if (!response.ok) {
           const error = await response.text();

@@ -1048,17 +1048,21 @@ app.get('/health', (req, res) => {
 });
 
 // Get fingerprint info for an account
-app.get('/api/fingerprint/:accountId', async (req, res) => {
-  const { accountId } = req.params;
+app.post('/api/fingerprint', async (req, res) => {
+  const { accountId, supabaseUrl, supabaseKey } = req.body;
+  
+  if (!accountId || !supabaseUrl || !supabaseKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'accountId, supabaseUrl, and supabaseKey are required.'
+    });
+  }
   
   try {
     const fingerprint = generateFingerprint(accountId);
     
     // Get proxy info from database
-    const supa = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const supa = createClient(supabaseUrl, supabaseKey);
     
     const { data: accountData } = await supa
       .from('whatsapp_accounts')
