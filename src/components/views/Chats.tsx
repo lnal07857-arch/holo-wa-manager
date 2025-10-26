@@ -458,32 +458,38 @@ const Chats = () => {
                 ) : (
                   filteredChats.map((chat) => {
                     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
+                    const hasUnread = chat.unread_count > 0;
                     return (
                       <div
                         key={chatKey}
-                        className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
-                          selectedChatKey === chatKey ? "bg-muted" : ""
-                        }`}
+                        className={cn(
+                          "p-4 cursor-pointer hover:bg-muted transition-colors border-l-4 relative",
+                          selectedChatKey === chatKey ? "bg-muted" : "",
+                          hasUnread ? "border-l-primary bg-primary/5" : "border-l-transparent"
+                        )}
                         onClick={() => setSelectedChatKey(chatKey)}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden relative">
                             <span className="font-semibold text-primary text-lg">{chat.contact_name.charAt(0).toUpperCase()}</span>
+                            {hasUnread && (
+                              <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full ring-2 ring-background" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
-                              <p className="font-semibold truncate">{chat.contact_name}</p>
+                              <p className={cn("truncate", hasUnread ? "font-bold" : "font-semibold")}>{chat.contact_name}</p>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">{formatTime(chat.last_message_time)}</span>
-                                {chat.unread_count > 0 && (
-                                  <Badge className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                                <span className={cn("text-xs", hasUnread ? "text-primary font-semibold" : "text-muted-foreground")}>{formatTime(chat.last_message_time)}</span>
+                                {hasUnread && (
+                                  <Badge className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5 bg-primary">
                                     {chat.unread_count}
                                   </Badge>
                                 )}
                               </div>
                             </div>
                             <div className="flex items-center justify-between">
-                              <p className="text-sm text-muted-foreground truncate">{chat.last_message}</p>
+                              <p className={cn("text-sm truncate", hasUnread ? "text-foreground font-medium" : "text-muted-foreground")}>{chat.last_message}</p>
                             </div>
                             <Badge variant="secondary" className="mt-1 text-xs">
                               {chat.account_name}
