@@ -362,27 +362,30 @@ const Accounts = () => {
   const disconnectAllAccounts = async () => {
     setDisconnectingAll(true);
     try {
-      const connectedAccounts = sortedAccounts.filter(acc => acc.status === 'connected');
-      
-      if (connectedAccounts.length === 0) {
-        toast.info('Keine verbundenen Accounts gefunden');
+      if (sortedAccounts.length === 0) {
+        toast.info('Keine Accounts vorhanden');
         return;
       }
+
+      toast.info(`Trenne ${sortedAccounts.length} Instanzen auf Railway...`);
 
       let successCount = 0;
       let errorCount = 0;
 
-      for (const account of connectedAccounts) {
+      // Trenne ALLE Accounts, unabhängig vom Status
+      for (const account of sortedAccounts) {
         try {
           const { error } = await supabase.functions.invoke('whatsapp-gateway', {
             body: { action: 'disconnect', accountId: account.id }
           });
           
+          // Update status in database
+          await supabase
+            .from('whatsapp_accounts')
+            .update({ status: 'disconnected', qr_code: null })
+            .eq('id', account.id);
+          
           if (!error) {
-            await supabase
-              .from('whatsapp_accounts')
-              .update({ status: 'disconnected', qr_code: null })
-              .eq('id', account.id);
             successCount++;
           } else {
             errorCount++;
@@ -519,7 +522,7 @@ const Accounts = () => {
             variant="outline" 
             className="gap-2 text-destructive border-destructive hover:bg-destructive/10"
             onClick={disconnectAllAccounts}
-            disabled={disconnectingAll || sortedAccounts.filter(a => a.status === 'connected').length === 0}
+            disabled={disconnectingAll}
           >
             {disconnectingAll ? (
               <>
