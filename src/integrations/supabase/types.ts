@@ -315,6 +315,33 @@ export type Database = {
           },
         ]
       }
+      mullvad_accounts: {
+        Row: {
+          account_number: string
+          created_at: string
+          id: string
+          server_region: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_number: string
+          created_at?: string
+          id?: string
+          server_region?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_number?: string
+          created_at?: string
+          id?: string
+          server_region?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -486,6 +513,8 @@ export type Database = {
           id: string
           last_connected_at: string | null
           phone_number: string
+          proxy_country: string | null
+          proxy_server: string | null
           qr_code: string | null
           session_data: Json | null
           status: string
@@ -498,6 +527,8 @@ export type Database = {
           id?: string
           last_connected_at?: string | null
           phone_number: string
+          proxy_country?: string | null
+          proxy_server?: string | null
           qr_code?: string | null
           session_data?: Json | null
           status?: string
@@ -510,6 +541,8 @@ export type Database = {
           id?: string
           last_connected_at?: string | null
           phone_number?: string
+          proxy_country?: string | null
+          proxy_server?: string | null
           qr_code?: string | null
           session_data?: Json | null
           status?: string

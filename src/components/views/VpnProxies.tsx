@@ -1,11 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Shield, Globe, Server, Plus, Trash2 } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
+import { useState } from "react";
 
 export const VpnProxies = () => {
   const { accounts } = useWhatsAppAccounts();
+  const { accounts: mullvadAccounts, createAccount, deleteAccount } = useMullvadAccounts();
+  const [open, setOpen] = useState(false);
+  const [accountNumber, setAccountNumber] = useState("");
 
   return (
     <div className="space-y-6">
@@ -57,19 +65,87 @@ export const VpnProxies = () => {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">Konfigurierte Mullvad Accounts</h3>
-              <Button size="sm" className="gap-2">
-                <Plus className="w-4 h-4" />
-                Account hinzufügen
-              </Button>
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Account hinzufügen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Mullvad Account hinzufügen</DialogTitle>
+                    <DialogDescription>
+                      Geben Sie Ihre Mullvad Account-Nummer ein (16-stellig)
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="account-number">Account-Nummer</Label>
+                      <Input
+                        id="account-number"
+                        placeholder="1234567890123456"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        maxLength={16}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      onClick={() => {
+                        if (accountNumber.length === 16) {
+                          createAccount.mutate({ account_number: accountNumber });
+                          setAccountNumber("");
+                          setOpen(false);
+                        }
+                      }}
+                      disabled={accountNumber.length !== 16}
+                    >
+                      Hinzufügen
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
             
-            <div className="border rounded-lg p-4 bg-muted/20">
-              <p className="text-sm text-muted-foreground text-center">
-                Noch keine Mullvad Accounts konfiguriert. 
-                <br />
-                Fügen Sie Ihre Account-Nummern hinzu, um fortzufahren.
-              </p>
-            </div>
+            {mullvadAccounts.length === 0 ? (
+              <div className="border rounded-lg p-4 bg-muted/20">
+                <p className="text-sm text-muted-foreground text-center">
+                  Noch keine Mullvad Accounts konfiguriert. 
+                  <br />
+                  Fügen Sie Ihre Account-Nummern hinzu, um fortzufahren.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {mullvadAccounts.map((account, index) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between p-3 border rounded-lg bg-background"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Shield className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Mullvad Account #{index + 1}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {account.account_number}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteAccount.mutate(account.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
