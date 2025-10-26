@@ -202,23 +202,28 @@ export const useMessages = () => {
     fetchMessages(true);
 
     // Subscribe to realtime updates - don't show loading state on updates
-    const channel = supabase
+    const messagesChannel = supabase
       .channel("messages-changes")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          fetchMessages(false);
-        }
+        { event: "*", schema: "public", table: "messages" },
+        () => fetchMessages(false)
+      )
+      .subscribe();
+
+    // Also listen to account status updates to refresh after connection
+    const accountsChannel = supabase
+      .channel("whatsapp-accounts-changes")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "whatsapp_accounts" },
+        () => fetchMessages(false)
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(accountsChannel);
     };
   }, [user]);
 
