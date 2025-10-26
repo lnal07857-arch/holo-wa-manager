@@ -9,11 +9,12 @@ import BulkSender from "@/components/views/BulkSender";
 import { AutoChat } from "@/components/views/AutoChat";
 import { FollowUp } from "@/components/views/FollowUp";
 import { ServerStatus } from "@/components/views/ServerStatus";
+import { VpnProxies } from "@/components/views/VpnProxies";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LogOut, Menu, MessageSquare, Users, FileText, Send, LayoutDashboard, Clock, Zap, Server } from "lucide-react";
+import { LogOut, Menu, MessageSquare, Users, FileText, Send, LayoutDashboard, Clock, Zap, Server, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import bgImage from "@/assets/whatsapp-business-bg.png";
@@ -61,6 +62,8 @@ const Index = () => {
         return <AutoChat />;
       case "followup":
         return <FollowUp />;
+      case "vpn-proxies":
+        return <VpnProxies />;
       case "server-status":
         return <ServerStatus />;
       default:
@@ -75,6 +78,7 @@ const Index = () => {
     { id: "bulk", label: "Bulk Sender", icon: Send },
     { id: "autochat", label: "Warm-up", icon: Zap },
     { id: "followup", label: "Follow-up", icon: Clock },
+    { id: "vpn-proxies", label: "VPN & Proxies", icon: Shield },
     { id: "server-status", label: "Server Status", icon: Server },
   ];
 
