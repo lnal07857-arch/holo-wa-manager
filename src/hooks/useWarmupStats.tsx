@@ -10,6 +10,7 @@ export interface WarmupStats {
   unique_contacts: Record<string, number>;
   blocks: number;
   status: 'warming' | 'bulk_ready' | 'blocked';
+  phase: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,7 @@ export function useWarmupStats() {
         unique_contacts: stat.unique_contacts || {},
         blocks: stat.blocks || 0,
         status: stat.status || 'warming',
+        phase: stat.phase || 'phase1',
         created_at: stat.created_at,
         updated_at: stat.updated_at
       })) as WarmupStats[];
