@@ -284,6 +284,61 @@ async function syncAllMessages(client, accountId, supa) {
   }
 }
 
+// Generate unique fingerprint for each instance
+function generateFingerprint(accountId) {
+  // Hash accountId to get consistent but unique values
+  const hash = accountId.split('').reduce((acc, char) => {
+    return ((acc << 5) - acc) + char.charCodeAt(0);
+  }, 0);
+  
+  // Realistic User-Agent pool (Windows, macOS, Linux)
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+  ];
+  
+  // Screen resolutions
+  const resolutions = [
+    { width: 1920, height: 1080 },
+    { width: 1366, height: 768 },
+    { width: 1536, height: 864 },
+    { width: 1440, height: 900 },
+    { width: 1280, height: 720 },
+    { width: 2560, height: 1440 },
+  ];
+  
+  // Timezones
+  const timezones = [
+    'Europe/Berlin',
+    'Europe/London',
+    'Europe/Paris',
+    'Europe/Madrid',
+    'Europe/Rome',
+    'Europe/Amsterdam',
+  ];
+  
+  // Hardware concurrency (CPU cores)
+  const hardwareConcurrency = [4, 6, 8, 12, 16];
+  
+  // Use hash to deterministically select from arrays
+  const userAgent = userAgents[Math.abs(hash) % userAgents.length];
+  const resolution = resolutions[Math.abs(hash * 2) % resolutions.length];
+  const timezone = timezones[Math.abs(hash * 3) % timezones.length];
+  const cores = hardwareConcurrency[Math.abs(hash * 4) % hardwareConcurrency.length];
+  
+  return {
+    userAgent,
+    resolution,
+    timezone,
+    cores
+  };
+}
+
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // If a client exists, verify its state. If not connected, clean up and re-init to emit a fresh QR.
@@ -323,6 +378,15 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // Supabase client using service role key for privileged updates
   const supa = createClient(supabaseUrl, supabaseKey);
 
+  // Generate unique fingerprint for this account
+  const fingerprint = generateFingerprint(accountId);
+  console.log(`[Fingerprint] Generated unique fingerprint for ${accountId}:`, {
+    userAgent: fingerprint.userAgent.substring(0, 50) + '...',
+    resolution: fingerprint.resolution,
+    timezone: fingerprint.timezone,
+    cores: fingerprint.cores
+  });
+
   // Fetch proxy configuration for this account
   let puppeteerConfig = {
     headless: true,
@@ -334,7 +398,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      `--window-size=${fingerprint.resolution.width},${fingerprint.resolution.height}`,
+      `--user-agent=${fingerprint.userAgent}`,
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-web-security',
+      '--disable-features=WebRtcHideLocalIpsWithMdns',
     ]
   };
 
@@ -362,7 +432,109 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
-    puppeteer: puppeteerConfig
+    puppeteer: {
+      ...puppeteerConfig,
+      // Additional launch options
+      ignoreDefaultArgs: ['--enable-automation'],
+    },
+    // Inject scripts to override fingerprint detection
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+    }
+  });
+
+  // Inject fingerprint spoofing scripts on page load
+  client.on('authenticated', async () => {
+    console.log(`[Fingerprint] Applying fingerprint overrides for ${accountId}`);
+    
+    const pages = await client.pupPage.browser().pages();
+    for (const page of pages) {
+      try {
+        // Override navigator properties
+        await page.evaluateOnNewDocument((fp) => {
+          // Override hardware concurrency
+          Object.defineProperty(navigator, 'hardwareConcurrency', {
+            get: () => fp.cores
+          });
+          
+          // Override platform
+          Object.defineProperty(navigator, 'platform', {
+            get: () => {
+              if (fp.userAgent.includes('Windows')) return 'Win32';
+              if (fp.userAgent.includes('Macintosh')) return 'MacIntel';
+              return 'Linux x86_64';
+            }
+          });
+          
+          // Override webdriver
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined
+          });
+          
+          // Override plugins
+          Object.defineProperty(navigator, 'plugins', {
+            get: () => [1, 2, 3, 4, 5]
+          });
+          
+          // Override languages
+          Object.defineProperty(navigator, 'languages', {
+            get: () => ['de-DE', 'de', 'en-US', 'en']
+          });
+          
+          // Canvas fingerprint noise
+          const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+          HTMLCanvasElement.prototype.toDataURL = function(...args) {
+            const context = this.getContext('2d');
+            if (context) {
+              const imageData = context.getImageData(0, 0, this.width, this.height);
+              // Add minimal noise based on accountId
+              for (let i = 0; i < imageData.data.length; i += 4) {
+                imageData.data[i] = imageData.data[i] ^ (fp.cores % 2);
+              }
+              context.putImageData(imageData, 0, 0);
+            }
+            return originalToDataURL.apply(this, args);
+          };
+          
+          // WebGL fingerprint variation
+          const getParameter = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+              return 'Intel Inc.';
+            }
+            if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+              const renderers = [
+                'Intel Iris OpenGL Engine',
+                'ANGLE (Intel, Intel(R) UHD Graphics 620, OpenGL 4.1)',
+                'Intel(R) HD Graphics 620'
+              ];
+              return renderers[fp.cores % renderers.length];
+            }
+            return getParameter.call(this, parameter);
+          };
+          
+          // Screen resolution override
+          Object.defineProperty(screen, 'width', {
+            get: () => fp.resolution.width
+          });
+          Object.defineProperty(screen, 'height', {
+            get: () => fp.resolution.height
+          });
+          Object.defineProperty(screen, 'availWidth', {
+            get: () => fp.resolution.width
+          });
+          Object.defineProperty(screen, 'availHeight', {
+            get: () => fp.resolution.height - 40
+          });
+          
+        }, fingerprint);
+        
+        console.log(`[Fingerprint] Applied overrides to page for ${accountId}`);
+      } catch (err) {
+        console.error(`[Fingerprint] Error applying overrides:`, err);
+      }
+    }
   });
 
   // QR Code event
