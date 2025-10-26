@@ -109,10 +109,16 @@ export const useWhatsAppAccounts = () => {
           // Invalidate queries to refetch data
           queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
           
-          // Show toast for disconnections
-          if (payload.new.status === 'disconnected' && payload.old.status === 'connected') {
-            toast.error(`WhatsApp-Verbindung getrennt: ${payload.new.account_name}`, {
-              description: 'Bitte verbinden Sie den Account erneut'
+          // Show toast for connection loss from a connected state
+          if (payload.old.status === 'connected' && payload.new.status !== 'connected') {
+            const status = payload.new.status as string;
+            const msg = status === 'pending'
+              ? `Verbindung unterbrochen: ${payload.new.account_name} (QR-Code erforderlich)`
+              : `WhatsApp-Verbindung getrennt: ${payload.new.account_name}`;
+            toast.error(msg, {
+              description: status === 'pending'
+                ? 'Bitte erneut verbinden, es wird ein neuer QR-Code angezeigt.'
+                : 'Bitte verbinden Sie den Account erneut.',
             });
           }
           
