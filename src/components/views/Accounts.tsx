@@ -246,17 +246,46 @@ const Accounts = () => {
         
         throw new Error(error.message || 'Edge Function Fehler');
       }
+
+      // Fehler vom Railway-Server behandeln
       if (data?.error) {
         console.error('[WhatsApp Init Error from Railway]', data.error);
-        
-        // Spezifische Fehlermeldungen für Browser-Launch Probleme
-        if (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create')) {
+        if (typeof data.error === 'string' && (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create'))) {
           throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
         }
-        
         throw new Error(data.error);
       }
-      console.log('[WhatsApp Init Success]', data);
+
+      // Wenn bereits initialisiert, prüfen wir den Verbindungsstatus und handeln entsprechend
+      if (data?.message === 'Client already initialized') {
+        try {
+          const { data: statusData } = await supabase.functions.invoke('whatsapp-gateway', {
+            body: { action: 'status', accountId }
+          });
+
+          if (statusData?.connected) {
+            // Bereits verbunden – kein QR erforderlich
+            setInitializingAccount(null);
+            setLoadingQR(false);
+            toast.success('Account ist bereits verbunden.');
+            return;
+          }
+
+          // Nicht verbunden, aber Instanz existiert – sauber trennen und neu initialisieren
+          console.log('[WhatsApp Init] Instance present but not connected. Forcing reconnect...');
+          await supabase.functions.invoke('whatsapp-gateway', {
+            body: { action: 'disconnect', accountId }
+          });
+
+          // Kurze Pause, dann erneute Initialisierung, um QR zu erzwingen
+          await new Promise(r => setTimeout(r, 500));
+          await supabase.functions.invoke('whatsapp-gateway', {
+            body: { action: 'initialize', accountId }
+          });
+        } catch (reInitErr) {
+          console.error('[WhatsApp Re-Init Error]', reInitErr);
+        }
+      }
 
       // loadingQR bleibt true bis QR-Code erscheint
       toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');

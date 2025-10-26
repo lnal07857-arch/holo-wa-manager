@@ -251,8 +251,38 @@ async function syncAllMessages(client, accountId, supa) {
 
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
+  // If a client exists, verify its state. If not connected, clean up and re-init to emit a fresh QR.
   if (clients.has(accountId)) {
-    return { success: true, message: 'Client already initialized' };
+    try {
+      const existing = clients.get(accountId);
+      const state = await existing.getState().catch(() => null);
+      console.log(`[Init] Existing client for ${accountId} with state:`, state);
+      if (state !== 'CONNECTED') {
+        console.log(`[Init] Existing client not connected for ${accountId}. Destroying and re-initializing to regenerate QR...`);
+        // Clear QR timeout if exists
+        const existingTimeout = qrTimeouts.get(accountId);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+          qrTimeouts.delete(accountId);
+        }
+        // Destroy and cleanup
+        try { await existing.destroy(); } catch (e) { console.warn('[Init] Error destroying existing client:', e?.message || e); }
+        clients.delete(accountId);
+        messageQueues.delete(accountId);
+        lastActivity.delete(accountId);
+        reconnectAttempts.delete(accountId);
+        // Proceed to create a new client below
+      } else {
+        return { success: true, message: 'Client already initialized' };
+      }
+    } catch (e) {
+      console.warn('[Init] Error checking existing client state, proceeding with re-init:', e?.message || e);
+      // Best-effort cleanup
+      clients.delete(accountId);
+      messageQueues.delete(accountId);
+      lastActivity.delete(accountId);
+      reconnectAttempts.delete(accountId);
+    }
   }
 
   // Supabase client using service role key for privileged updates
