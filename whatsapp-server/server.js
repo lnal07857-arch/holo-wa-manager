@@ -80,14 +80,53 @@ const QR_TIMEOUT = 2 * 60 * 1000;
 // Sync all messages (no time limit)
 async function syncAllMessages(client, accountId, supa) {
   try {
+    // Fetch warmup contacts to exclude them from sync
+    const { data: accountData } = await supa
+      .from('whatsapp_accounts')
+      .select('user_id')
+      .eq('id', accountId)
+      .maybeSingle();
+    
+    let warmupPhones = new Set();
+    if (accountData?.user_id) {
+      const { data: warmupSettings } = await supa
+        .from('warmup_settings')
+        .select('all_pairs')
+        .eq('user_id', accountData.user_id)
+        .maybeSingle();
+      
+      if (warmupSettings?.all_pairs) {
+        // Extract phone numbers from all_pairs
+        const pairs = Array.isArray(warmupSettings.all_pairs) ? warmupSettings.all_pairs : [];
+        pairs.forEach(pair => {
+          if (pair.account1 === accountId && pair.phone2) {
+            warmupPhones.add(pair.phone2.replace(/\D/g, ''));
+          }
+          if (pair.account2 === accountId && pair.phone1) {
+            warmupPhones.add(pair.phone1.replace(/\D/g, ''));
+          }
+        });
+        console.log(`Found ${warmupPhones.size} warmup contacts to exclude from sync`);
+      }
+    }
+    
     const chats = await client.getChats();
     console.log(`Found ${chats.length} chats to sync`);
     
     let totalSynced = 0;
     let totalSkipped = 0;
+    let totalWarmupSkipped = 0;
 
     for (const chat of chats) {
       try {
+        // Check if this is a warmup chat and skip it
+        const chatPhone = chat.id.user.replace(/\D/g, '');
+        if (warmupPhones.has(chatPhone)) {
+          console.log(`Skipping warmup chat: ${chat.name || chat.id.user}`);
+          totalWarmupSkipped++;
+          continue;
+        }
+        
         // Fetch messages from this chat (limit can be adjusted)
         const messages = await chat.fetchMessages({ limit: 100 });
         
@@ -152,7 +191,7 @@ async function syncAllMessages(client, accountId, supa) {
               continue;
             }
 
-            // Insert message
+            // Insert message (explicitly set is_warmup to false)
             const { error } = await supa
               .from('messages')
               .insert({
@@ -162,7 +201,8 @@ async function syncAllMessages(client, accountId, supa) {
                 message_text: msg.body,
                 direction: direction,
                 sent_at: messageTime,
-                is_read: isRead
+                is_read: isRead,
+                is_warmup: false
               });
 
             if (error) {
@@ -182,7 +222,7 @@ async function syncAllMessages(client, accountId, supa) {
       }
     }
 
-    console.log(`Sync complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped`);
+    console.log(`Sync complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalWarmupSkipped} warmup chats excluded`);
   } catch (error) {
     console.error('Error in syncAllMessages:', error);
   }
@@ -551,6 +591,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
           direction,
           sent_at: sentAt,
           is_read: msg.fromMe ? true : false,
+          is_warmup: false,
           media_url: mediaUrl,
           media_type: mediaType,
           media_mimetype: mediaMimetype
