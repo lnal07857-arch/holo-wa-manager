@@ -224,7 +224,7 @@ async function syncAllMessages(client, accountId, supa) {
             // Check if message already exists
             const { data: existing } = await supa
               .from('messages')
-              .select('id')
+              .select('id, is_read')
               .eq('account_id', accountId)
               .eq('contact_phone', phoneNumber)
               .eq('message_text', msg.body)
@@ -233,6 +233,16 @@ async function syncAllMessages(client, accountId, supa) {
               .maybeSingle();
 
             if (existing) {
+              // Update read status if it changed
+              if (existing.is_read !== isRead) {
+                const { error: updateError } = await supa
+                  .from('messages')
+                  .update({ is_read: isRead })
+                  .eq('id', existing.id);
+                if (updateError) {
+                  console.error('Error updating message read status:', updateError);
+                }
+              }
               totalSkipped++;
               continue;
             }
