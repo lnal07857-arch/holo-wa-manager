@@ -76,7 +76,7 @@ serve(async (req) => {
           console.log('✅ [Initialize] VPN assigned successfully');
         }
 
-        // Try with assigned VPN
+        // Try with assigned VPN (STICKY - no automatic IP rotation)
         let response = await attemptInitialize();
         console.log(`[Initialize] Initial attempt status: ${response.status}`);
 
@@ -87,78 +87,35 @@ serve(async (req) => {
           const isProxyError = errorText.includes('ERR_PROXY_CONNECTION_FAILED') || errorText.toLowerCase().includes('proxy');
 
           if (isProxyError) {
-            console.warn('⚠️ [Initialize] Proxy failed. Trying alternative healthy VPN servers...');
-
-            // Fetch healthy servers
-            const { data: healthy } = await supa
-              .from('vpn_server_health')
-              .select('server_host')
-              .eq('is_healthy', true)
-              .eq('server_region', 'DE')
-              .gte('last_check', new Date(Date.now() - 15 * 60 * 1000).toISOString())
-              .order('response_time_ms', { ascending: true })
-              .limit(5);
-
-            if (healthy && healthy.length > 0) {
-              if (!accountData) {
-                throw new Error('Account data not found');
-              }
-
-              const { data: mv } = await supa
-                .from('mullvad_accounts')
-                .select('account_number')
-                .eq('user_id', accountData.user_id)
-                .order('created_at', { ascending: true })
-                .maybeSingle();
-
-              if (mv?.account_number) {
-                // Try up to 3 alternative servers
-                for (let i = 0; i < Math.min(3, healthy.length); i++) {
-                  const server = healthy[i].server_host;
-                  console.log(`🔄 [Initialize] Trying alternative VPN ${i + 1}/3: ${server}`);
-
-                  const newProxy = {
-                    host: server,
-                    port: 1080,
-                    username: mv.account_number,
-                    password: 'm',
-                    protocol: 'socks5',
-                  };
-
-                  await supa
-                    .from('whatsapp_accounts')
-                    .update({ proxy_server: JSON.stringify(newProxy) })
-                    .eq('id', accountId);
-
-                  response = await attemptInitialize();
-                  console.log(`[Initialize] Alternative VPN ${i + 1} status: ${response.status}`);
-
-                  if (response.ok) {
-                    console.log(`✅ [Initialize] Success with alternative VPN: ${server}`);
-                    break;
-                  }
-                }
-              }
+            console.warn('⚠️ [Initialize] Proxy failed. Your VPN server may be down.');
+            
+            // Mark current VPN as unhealthy for future assignments
+            const currentProxy = accountData?.proxy_server ? JSON.parse(accountData.proxy_server) : null;
+            if (currentProxy?.host) {
+              console.log(`📊 [Initialize] Marking ${currentProxy.host} as potentially unhealthy`);
+              // The health check will handle this in the background
             }
 
-            // Last resort: direct connection (only for QR generation)
+            // Give ONE chance: Try to get a different healthy VPN (not multiple retries)
+            console.log('🔄 [Initialize] Attempting ONE VPN reassignment...');
+            
+            const { error: reassignError } = await supa.functions.invoke('mullvad-proxy-manager', {
+              body: { action: 'assign-proxy', accountId }
+            });
+
+            if (reassignError) {
+              console.error('❌ [Initialize] Could not reassign VPN:', reassignError);
+              throw new Error('Ihr VPN-Server ist nicht erreichbar und kein alternativer Server verfügbar. Bitte versuchen Sie es später erneut.');
+            }
+
+            console.log('✅ [Initialize] VPN reassigned, retrying once...');
+            response = await attemptInitialize();
+            console.log(`[Initialize] Retry with new VPN status: ${response.status}`);
+
             if (!response.ok) {
-              console.warn('⚠️ [Initialize] All VPNs failed. Using direct connection ONLY for QR generation...');
-              await supa
-                .from('whatsapp_accounts')
-                .update({ proxy_server: null })
-                .eq('id', accountId);
-
-              response = await attemptInitialize();
-              console.log(`[Initialize] Direct connection status: ${response.status}`);
-
-              if (!response.ok) {
-                const directText = await response.text();
-                console.error(`❌ [Initialize] Direct connection also failed: ${directText}`);
-                throw new Error(`Alle VPN-Server und direkte Verbindung fehlgeschlagen. Bitte später versuchen.`);
-              }
-
-              console.log('⚠️ [Initialize] QR generated without VPN. VPN will be re-assigned after successful connection.');
+              const retryError = await response.text();
+              console.error(`❌ [Initialize] Retry also failed: ${retryError}`);
+              throw new Error('VPN-Verbindung fehlgeschlagen. Bitte klicken Sie auf "VPN zuweisen" um einen neuen Server zu erhalten.');
             }
           } else {
             throw new Error(`Railway server error (${response.status}): ${errorText}`);
