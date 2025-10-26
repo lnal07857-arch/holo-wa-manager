@@ -435,7 +435,7 @@ const BulkSender = () => {
 
                     // 2. Nachricht via WhatsApp versenden
                     try {
-                      const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
+                      const { error: sendError } = await supabase.functions.invoke("wa-gateway", {
                         body: {
                           action: "send-message",
                           accountId: accountId,

@@ -60,7 +60,7 @@ const Accounts = () => {
       for (const account of sortedAccounts) {
         if (account.status === 'connected') {
           try {
-            const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+            const { data, error } = await supabase.functions.invoke('wa-gateway', {
               body: { action: 'status', accountId: account.id }
             });
             
@@ -264,7 +264,7 @@ const Accounts = () => {
       const {
         data,
         error
-      } = await supabase.functions.invoke('whatsapp-gateway', {
+      } = await supabase.functions.invoke('wa-gateway', {
         body: {
           action: 'initialize',
           accountId: accountId
@@ -297,7 +297,7 @@ const Accounts = () => {
       // Wenn bereits initialisiert, prüfen wir den Verbindungsstatus und handeln entsprechend
       if (data?.message === 'Client already initialized') {
         try {
-          const { data: statusData } = await supabase.functions.invoke('whatsapp-gateway', {
+          const { data: statusData } = await supabase.functions.invoke('wa-gateway', {
             body: { action: 'status', accountId }
           });
 
@@ -311,13 +311,13 @@ const Accounts = () => {
 
           // Nicht verbunden, aber Instanz existiert – sauber trennen und neu initialisieren
           console.log('[WhatsApp Init] Instance present but not connected. Forcing reconnect...');
-          await supabase.functions.invoke('whatsapp-gateway', {
+          await supabase.functions.invoke('wa-gateway', {
             body: { action: 'disconnect', accountId }
           });
 
           // Kurze Pause, dann erneute Initialisierung, um QR zu erzwingen
           await new Promise(r => setTimeout(r, 500));
-          await supabase.functions.invoke('whatsapp-gateway', {
+          await supabase.functions.invoke('wa-gateway', {
             body: { action: 'initialize', accountId }
           });
         } catch (reInitErr) {
@@ -337,7 +337,7 @@ const Accounts = () => {
   const disconnectAccount = async (accountId: string) => {
     setDisconnecting(accountId);
     try {
-      const { error } = await supabase.functions.invoke('whatsapp-gateway', {
+      const { error } = await supabase.functions.invoke('wa-gateway', {
         body: { action: 'disconnect', accountId }
       });
       
@@ -377,7 +377,7 @@ const Accounts = () => {
       // Trenne ALLE Accounts, unabhängig vom Status
       for (const account of sortedAccounts) {
         try {
-          const { error } = await supabase.functions.invoke('whatsapp-gateway', {
+          const { error } = await supabase.functions.invoke('wa-gateway', {
             body: { action: 'disconnect', accountId: account.id }
           });
           

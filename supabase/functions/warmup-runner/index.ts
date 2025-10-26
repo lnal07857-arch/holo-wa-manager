@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
       const activeAccounts: any[] = [];
       for (const acc of accounts || []) {
         try {
-          const { data: statusData, error: statusError } = await supabase.functions.invoke('whatsapp-gateway', {
+          const { data: statusData, error: statusError } = await supabase.functions.invoke('wa-gateway', {
             body: { action: 'status', accountId: acc.id },
           });
            const isLive = !statusError && statusData && (
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
       // Send messages with typing simulation
       // Ensure WhatsApp client is initialized for sender
       try {
-        const { data: initData, error: initError } = await supabase.functions.invoke('whatsapp-gateway', {
+        const { data: initData, error: initError } = await supabase.functions.invoke('wa-gateway', {
           body: { action: 'initialize', accountId: senderId },
         });
         if (initError || initData?.error) {
@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
 
           // Send message (using actual sender/receiver which might be reversed)
           const cleanedPhone = (actualReceiver.phone_number || '').replace(/\D/g, '');
-          const { data: sendData, error: sendError } = await supabase.functions.invoke('whatsapp-gateway', {
+          const { data: sendData, error: sendError } = await supabase.functions.invoke('wa-gateway', {
             body: {
               action: 'send-message',
               accountId: actualSender.id,

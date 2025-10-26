@@ -8,7 +8,7 @@ export function ServerStatus() {
   const { data: status, isLoading } = useQuery({
     queryKey: ["server-status"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("whatsapp-gateway", {
+      const { data, error } = await supabase.functions.invoke("wa-gateway", {
         body: { action: "status" },
       });
       if (error) throw error;

@@ -19,7 +19,7 @@ export const useFingerprint = (accountId: string, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['fingerprint', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('whatsapp-gateway', {
+      const { data, error } = await supabase.functions.invoke('wa-gateway', {
         body: { action: 'get-fingerprint', accountId }
       });
 

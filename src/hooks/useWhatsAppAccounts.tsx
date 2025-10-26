@@ -85,7 +85,7 @@ export const useWhatsAppAccounts = () => {
     mutationFn: async (accountId: string) => {
       // First, disconnect the client on Railway server
       try {
-        const { error: disconnectError } = await supabase.functions.invoke('whatsapp-gateway', {
+        const { error: disconnectError } = await supabase.functions.invoke('wa-gateway', {
           body: { action: 'disconnect', accountId }
         });
         

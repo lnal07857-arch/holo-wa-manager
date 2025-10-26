@@ -325,7 +325,7 @@ export const FollowUp = () => {
         if (dbError) throw dbError;
 
         // Send via WhatsApp
-        const { error: sendError } = await supabase.functions.invoke("whatsapp-gateway", {
+        const { error: sendError } = await supabase.functions.invoke("wa-gateway", {
           body: {
             accountId: currentAccount,
             to: contact.contactPhone,

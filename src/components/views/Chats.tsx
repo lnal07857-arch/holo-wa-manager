@@ -175,7 +175,7 @@ const Chats = () => {
 
       // 2) Try to send via WhatsApp gateway
       const trySend = async () => {
-        const { error } = await supabase.functions.invoke("whatsapp-gateway", {
+        const { error } = await supabase.functions.invoke("wa-gateway", {
           body: {
             action: "send-message",
             accountId: selectedChat.account_id,
@@ -191,7 +191,7 @@ const Chats = () => {
       // If client on Railway was restarted, auto-initialize and retry once
       if (sendError) {
         toast.message("Verbindung wird neu hergestellt…", { description: "WhatsApp-Client wird initialisiert" });
-        await supabase.functions.invoke("whatsapp-gateway", {
+        await supabase.functions.invoke("wa-gateway", {
           body: { action: "initialize", accountId: selectedChat.account_id },
         });
         // kurzer Delay, damit der Client starten kann
