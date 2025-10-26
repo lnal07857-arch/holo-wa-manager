@@ -680,21 +680,20 @@ const Accounts = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
-                    {account.status === "connected" && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                        onClick={() => disconnectAccount(account.id)}
-                        disabled={disconnecting === account.id}
-                      >
-                        {disconnecting === account.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Power className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      onClick={() => disconnectAccount(account.id)}
+                      disabled={disconnecting === account.id || account.status !== "connected"}
+                      title={account.status !== "connected" ? "Nur verbundene Accounts können getrennt werden" : "Instanz trennen"}
+                    >
+                      {disconnecting === account.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Power className="w-4 h-4" />
+                      )}
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
