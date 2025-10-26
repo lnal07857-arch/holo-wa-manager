@@ -53,7 +53,7 @@ serve(async (req) => {
           });
         };
 
-        // 1st attempt
+        // 1st attempt with current proxy
         let response = await attemptInitialize();
         console.log(`[Initialize] Railway response status: ${response.status}`);
 
@@ -64,93 +64,80 @@ serve(async (req) => {
           const isProxyError = errorText.includes('ERR_PROXY_CONNECTION_FAILED') || errorText.toLowerCase().includes('proxy');
 
           if (isProxyError) {
-            console.warn('[Initialize] Detected proxy failure. Attempting automatic VPN failover...');
+            console.warn('⚠️ [Initialize] Proxy connection failed. Starting intelligent fallback...');
 
-            // Fetch healthy servers
-            const { data: healthy, error: healthErr } = await supa
+            // Fetch ONLY healthy servers with recent checks
+            const { data: healthy } = await supa
               .from('vpn_server_health')
               .select('server_host')
               .eq('is_healthy', true)
               .eq('server_region', 'DE')
+              .gte('last_check', new Date(Date.now() - 15 * 60 * 1000).toISOString())
               .order('response_time_ms', { ascending: true })
-              .limit(5);
+              .limit(3);
 
-            // Fallback list if no health data
-            const FALLBACK_SERVERS = [
-              'de-ber-wg-001.mullvad.net',
-              'de-ber-wg-002.mullvad.net',
-              'de-ber-wg-003.mullvad.net',
-              'de-fra-wg-001.mullvad.net',
-              'de-fra-wg-002.mullvad.net',
-            ];
+            // If we have healthy servers, try ONE more time with best server
+            if (healthy && healthy.length > 0) {
+              const { data: accountRow } = await supa
+                .from('whatsapp_accounts')
+                .select('id, user_id')
+                .eq('id', accountId)
+                .maybeSingle();
 
-            const candidateServers = (healthy && healthy.length > 0)
-              ? healthy.map((s: any) => s.server_host)
-              : FALLBACK_SERVERS;
+              if (accountRow?.user_id) {
+                const { data: mv } = await supa
+                  .from('mullvad_accounts')
+                  .select('account_number')
+                  .eq('user_id', accountRow.user_id)
+                  .order('created_at', { ascending: true })
+                  .maybeSingle();
 
-            // Load account + user
-            const { data: accountRow } = await supa
-              .from('whatsapp_accounts')
-              .select('id, user_id')
-              .eq('id', accountId)
-              .maybeSingle();
+                if (mv?.account_number) {
+                  const bestServer = healthy[0].server_host;
+                  const newProxy = {
+                    host: bestServer,
+                    port: 1080,
+                    username: mv.account_number,
+                    password: 'm',
+                    protocol: 'socks5',
+                  };
 
-            if (!accountRow?.user_id) {
-              throw new Error('Account not found for failover');
+                  await supa
+                    .from('whatsapp_accounts')
+                    .update({ proxy_server: JSON.stringify(newProxy) })
+                    .eq('id', accountId);
+
+                  console.log(`🔄 [Initialize] Trying best healthy server: ${bestServer}`);
+
+                  response = await attemptInitialize();
+                  console.log(`[Initialize] Healthy server retry status: ${response.status}`);
+
+                  if (!response.ok) {
+                    console.warn('⚠️ [Initialize] Healthy server also failed. Switching to direct connection for QR generation...');
+                  }
+                }
+              }
             }
 
-            // Pick Mullvad account (first)
-            const { data: mv } = await supa
-              .from('mullvad_accounts')
-              .select('account_number')
-              .eq('user_id', accountRow.user_id)
-              .order('created_at', { ascending: true })
-              .maybeSingle();
-
-            if (!mv?.account_number) {
-              throw new Error('No Mullvad account available for failover');
-            }
-
-            // Choose best server
-            const newHost = candidateServers[Math.floor(Math.random() * candidateServers.length)];
-            const newProxy = {
-              host: newHost,
-              port: 1080,
-              username: mv.account_number,
-              password: 'm',
-              protocol: 'socks5',
-            };
-
-            await supa
-              .from('whatsapp_accounts')
-              .update({ proxy_server: JSON.stringify(newProxy) })
-              .eq('id', accountId);
-
-            console.log(`[Initialize] Failover applied: ${newHost}. Retrying initialize...`);
-
-            // 2nd attempt after failover
-            response = await attemptInitialize();
-            console.log(`[Initialize] Retry response status: ${response.status}`);
-
+            // If still not OK, go direct (no proxy) for QR generation
             if (!response.ok) {
-              const retryText = await response.text();
-              console.error(`[Initialize] Retry failed: ${retryText}`);
-
-              // Last-resort fallback: remove proxy and try direct connection
-              console.warn('[Initialize] Applying last-resort fallback: disable proxy and try direct connect...');
+              console.log('🚀 [Initialize] Removing proxy temporarily for QR generation...');
               await supa
                 .from('whatsapp_accounts')
                 .update({ proxy_server: null })
                 .eq('id', accountId);
 
               response = await attemptInitialize();
-              console.log(`[Initialize] Direct connect retry status: ${response.status}`);
+              console.log(`[Initialize] Direct connection status: ${response.status}`);
 
               if (!response.ok) {
                 const directText = await response.text();
-                console.error(`[Initialize] Direct connect failed: ${directText}`);
+                console.error(`❌ [Initialize] Direct connection failed: ${directText}`);
                 throw new Error(`Railway server error (${response.status}): ${directText}`);
               }
+
+              // Success with direct connection - schedule proxy re-assignment in background
+              console.log('✅ [Initialize] QR generated successfully without proxy. Will re-assign VPN after connection...');
             }
           } else {
             throw new Error(`Railway server error (${response.status}): ${errorText}`);

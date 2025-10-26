@@ -129,6 +129,25 @@ export const useWhatsAppAccounts = () => {
           // Show toast for successful connections
           if (payload.new.status === 'connected' && payload.old.status !== 'connected') {
             toast.success(`WhatsApp erfolgreich verbunden: ${payload.new.account_name}`);
+            
+            // Auto-assign VPN if account was connected without proxy (direct connection fallback)
+            if (!payload.new.proxy_server) {
+              console.log('[Auto VPN] Account connected without proxy, re-assigning VPN in background...');
+              
+              // Call assign-proxy in background without blocking
+              supabase.functions.invoke('mullvad-proxy-manager', {
+                body: { action: 'assign-proxy', accountId: payload.new.id }
+              }).then(({ data, error }) => {
+                if (error) {
+                  console.warn('[Auto VPN] Could not re-assign VPN:', error);
+                } else {
+                  console.log('[Auto VPN] ✅ VPN re-assigned successfully:', data);
+                  toast.success('VPN automatisch zugewiesen', { duration: 2000 });
+                }
+              }).catch(err => {
+                console.warn('[Auto VPN] Background VPN assignment failed:', err);
+              });
+            }
           }
         }
       )
