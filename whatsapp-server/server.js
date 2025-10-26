@@ -68,11 +68,14 @@ class MessageQueue {
 const messageQueues = new Map();
 const lastActivity = new Map(); // Track last activity timestamp per client
 const reconnectAttempts = new Map(); // Track reconnect attempts
+const qrTimeouts = new Map(); // Track QR code timeouts
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 30000; // 30 seconds
 
 // Idle timeout in milliseconds (30 minutes)
 const IDLE_TIMEOUT = 30 * 60 * 1000;
+// QR code timeout in milliseconds (2 minutes)
+const QR_TIMEOUT = 2 * 60 * 1000;
 
 // Sync all messages (no time limit)
 async function syncAllMessages(client, accountId, supa) {
@@ -243,12 +246,61 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     } catch (error) {
       console.error('Error saving QR to Supabase (supabase-js):', error);
     }
+    
+    // Set QR timeout - destroy client if not scanned within 2 minutes
+    const existingTimeout = qrTimeouts.get(accountId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    const timeout = setTimeout(async () => {
+      console.log(`[QR Timeout] QR code not scanned for ${accountId}, cleaning up...`);
+      
+      try {
+        // Destroy the client
+        if (clients.has(accountId)) {
+          const client = clients.get(accountId);
+          await client.destroy();
+          clients.delete(accountId);
+        }
+        
+        // Clean up maps
+        messageQueues.delete(accountId);
+        lastActivity.delete(accountId);
+        qrTimeouts.delete(accountId);
+        
+        // Update status in database
+        await supa
+          .from('whatsapp_accounts')
+          .update({
+            status: 'disconnected',
+            qr_code: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', accountId);
+          
+        console.log(`[QR Timeout] Cleaned up session for ${accountId}`);
+      } catch (err) {
+        console.error(`[QR Timeout] Error cleaning up ${accountId}:`, err);
+      }
+    }, QR_TIMEOUT);
+    
+    qrTimeouts.set(accountId, timeout);
+    console.log(`[QR Timeout] Set ${QR_TIMEOUT / 1000}s timeout for ${accountId}`);
   });
 
   // Ready event
   client.on('ready', async () => {
     console.log('Client is ready!', accountId);
     lastActivity.set(accountId, Date.now());
+    
+    // Clear QR timeout since client is now connected
+    const existingTimeout = qrTimeouts.get(accountId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      qrTimeouts.delete(accountId);
+      console.log(`[QR Timeout] Cleared timeout for connected client ${accountId}`);
+    }
     
     // Reset reconnect attempts on successful connection
     reconnectAttempts.set(accountId, 0);
@@ -520,6 +572,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     clients.delete(accountId);
     messageQueues.delete(accountId);
     
+    // Clear QR timeout if exists
+    const existingTimeout = qrTimeouts.get(accountId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      qrTimeouts.delete(accountId);
+    }
+    
     // Update status in Supabase
     try {
       await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
@@ -561,6 +620,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // Authentication failure event
   client.on('auth_failure', async (msg) => {
     console.error(`[Auth Failure] Authentication failed for ${accountId}:`, msg);
+    
+    // Clear QR timeout if exists
+    const existingTimeout = qrTimeouts.get(accountId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      qrTimeouts.delete(accountId);
+    }
     
     try {
       await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
@@ -758,6 +824,13 @@ app.post('/api/disconnect', async (req, res) => {
     }
 
     console.log(`Disconnecting client for account: ${accountId}`);
+    
+    // Clear QR timeout if exists
+    const existingTimeout = qrTimeouts.get(accountId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      qrTimeouts.delete(accountId);
+    }
     
     // Destroy the client and clean up resources
     try {

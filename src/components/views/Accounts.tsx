@@ -215,12 +215,12 @@ const Accounts = () => {
     setLoadingQR(true);
     setInitializingAccount(accountId);
     
-    // Timeout nach 30 Sekunden
+    // Timeout nach 2 Minuten (entspricht Server QR-Timeout)
     const timeoutId = setTimeout(() => {
       setLoadingQR(false);
       setInitializingAccount(null);
-      toast.error('Timeout: Initialisierung hat zu lange gedauert. Bitte versuchen Sie es erneut.');
-    }, 30000);
+      toast.error('QR-Code wurde nicht rechtzeitig gescannt. Die Session wurde automatisch beendet.');
+    }, 120000);
     
     try {
       const {
