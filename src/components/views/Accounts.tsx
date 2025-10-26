@@ -261,104 +261,103 @@ const Accounts = () => {
     }, 120000);
     
     try {
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('wa-gateway', {
-        body: {
-          action: 'initialize',
-          accountId: accountId
-        }
-      });
+      // Smart Retry with exponential backoff for server overload
+      let lastError: any = null;
+      const maxRetries = 3;
       
-      // Timeout clearen wenn erfolgreich
-      clearTimeout(timeoutId);
-      
-      if (error) {
-        console.error('[WhatsApp Init Error]', error);
-        
-        // Spezifische Fehlermeldungen für Railway Server Probleme
-        if (error.message?.includes('non-2xx status code')) {
-          throw new Error('Railway Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
-        }
-        
-        throw new Error(error.message || 'Edge Function Fehler');
-      }
-
-      // Fehler vom Railway-Server behandeln
-      if (data?.error) {
-        console.error('[WhatsApp Init Error from Railway]', data.error);
-        if (typeof data.error === 'string' && (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create'))) {
-          throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
-        }
-        throw new Error(data.error);
-      }
-
-      // Wenn bereits initialisiert, prüfen wir den Verbindungsstatus und handeln entsprechend
-      if (data?.message === 'Client already initialized') {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          const { data: statusData } = await supabase.functions.invoke('wa-gateway', {
-            body: { action: 'status', accountId }
+          const {
+            data,
+            error
+          } = await supabase.functions.invoke('wa-gateway', {
+            body: {
+              action: 'initialize',
+              accountId: accountId
+            }
           });
-
-          if (statusData?.connected) {
-            // Bereits verbunden – kein QR erforderlich
-            setInitializingAccount(null);
-            setLoadingQR(false);
-            toast.success('Account ist bereits verbunden.');
-            return;
+          
+          // Timeout clearen wenn erfolgreich
+          clearTimeout(timeoutId);
+          
+          if (error) {
+            console.error(`[WhatsApp Init Error - Attempt ${attempt}/${maxRetries}]`, error);
+            
+            // Check if it's a server overload (non-2xx status)
+            if (error.message?.includes('non-2xx status code') || error.message?.includes('überlastet')) {
+              lastError = error;
+              
+              if (attempt < maxRetries) {
+                const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+                toast.info(`Server ausgelastet. Neuer Versuch in ${waitTime/1000}s... (${attempt}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue; // Try again
+              }
+              
+              throw new Error('Railway Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
+            }
+            
+            throw new Error(error.message || 'Edge Function Fehler');
           }
 
-          // Nicht verbunden, aber Instanz existiert – sauber trennen und neu initialisieren
-          console.log('[WhatsApp Init] Instance present but not connected. Forcing reconnect...');
-          await supabase.functions.invoke('wa-gateway', {
-            body: { action: 'disconnect', accountId }
-          });
+          // Fehler vom Railway-Server behandeln
+          if (data?.error) {
+            console.error('[WhatsApp Init Error from Railway]', data.error);
+            if (typeof data.error === 'string' && (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create'))) {
+              throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
+            }
+            throw new Error(data.error);
+          }
 
-          // Kurze Pause, dann erneute Initialisierung, um QR zu erzwingen
-          await new Promise(r => setTimeout(r, 500));
-          await supabase.functions.invoke('wa-gateway', {
-            body: { action: 'initialize', accountId }
-          });
-        } catch (reInitErr) {
-          console.error('[WhatsApp Re-Init Error]', reInitErr);
+          // Success! Exit retry loop
+          if (data?.message === 'Client already initialized') {
+            try {
+              const { data: statusData } = await supabase.functions.invoke('wa-gateway', {
+                body: { action: 'status', accountId }
+              });
+
+              if (statusData?.connected) {
+                setInitializingAccount(null);
+                setLoadingQR(false);
+                toast.success('Account ist bereits verbunden.');
+                return;
+              }
+
+              console.log('[WhatsApp Init] Instance present but not connected. Forcing reconnect...');
+              await supabase.functions.invoke('wa-gateway', {
+                body: { action: 'disconnect', accountId }
+              });
+
+              await new Promise(r => setTimeout(r, 500));
+              await supabase.functions.invoke('wa-gateway', {
+                body: { action: 'initialize', accountId }
+              });
+            } catch (reInitErr) {
+              console.error('[WhatsApp Re-Init Error]', reInitErr);
+            }
+          }
+
+          toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');
+          return; // Success, exit function
+          
+        } catch (attemptError: any) {
+          lastError = attemptError;
+          
+          // If not server overload or last attempt, throw immediately
+          if (attempt === maxRetries || !attemptError.message?.includes('überlastet')) {
+            throw attemptError;
+          }
         }
       }
-
-      // loadingQR bleibt true bis QR-Code erscheint
-      toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');
+      
+      // If we get here, all retries failed
+      throw lastError || new Error('Alle Verbindungsversuche fehlgeschlagen');
+      
     } catch (error: any) {
       console.error('[WhatsApp Init Error]', error);
       setInitializingAccount(null);
       setLoadingQR(false);
-
-      const errMsg = typeof error?.message === 'string' ? error.message : 'Fehler bei der Initialisierung';
-      toast.message('QR-Code konnte nicht geladen werden', {
-        description: errMsg.includes('überlastet')
-          ? 'Server ist ausgelastet. Sie können einen Notfall-Versuch ohne VPN starten.'
-          : 'Sie können einen Notfall-Versuch ohne VPN starten.',
-        action: {
-          label: 'Notfall: Ohne VPN',
-          onClick: async () => {
-            try {
-              setLoadingQR(true);
-              setInitializingAccount(accountId);
-              const { error: directError } = await supabase.functions.invoke('wa-gateway', {
-                body: { action: 'initialize-direct', accountId }
-              });
-              if (directError) {
-                throw directError;
-              }
-              toast.success('Warte auf QR-Code (ohne VPN)...');
-            } catch (e: any) {
-              console.error('[Initialize-Direct Error]', e);
-              toast.error(e?.message || 'Fallback ohne VPN fehlgeschlagen');
-              setInitializingAccount(null);
-              setLoadingQR(false);
-            }
-          }
-        }
-      });
+      toast.error(error.message || 'Fehler bei der Initialisierung');
     }
   };
   const disconnectAccount = async (accountId: string) => {
