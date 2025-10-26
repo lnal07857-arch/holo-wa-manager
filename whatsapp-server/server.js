@@ -406,6 +406,15 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
           .eq('id', accountId);
           
         console.log(`[QR Timeout] Cleaned up session for ${accountId}`);
+        
+        // Check if there are any clients left
+        if (clients.size === 0) {
+          console.log('[Shutdown] No active clients remaining after QR timeout. Shutting down Railway instance in 10 seconds...');
+          setTimeout(() => {
+            console.log('[Shutdown] Goodbye!');
+            process.exit(0);
+          }, 10000);
+        }
       } catch (err) {
         console.error(`[QR Timeout] Error cleaning up ${accountId}:`, err);
       }
@@ -755,6 +764,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     console.log('Client disconnected:', reason, 'for account:', accountId);
     clients.delete(accountId);
     messageQueues.delete(accountId);
+    lastActivity.delete(accountId);
     
     // Clear QR timeout if exists
     const existingTimeout = qrTimeouts.get(accountId);
@@ -781,7 +791,17 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       console.error('Error updating status:', error);
     }
 
-    // Auto-reconnect logic
+    // Check if there are any clients left
+    if (clients.size === 0) {
+      console.log('[Shutdown] No active clients remaining. Shutting down Railway instance in 10 seconds...');
+      setTimeout(() => {
+        console.log('[Shutdown] Goodbye!');
+        process.exit(0);
+      }, 10000);
+      return;
+    }
+
+    // Auto-reconnect logic only if there are still other clients
     const attempts = reconnectAttempts.get(accountId) || 0;
     if (attempts < MAX_RECONNECT_ATTEMPTS) {
       console.log(`[Auto-Reconnect] Scheduling reconnect attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS} for ${accountId} in ${RECONNECT_DELAY}ms`);
@@ -832,7 +852,17 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     
     clients.delete(accountId);
     messageQueues.delete(accountId);
+    lastActivity.delete(accountId);
     reconnectAttempts.delete(accountId);
+    
+    // Check if there are any clients left
+    if (clients.size === 0) {
+      console.log('[Shutdown] No active clients remaining after auth failure. Shutting down Railway instance in 10 seconds...');
+      setTimeout(() => {
+        console.log('[Shutdown] Goodbye!');
+        process.exit(0);
+      }, 10000);
+    }
   });
 
   clients.set(accountId, client);
@@ -1142,6 +1172,15 @@ setInterval(async () => {
         clients.delete(accountId);
         messageQueues.delete(accountId);
         lastActivity.delete(accountId);
+        
+        // Check if there are any clients left after cleanup
+        if (clients.size === 0) {
+          console.log('[Shutdown] No active clients remaining after idle cleanup. Shutting down Railway instance in 10 seconds...');
+          setTimeout(() => {
+            console.log('[Shutdown] Goodbye!');
+            process.exit(0);
+          }, 10000);
+        }
       }
     }
   }
