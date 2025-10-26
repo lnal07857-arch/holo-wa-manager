@@ -1,4 +1,4 @@
-import { MessageSquare, Users, FileText, Send, LayoutDashboard, Clock, Zap, Server, Shield } from "lucide-react";
+import { MessageSquare, Users, FileText, Send, Clock, Zap, Server, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,6 @@ const Sidebar = ({ activeView, onViewChange, unreadCount = 0, collapsible = "off
   const open = sidebar?.open ?? true; // Default to true for mobile Sheet context
   
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Accounts", icon: Users },
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },

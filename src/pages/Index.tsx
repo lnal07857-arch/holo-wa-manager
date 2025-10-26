@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/Sidebar";
-import Dashboard from "@/components/views/Dashboard";
 import Accounts from "@/components/views/Accounts";
 import Chats from "@/components/views/Chats";
 import Templates from "@/components/views/Templates";
@@ -14,12 +13,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LogOut, Menu, MessageSquare, Users, FileText, Send, LayoutDashboard, Clock, Zap, Server, Shield } from "lucide-react";
+import { LogOut, Menu, MessageSquare, Users, FileText, Send, Clock, Zap, Server, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import bgImage from "@/assets/whatsapp-business-bg.png";
 const Index = () => {
-  const [activeView, setActiveView] = useState("dashboard");
+  const [activeView, setActiveView] = useState("accounts");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     user,
@@ -48,8 +47,6 @@ const Index = () => {
   }
   const renderView = () => {
     switch (activeView) {
-      case "dashboard":
-        return <Dashboard />;
       case "accounts":
         return <Accounts />;
       case "chats":
@@ -67,11 +64,10 @@ const Index = () => {
       case "server-status":
         return <ServerStatus />;
       default:
-        return <Dashboard />;
+        return <Accounts />;
     }
   };
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "accounts", label: "Accounts", icon: Users },
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
