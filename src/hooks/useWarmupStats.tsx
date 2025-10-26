@@ -91,13 +91,27 @@ export function computeAvgDaily(history: DailyHistory[], days: number = 7): numb
   return Math.round(sum / recentHistory.length);
 }
 
-export function isBulkReady(stats: WarmupStats, avgDaily: number): boolean {
+export function computeAccountAge(createdAt: string): number {
+  const created = new Date(createdAt);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - created.getTime());
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+export function getPhaseFromAge(age: number): string {
+  if (age >= 14) return 'phase3';
+  if (age >= 7) return 'phase2';
+  return 'phase1';
+}
+
+export function isBulkReady(stats: WarmupStats, age: number): boolean {
   const uniqueContactsCount = Object.keys(stats.unique_contacts).length;
   
   return (
     stats.sent_messages >= 500 &&
     uniqueContactsCount >= 15 &&
     stats.blocks === 0 &&
-    avgDaily >= 50
+    age >= 21
   );
 }

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
+import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, computeAccountAge, getPhaseFromAge, isBulkReady } from "@/hooks/useWarmupStats";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { PhaseSelector } from "@/components/PhaseSelector";
 import { 
@@ -132,16 +132,17 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
 
   const { data: dailyHistory } = useWarmupDailyHistory(stat.account_id);
   const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
+  const accountAge = computeAccountAge(stat.created_at);
   const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
-  const bulkReady = isBulkReady(stat, avgDaily);
+  const bulkReady = isBulkReady(stat, accountAge);
 
   // Calculate progress percentages
   const messagesProgress = Math.min((stat.sent_messages / 500) * 100, 100);
   const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
-  const avgDailyProgress = Math.min((avgDaily / 50) * 100, 100);
+  const ageProgress = Math.min((accountAge / 21) * 100, 100);
   
   // Overall readiness score
-  const readinessScore = Math.round((messagesProgress + contactsProgress + avgDailyProgress) / 3);
+  const readinessScore = Math.round((messagesProgress + contactsProgress + ageProgress) / 3);
 
   // Use phase from DB or calculate based on messages sent
   const currentPhase = stat.phase || "phase1";
@@ -240,18 +241,18 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
             <Progress value={contactsProgress} className="h-2" />
           </div>
 
-          {/* Average Daily */}
+          {/* Account Age */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                Ø täglich (7d)
+                <Clock className="w-3 h-3" />
+                Age
               </span>
               <span className="text-xs font-medium">
-                {avgDaily} / 50
+                {accountAge} / 21
               </span>
             </div>
-            <Progress value={avgDailyProgress} className="h-2" />
+            <Progress value={ageProgress} className="h-2" />
           </div>
 
           {/* Blocks */}
@@ -312,13 +313,13 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {avgDaily >= 50 ? (
+                {accountAge >= 21 ? (
                   <CheckCircle className="w-3 h-3 text-green-500" />
                 ) : (
                   <AlertCircle className="w-3 h-3 text-orange-500" />
                 )}
-                <span className={avgDaily >= 50 ? "text-green-600" : ""}>
-                  50+ Ø täglich ({avgDaily}/50)
+                <span className={accountAge >= 21 ? "text-green-600" : ""}>
+                  21+ Tage alt ({accountAge}/21)
                 </span>
               </div>
             </div>
