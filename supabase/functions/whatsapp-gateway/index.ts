@@ -37,41 +37,6 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
-        // Check if account has proxy assigned, if not assign automatically
-        const { data: accountData } = await supa
-          .from('whatsapp_accounts')
-          .select('proxy_server, user_id')
-          .eq('id', accountId)
-          .maybeSingle();
-
-        if (accountData && !accountData.proxy_server) {
-          console.log('[Initialize] No proxy assigned. Auto-assigning Mullvad VPN...');
-          
-          try {
-            // Call mullvad-proxy-manager internally
-            const proxyResponse = await fetch(`${supabaseUrl}/functions/v1/mullvad-proxy-manager`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`
-              },
-              body: JSON.stringify({
-                action: 'assign-proxy',
-                accountId
-              })
-            });
-
-            if (proxyResponse.ok) {
-              const proxyResult = await proxyResponse.json();
-              console.log('[Initialize] Auto-assigned VPN:', proxyResult);
-            } else {
-              console.warn('[Initialize] Could not auto-assign VPN, continuing without proxy');
-            }
-          } catch (proxyError) {
-            console.warn('[Initialize] VPN auto-assignment failed:', proxyError);
-          }
-        }
-
         console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useMullvadProxy } from "@/hooks/useMullvadProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -36,6 +37,7 @@ const Accounts = () => {
     deleteAccount,
     refetch
   } = useWhatsAppAccounts();
+  const { assignProxy } = useMullvadProxy();
   const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
 
   const sensors = useSensors(
@@ -419,8 +421,13 @@ const Accounts = () => {
       });
       console.log('[Account Create] Account created:', result);
 
-      // Nach dem Erstellen des Accounts, initialisieren wir WhatsApp
+      // Nach dem Erstellen des Accounts, VPN zuweisen und dann initialisieren
       if (result) {
+        // VPN zuweisen vor der Initialisierung
+        console.log('[Account Create] Assigning VPN...');
+        await assignProxy.mutateAsync(result.id);
+        console.log('[Account Create] VPN assigned, now initializing WhatsApp...');
+        
         await initializeWhatsApp(result.id);
       }
       setAccountName("");
