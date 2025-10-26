@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,27 +33,113 @@ serve(async (req) => {
           throw new Error('No authorization header');
         }
 
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa = createClient(supabaseUrl || '', supabaseKey || '');
+
         console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
-        // WhatsApp Client initialisieren
-        const response = await fetch(`${BASE_URL}/api/initialize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountId,
-            userId: accountId, // We use accountId as userId is already part of the account record
-            supabaseUrl: Deno.env.get('SUPABASE_URL'),
-            supabaseKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-          }),
-        });
+        const attemptInitialize = async () => {
+          return await fetch(`${BASE_URL}/api/initialize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountId,
+              userId: accountId, // We use accountId as userId is already part of the account record
+              supabaseUrl,
+              supabaseKey,
+            }),
+          });
+        };
 
+        // 1st attempt
+        let response = await attemptInitialize();
         console.log(`[Initialize] Railway response status: ${response.status}`);
 
         if (!response.ok) {
-          const error = await response.text();
-          console.error(`[Initialize] Railway error: ${error}`);
-          throw new Error(`Railway server error (${response.status}): ${error}`);
+          const errorText = await response.text();
+          console.error(`[Initialize] Railway error: ${errorText}`);
+
+          const isProxyError = errorText.includes('ERR_PROXY_CONNECTION_FAILED') || errorText.toLowerCase().includes('proxy');
+
+          if (isProxyError) {
+            console.warn('[Initialize] Detected proxy failure. Attempting automatic VPN failover...');
+
+            // Fetch healthy servers
+            const { data: healthy, error: healthErr } = await supa
+              .from('vpn_server_health')
+              .select('server_host')
+              .eq('is_healthy', true)
+              .eq('server_region', 'DE')
+              .order('response_time_ms', { ascending: true })
+              .limit(5);
+
+            // Fallback list if no health data
+            const FALLBACK_SERVERS = [
+              'de-ber-wg-001.mullvad.net',
+              'de-ber-wg-002.mullvad.net',
+              'de-ber-wg-003.mullvad.net',
+              'de-fra-wg-001.mullvad.net',
+              'de-fra-wg-002.mullvad.net',
+            ];
+
+            const candidateServers = (healthy && healthy.length > 0)
+              ? healthy.map((s: any) => s.server_host)
+              : FALLBACK_SERVERS;
+
+            // Load account + user
+            const { data: accountRow } = await supa
+              .from('whatsapp_accounts')
+              .select('id, user_id')
+              .eq('id', accountId)
+              .maybeSingle();
+
+            if (!accountRow?.user_id) {
+              throw new Error('Account not found for failover');
+            }
+
+            // Pick Mullvad account (first)
+            const { data: mv } = await supa
+              .from('mullvad_accounts')
+              .select('account_number')
+              .eq('user_id', accountRow.user_id)
+              .order('created_at', { ascending: true })
+              .maybeSingle();
+
+            if (!mv?.account_number) {
+              throw new Error('No Mullvad account available for failover');
+            }
+
+            // Choose best server
+            const newHost = candidateServers[Math.floor(Math.random() * candidateServers.length)];
+            const newProxy = {
+              host: newHost,
+              port: 1080,
+              username: mv.account_number,
+              password: 'm',
+              protocol: 'socks5',
+            };
+
+            await supa
+              .from('whatsapp_accounts')
+              .update({ proxy_server: JSON.stringify(newProxy) })
+              .eq('id', accountId);
+
+            console.log(`[Initialize] Failover applied: ${newHost}. Retrying initialize...`);
+
+            // 2nd attempt after failover
+            response = await attemptInitialize();
+            console.log(`[Initialize] Retry response status: ${response.status}`);
+
+            if (!response.ok) {
+              const retryText = await response.text();
+              console.error(`[Initialize] Retry failed: ${retryText}`);
+              throw new Error(`Railway server error (${response.status}): ${retryText}`);
+            }
+          } else {
+            throw new Error(`Railway server error (${response.status}): ${errorText}`);
+          }
         }
 
         const data = await response.json();
