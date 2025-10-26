@@ -7,9 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Shield, Globe, Server, Plus, Trash2 } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
-import { PhaseSelector } from "@/components/PhaseSelector";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 
 export const VpnProxies = () => {
@@ -17,22 +14,6 @@ export const VpnProxies = () => {
   const { accounts: mullvadAccounts, createAccount, deleteAccount } = useMullvadAccounts();
   const [open, setOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
-
-  const { data: warmupStats = [], refetch: refetchWarmupStats } = useQuery({
-    queryKey: ["warmup-stats"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("account_warmup_stats")
-        .select("*");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const getAccountPhase = (accountId: string) => {
-    const stats = warmupStats.find(s => s.account_id === accountId);
-    return stats?.phase || "phase1";
-  };
 
   return (
     <div className="space-y-6">
@@ -209,13 +190,7 @@ export const VpnProxies = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                      <PhaseSelector
-                        accountId={account.id}
-                        accountName={account.account_name}
-                        currentPhase={getAccountPhase(account.id)}
-                        onPhaseChange={refetchWarmupStats}
-                      />
+                    <div className="flex items-center gap-3">
                       <div className="text-right">
                         <p className="text-sm font-medium">
                           Mullvad Account #{mullvadAccountIndex + 1}

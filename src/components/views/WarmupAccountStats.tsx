@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, isBulkReady } from "@/hooks/useWarmupStats";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { PhaseSelector } from "@/components/PhaseSelector";
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 
 export const WarmupAccountStats = () => {
-  const { data: warmupStats, isLoading: statsLoading } = useWarmupStats();
+  const { data: warmupStats, isLoading: statsLoading, refetch: refetchWarmupStats } = useWarmupStats();
   const { accounts, isLoading: accountsLoading } = useWhatsAppAccounts();
 
   if (statsLoading || accountsLoading) {
@@ -66,7 +67,7 @@ export const WarmupAccountStats = () => {
 
       <div className="grid gap-6 md:grid-cols-2">
         {accountsWithStats.map((account) => (
-          <AccountStatCard key={account.id} account={account} />
+          <AccountStatCard key={account.id} account={account} onPhaseChange={refetchWarmupStats} />
         ))}
       </div>
     </div>
@@ -75,9 +76,10 @@ export const WarmupAccountStats = () => {
 
 interface AccountStatCardProps {
   account: any;
+  onPhaseChange: () => void;
 }
 
-const AccountStatCard = ({ account }: AccountStatCardProps) => {
+const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
   const stat = account.warmup_stats;
   
   // If no warmup stats exist yet, show a starter card
@@ -168,12 +170,21 @@ const AccountStatCard = ({ account }: AccountStatCardProps) => {
           <div className="flex items-center gap-2">
             <CardTitle className="text-xl">{account.account_name}</CardTitle>
             <Badge className={`${phaseColor} text-white`}>
-              {phase.toUpperCase()}
+              {stat?.phase?.toUpperCase() || phase.toUpperCase()}
             </Badge>
           </div>
           {bulkReady && (
             <CheckCircle className="w-8 h-8 text-green-600" />
           )}
+        </div>
+        
+        <div className="mb-3">
+          <PhaseSelector
+            accountId={account.id}
+            accountName={account.account_name}
+            currentPhase={stat?.phase || phase}
+            onPhaseChange={onPhaseChange}
+          />
         </div>
         
         <CardDescription className="font-medium mb-3">{phaseLabel}</CardDescription>
