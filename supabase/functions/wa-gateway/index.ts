@@ -129,6 +129,46 @@ serve(async (req) => {
         });
       }
 
+      case 'initialize-direct': {
+        // Force initialize without VPN (explicit user action)
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa = createClient(supabaseUrl || '', supabaseKey || '');
+
+        console.log(`[Initialize-Direct] Temporarily removing proxy for account ${accountId}`);
+        await supa
+          .from('whatsapp_accounts')
+          .update({ proxy_server: null })
+          .eq('id', accountId);
+
+        console.log(`[Initialize-Direct] Calling Railway at: ${BASE_URL}/api/initialize`);
+        const response = await fetch(`${BASE_URL}/api/initialize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId,
+            userId: accountId,
+            supabaseUrl,
+            supabaseKey,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.text();
+          console.error(`[Initialize-Direct] Railway error: ${err}`);
+          return new Response(JSON.stringify({ error: err }), {
+            status: response.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const data = await response.json();
+        console.log(`[Initialize-Direct] Success:`, data);
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'send':
       case 'send-message': {
         // Nachricht senden

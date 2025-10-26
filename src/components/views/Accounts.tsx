@@ -329,9 +329,36 @@ const Accounts = () => {
       toast.success('WhatsApp wird initialisiert... Warte auf QR-Code');
     } catch (error: any) {
       console.error('[WhatsApp Init Error]', error);
-      toast.error(error.message || 'Fehler bei der Initialisierung');
       setInitializingAccount(null);
       setLoadingQR(false);
+
+      const errMsg = typeof error?.message === 'string' ? error.message : 'Fehler bei der Initialisierung';
+      toast.message('QR-Code konnte nicht geladen werden', {
+        description: errMsg.includes('überlastet')
+          ? 'Server ist ausgelastet. Sie können einen Notfall-Versuch ohne VPN starten.'
+          : 'Sie können einen Notfall-Versuch ohne VPN starten.',
+        action: {
+          label: 'Notfall: Ohne VPN',
+          onClick: async () => {
+            try {
+              setLoadingQR(true);
+              setInitializingAccount(accountId);
+              const { error: directError } = await supabase.functions.invoke('wa-gateway', {
+                body: { action: 'initialize-direct', accountId }
+              });
+              if (directError) {
+                throw directError;
+              }
+              toast.success('Warte auf QR-Code (ohne VPN)...');
+            } catch (e: any) {
+              console.error('[Initialize-Direct Error]', e);
+              toast.error(e?.message || 'Fallback ohne VPN fehlgeschlagen');
+              setInitializingAccount(null);
+              setLoadingQR(false);
+            }
+          }
+        }
+      });
     }
   };
   const disconnectAccount = async (accountId: string) => {
