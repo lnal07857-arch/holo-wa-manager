@@ -20,6 +20,7 @@ export type Database = {
           blocks: number | null
           created_at: string | null
           id: string
+          phase: string | null
           received_messages: number | null
           sent_messages: number | null
           status: string | null
@@ -32,6 +33,7 @@ export type Database = {
           blocks?: number | null
           created_at?: string | null
           id?: string
+          phase?: string | null
           received_messages?: number | null
           sent_messages?: number | null
           status?: string | null
@@ -44,6 +46,7 @@ export type Database = {
           blocks?: number | null
           created_at?: string | null
           id?: string
+          phase?: string | null
           received_messages?: number | null
           sent_messages?: number | null
           status?: string | null
