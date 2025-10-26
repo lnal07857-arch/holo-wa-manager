@@ -161,8 +161,19 @@ export const useMessages = () => {
           }
           
           // CRITICAL: Skip chats between own accounts (second priority filter)
+          // Normalize phone numbers for comparison (remove all non-digits)
           const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
           if (ownPhoneNumbers.has(cleanContactPhone)) {
+            return;
+          }
+          
+          // ADDITIONAL: Skip if contact_name matches any account name (case-insensitive)
+          const contactNameLower = (msg.contact_name || '').toLowerCase();
+          const isOwnAccountByName = (userAccounts || []).some(acc => 
+            acc.phone_number && contactNameLower.includes(acc.phone_number.toLowerCase().replace(/\D/g, ''))
+          );
+          
+          if (isOwnAccountByName) {
             return;
           }
           
