@@ -16,17 +16,19 @@ export interface WhatsAppAccount {
   updated_at: string;
   proxy_server: string | null;
   proxy_country: string | null;
+  display_order: number;
 }
 
 export const useWhatsAppAccounts = () => {
   const queryClient = useQueryClient();
 
-  const { data: accounts = [], isLoading } = useQuery({
+  const { data: accounts = [], isLoading, refetch } = useQuery({
     queryKey: ["whatsapp-accounts"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_accounts")
         .select("*")
+        .order("display_order", { ascending: true })
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -142,5 +144,6 @@ export const useWhatsAppAccounts = () => {
     isLoading,
     createAccount,
     deleteAccount,
+    refetch,
   };
 };

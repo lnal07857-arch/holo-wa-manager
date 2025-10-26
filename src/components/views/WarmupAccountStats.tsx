@@ -13,12 +13,41 @@ import {
   Clock,
   Shield,
   Activity,
-  PlayCircle
+  PlayCircle,
+  GripVertical
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useState, useEffect } from 'react';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const WarmupAccountStats = () => {
   const { data: warmupStats, isLoading: statsLoading, refetch: refetchWarmupStats } = useWarmupStats();
-  const { accounts, isLoading: accountsLoading } = useWhatsAppAccounts();
+  const { accounts, isLoading: accountsLoading, refetch: refetchAccounts } = useWhatsAppAccounts();
+  const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   if (statsLoading || accountsLoading) {
     return (
@@ -47,29 +76,77 @@ export const WarmupAccountStats = () => {
     );
   }
 
-  // Merge accounts with their warmup stats
-  const accountsWithStats = accounts.map(account => {
-    const stats = warmupStats?.find(s => s.account_id === account.id);
-    return {
-      ...account,
-      warmup_stats: stats || null
-    };
-  });
+  // Merge accounts with their warmup stats and sort by display_order
+  const accountsWithStats = accounts
+    .map(account => {
+      const stats = warmupStats?.find(s => s.account_id === account.id);
+      return {
+        ...account,
+        warmup_stats: stats || null
+      };
+    })
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+  // Sync sortedAccounts with accountsWithStats when accounts change
+  useEffect(() => {
+    setSortedAccounts(accountsWithStats);
+  }, [accounts, warmupStats]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedAccounts.findIndex((acc) => acc.id === active.id);
+      const newIndex = sortedAccounts.findIndex((acc) => acc.id === over.id);
+
+      const newOrder = arrayMove(sortedAccounts, oldIndex, newIndex);
+      setSortedAccounts(newOrder);
+
+      // Update display_order in database
+      try {
+        const updates = newOrder.map((account, index) => 
+          supabase
+            .from('whatsapp_accounts')
+            .update({ display_order: index })
+            .eq('id', account.id)
+        );
+
+        await Promise.all(updates);
+        toast.success("Reihenfolge gespeichert");
+      } catch (error) {
+        console.error('Error updating order:', error);
+        toast.error("Fehler beim Speichern der Reihenfolge");
+        // Revert on error
+        setSortedAccounts(accountsWithStats);
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Account Warm-up Status</h2>
         <p className="text-muted-foreground">
-          Detaillierte Statistiken und Bulk-Readiness für jeden Account
+          Detaillierte Statistiken und Bulk-Readiness für jeden Account. Ziehe die Accounts, um sie neu anzuordnen.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {accountsWithStats.map((account) => (
-          <AccountStatCard key={account.id} account={account} onPhaseChange={refetchWarmupStats} />
-        ))}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={sortedAccounts.map(acc => acc.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="grid gap-6 md:grid-cols-2">
+            {sortedAccounts.map((account) => (
+              <SortableAccountCard key={account.id} account={account} onPhaseChange={refetchWarmupStats} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 };
@@ -79,7 +156,40 @@ interface AccountStatCardProps {
   onPhaseChange: () => void;
 }
 
-const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
+const SortableAccountCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: account.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <AccountStatCard 
+        account={account} 
+        onPhaseChange={onPhaseChange}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+};
+
+interface AccountStatCardProps {
+  account: any;
+  onPhaseChange: () => void;
+  dragHandleProps?: any;
+}
+
+const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountStatCardProps) => {
   const stat = account.warmup_stats;
   
   // If no warmup stats exist yet, show a starter card
@@ -89,6 +199,11 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
         <CardHeader className="bg-gray-50 dark:bg-gray-950/30 border-b-4 border-gray-400">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
+              {dragHandleProps && (
+                <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                  <GripVertical className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
               <CardTitle className="text-xl">{account.account_name}</CardTitle>
               <Badge className="bg-gray-500 text-white">NICHT GESTARTET</Badge>
             </div>
@@ -167,6 +282,11 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
       }`}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
+            {dragHandleProps && (
+              <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                <GripVertical className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
             <CardTitle className="text-xl">{account.account_name}</CardTitle>
             <Badge className={`${phaseColor} text-white`}>
               {currentPhase.toUpperCase()}

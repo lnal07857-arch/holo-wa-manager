@@ -513,6 +513,7 @@ export type Database = {
         Row: {
           account_name: string
           created_at: string
+          display_order: number | null
           id: string
           last_connected_at: string | null
           phone_number: string
@@ -527,6 +528,7 @@ export type Database = {
         Insert: {
           account_name: string
           created_at?: string
+          display_order?: number | null
           id?: string
           last_connected_at?: string | null
           phone_number: string
@@ -541,6 +543,7 @@ export type Database = {
         Update: {
           account_name?: string
           created_at?: string
+          display_order?: number | null
           id?: string
           last_connected_at?: string | null
           phone_number?: string
