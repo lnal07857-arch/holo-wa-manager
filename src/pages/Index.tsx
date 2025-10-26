@@ -74,7 +74,7 @@ const Index = () => {
     { id: "bulk", label: "Bulk Sender", icon: Send },
     { id: "autochat", label: "Warm-up", icon: Zap },
     { id: "followup", label: "Follow-up", icon: Clock },
-    { id: "vpn-proxies", label: "VPN & Proxies", icon: Shield },
+    { id: "vpn-proxies", label: "VPN & Fingerprint", icon: Shield },
     { id: "server-status", label: "Server Status", icon: Server },
   ];
 
