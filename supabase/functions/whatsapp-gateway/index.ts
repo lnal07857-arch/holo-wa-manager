@@ -163,6 +163,53 @@ serve(async (req) => {
           throw new Error('Phone and message are required');
         }
 
+        // CRITICAL: Check if VPN/Proxy is assigned before sending
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa = createClient(supabaseUrl || '', supabaseKey || '');
+
+        const { data: accountData } = await supa
+          .from('whatsapp_accounts')
+          .select('proxy_server, user_id')
+          .eq('id', accountId)
+          .maybeSingle();
+
+        if (!accountData) {
+          throw new Error('Account not found');
+        }
+
+        // If no proxy assigned, auto-assign one before sending
+        if (!accountData.proxy_server) {
+          console.log('⚠️ [Send Message] No VPN assigned! Auto-assigning healthy proxy...');
+          
+          // Try to assign a healthy proxy
+          try {
+            const proxyResponse = await fetch(`${supabaseUrl}/functions/v1/mullvad-proxy-manager`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify({
+                action: 'assign-proxy',
+                accountId
+              })
+            });
+
+            if (!proxyResponse.ok) {
+              const error = await proxyResponse.text();
+              console.error('[Send Message] VPN assignment failed:', error);
+              throw new Error('Kein VPN verfügbar. Bitte warten Sie, bis der VPN-Service wieder verfügbar ist.');
+            }
+
+            const proxyResult = await proxyResponse.json();
+            console.log('✅ [Send Message] VPN auto-assigned:', proxyResult.server);
+          } catch (proxyError) {
+            console.error('[Send Message] Critical: Cannot send without VPN:', proxyError);
+            throw new Error('Nachrichten können nur mit aktivem VPN gesendet werden. Bitte versuchen Sie es später erneut.');
+          }
+        }
+
         console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);
 
         const response = await fetch(`${BASE_URL}/api/send-message`, {

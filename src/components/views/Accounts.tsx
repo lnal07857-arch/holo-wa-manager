@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Shield, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -714,17 +714,31 @@ const SortableAccountCard = ({
                 </CardDescription>
               </div>
             </div>
-            {account.status === "connected" ? (
-              <Badge variant="default" className="bg-green-600 gap-1">
-                <CheckCircle className="w-3 h-3" />
-                Verbunden
-              </Badge>
-            ) : (
-              <Badge variant="destructive" className="gap-1">
-                <XCircle className="w-3 h-3" />
-                Getrennt
-              </Badge>
-            )}
+            <div className="flex flex-col gap-1 items-end">
+              {account.status === "connected" ? (
+                <Badge variant="default" className="bg-green-600 gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Verbunden
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="gap-1">
+                  <XCircle className="w-3 h-3" />
+                  Getrennt
+                </Badge>
+              )}
+              {/* VPN Status Badge */}
+              {account.proxy_server ? (
+                <Badge variant="outline" className="gap-1 text-green-700 border-green-700 bg-green-50">
+                  <Shield className="w-3 h-3" />
+                  VPN aktiv
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600 bg-orange-50">
+                  <AlertTriangle className="w-3 h-3" />
+                  Kein VPN
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
