@@ -8,16 +8,16 @@ const corsHeaders = {
 
 // Liste der Mullvad SOCKS5 Server in Deutschland
 const MULLVAD_DE_SERVERS = [
-  'de-ber-wg-001.mullvad.net',
-  'de-ber-wg-002.mullvad.net',
-  'de-ber-wg-003.mullvad.net',
-  'de-ber-wg-004.mullvad.net',
-  'de-ber-wg-005.mullvad.net',
-  'de-fra-wg-001.mullvad.net',
-  'de-fra-wg-002.mullvad.net',
-  'de-fra-wg-003.mullvad.net',
-  'de-fra-wg-004.mullvad.net',
-  'de-fra-wg-005.mullvad.net',
+  'de-ber-wg-001.relays.mullvad.net',
+  'de-ber-wg-002.relays.mullvad.net',
+  'de-ber-wg-003.relays.mullvad.net',
+  'de-fra-wg-001.relays.mullvad.net',
+  'de-fra-wg-002.relays.mullvad.net',
+  'de-fra-wg-003.relays.mullvad.net',
+  'de-dus-wg-001.relays.mullvad.net',
+  'de-dus-wg-002.relays.mullvad.net',
+  'de-dus-wg-003.relays.mullvad.net',
+  'de-ham-wg-001.relays.mullvad.net',
 ];
 
 const SOCKS5_PORT = 1080;

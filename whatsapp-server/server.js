@@ -286,23 +286,44 @@ async function syncAllMessages(client, accountId, supa) {
 
 // Generate unique fingerprint for each instance
 function generateFingerprint(accountId) {
-  // Hash accountId to get consistent but unique values
-  const hash = accountId.split('').reduce((acc, char) => {
-    return ((acc << 5) - acc) + char.charCodeAt(0);
-  }, 0);
-  
-  // Realistic User-Agent pool (Windows, macOS, Linux)
+  // Seeded PRNG for deterministic but diverse fingerprints per account
+  function mulberry32(a) {
+    return function () {
+      let t = (a += 0x6D2B79F5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let seed = 0;
+  for (let i = 0; i < accountId.length; i++) {
+    seed = (seed * 31 + accountId.charCodeAt(i)) >>> 0;
+  }
+  const rnd = mulberry32(seed || 1);
+
+  // Larger pools to reduce collisions across many accounts
   const userAgents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/123.0.0.0 Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
   ];
-  
-  // Screen resolutions
+
   const resolutions = [
     { width: 1920, height: 1080 },
     { width: 1366, height: 768 },
@@ -310,33 +331,33 @@ function generateFingerprint(accountId) {
     { width: 1440, height: 900 },
     { width: 1280, height: 720 },
     { width: 2560, height: 1440 },
+    { width: 1600, height: 900 },
+    { width: 1680, height: 1050 },
+    { width: 1280, height: 800 },
+    { width: 2736, height: 1824 },
   ];
-  
-  // Timezones
+
   const timezones = [
     'Europe/Berlin',
-    'Europe/London',
     'Europe/Paris',
-    'Europe/Madrid',
-    'Europe/Rome',
     'Europe/Amsterdam',
+    'Europe/Stockholm',
+    'Europe/Warsaw',
+    'Europe/Madrid',
+    'UTC',
+    'America/New_York',
+    'Asia/Dubai',
   ];
-  
-  // Hardware concurrency (CPU cores)
-  const hardwareConcurrency = [4, 6, 8, 12, 16];
-  
-  // Use hash to deterministically select from arrays
-  const userAgent = userAgents[Math.abs(hash) % userAgents.length];
-  const resolution = resolutions[Math.abs(hash * 2) % resolutions.length];
-  const timezone = timezones[Math.abs(hash * 3) % timezones.length];
-  const cores = hardwareConcurrency[Math.abs(hash * 4) % hardwareConcurrency.length];
-  
-  return {
-    userAgent,
-    resolution,
-    timezone,
-    cores
-  };
+
+  const hardwareConcurrency = [2, 4, 6, 8, 10, 12, 16];
+
+  // Deterministic picks using PRNG
+  const ua = userAgents[Math.floor(rnd() * userAgents.length)];
+  const resolution = resolutions[Math.floor(rnd() * resolutions.length)];
+  const timezone = timezones[Math.floor(rnd() * timezones.length)];
+  const cores = hardwareConcurrency[Math.floor(rnd() * hardwareConcurrency.length)];
+
+  return { userAgent: ua, resolution, timezone, cores };
 }
 
 // Initialize WhatsApp client

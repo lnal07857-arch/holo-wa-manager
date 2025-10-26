@@ -7,11 +7,16 @@ const corsHeaders = {
 
 // List of German Mullvad servers for rotation
 const DE_SERVERS = [
-  'de-ber-wg-001.mullvad.net',
-  'de-ber-wg-002.mullvad.net',
-  'de-ber-wg-003.mullvad.net',
-  'de-fra-wg-001.mullvad.net',
-  'de-fra-wg-002.mullvad.net',
+  'de-ber-wg-001.relays.mullvad.net',
+  'de-ber-wg-002.relays.mullvad.net',
+  'de-ber-wg-003.relays.mullvad.net',
+  'de-fra-wg-001.relays.mullvad.net',
+  'de-fra-wg-002.relays.mullvad.net',
+  'de-fra-wg-003.relays.mullvad.net',
+  'de-dus-wg-001.relays.mullvad.net',
+  'de-dus-wg-002.relays.mullvad.net',
+  'de-dus-wg-003.relays.mullvad.net',
+  'de-ham-wg-001.relays.mullvad.net',
 ];
 
 Deno.serve(async (req) => {
