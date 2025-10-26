@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import bgImage from "@/assets/whatsapp-business-bg.png";
 const Index = () => {
   const [activeView, setActiveView] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     user,
     loading,
@@ -83,7 +84,7 @@ const Index = () => {
       <div className="border-b p-4 flex justify-between items-center gap-2">
         <div className="flex items-center gap-4 w-full">
           {/* Mobile Menu */}
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden">
                 <Menu className="w-5 h-5" />
@@ -91,7 +92,14 @@ const Index = () => {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0">
               <SidebarProvider defaultOpen={true}>
-                <Sidebar activeView={activeView} onViewChange={setActiveView} unreadCount={totalUnreadCount} />
+                <Sidebar 
+                  activeView={activeView} 
+                  onViewChange={(view) => {
+                    setActiveView(view);
+                    setMobileMenuOpen(false);
+                  }} 
+                  unreadCount={totalUnreadCount} 
+                />
               </SidebarProvider>
             </SheetContent>
           </Sheet>
