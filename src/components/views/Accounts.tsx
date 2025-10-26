@@ -642,6 +642,7 @@ const Accounts = () => {
                 setQrCode={setQrCode}
                 setInitializingAccount={setInitializingAccount}
                 setOpen={setOpen}
+                assignProxy={assignProxy}
               />
             ))}
           </div>
@@ -670,6 +671,7 @@ interface SortableAccountCardProps {
   setQrCode: (qrCode: string | null) => void;
   setInitializingAccount: (accountId: string | null) => void;
   setOpen: (open: boolean) => void;
+  assignProxy: any;
 }
 
 const SortableAccountCard = ({
@@ -681,6 +683,7 @@ const SortableAccountCard = ({
   setQrCode,
   setInitializingAccount,
   setOpen,
+  assignProxy,
 }: SortableAccountCardProps) => {
   const {
     attributes,
@@ -742,7 +745,29 @@ const SortableAccountCard = ({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
+            {/* VPN Zuweisung nur wenn kein VPN aktiv */}
+            {!account.proxy_server && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full gap-2 text-blue-600 border-blue-600 hover:bg-blue-50"
+                onClick={async () => {
+                  try {
+                    toast.loading('VPN wird zugewiesen...', { id: `vpn-${account.id}` });
+                    await assignProxy.mutateAsync(account.id);
+                    toast.success('VPN erfolgreich zugewiesen!', { id: `vpn-${account.id}` });
+                  } catch (error: any) {
+                    toast.error(error.message || 'VPN-Zuweisung fehlgeschlagen', { id: `vpn-${account.id}` });
+                  }
+                }}
+              >
+                <Shield className="w-4 h-4" />
+                VPN zuweisen
+              </Button>
+            )}
+            
+            <div className="flex gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -776,8 +801,9 @@ const SortableAccountCard = ({
                 className="text-destructive" 
                 onClick={() => deleteAccount.mutate(account.id)}
               >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

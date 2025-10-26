@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         throw new Error('No Mullvad accounts found. Please add at least one Mullvad account first.');
       }
 
-      // Get ONLY healthy servers with recent checks (last 15 minutes)
+      // Get healthy servers with recent checks (last 15 minutes)
       const { data: healthyServers } = await supabase
         .from('vpn_server_health')
         .select('server_host, response_time_ms')
@@ -66,14 +66,15 @@ Deno.serve(async (req) => {
         .gte('last_check', new Date(Date.now() - 15 * 60 * 1000).toISOString())
         .order('response_time_ms', { ascending: true });
 
-      // ONLY use healthy servers with recent checks
-      if (!healthyServers || healthyServers.length === 0) {
-        console.error('❌ No healthy VPN servers available. All servers are currently down or unchecked.');
-        throw new Error('No healthy VPN servers available at the moment. Please try again in a few minutes.');
+      // Use healthy servers if available, otherwise use fallback list
+      let availableServers: string[];
+      if (healthyServers && healthyServers.length > 0) {
+        availableServers = healthyServers.map(s => s.server_host);
+        console.log(`✅ Using ${availableServers.length} verified healthy servers`);
+      } else {
+        console.warn('⚠️ No recent health data available. Using fallback server list.');
+        availableServers = DE_SERVERS;
       }
-
-      const availableServers = healthyServers.map(s => s.server_host);
-      console.log(`✅ Using ${availableServers.length} verified healthy servers`);
 
       // Get all WhatsApp accounts to determine the index
       const { data: allAccounts } = await supabase
