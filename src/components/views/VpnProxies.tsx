@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { FingerprintDetails } from "@/components/FingerprintDetails";
 
 const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy, assignPending }: { 
   account: any; 
@@ -183,6 +184,89 @@ export const VpnProxies = () => {
         </div>
       </div>
 
+
+      {/* Fingerprint & IP Übersicht */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Fingerprint className="w-5 h-5 text-primary" />
+            <CardTitle>Fingerprint & IP Übersicht</CardTitle>
+          </div>
+          <CardDescription>
+            Detaillierte Übersicht der Geräte-Fingerprints und Proxy-Konfigurationen
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {accounts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Fingerprint className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Keine Accounts vorhanden</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {accounts.map((account) => {
+                const proxyInfo = account.proxy_server ? JSON.parse(account.proxy_server) : null;
+                return (
+                  <Card key={account.id} className="border-l-4 border-l-primary/50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold">{account.account_name}</h4>
+                          <p className="text-sm text-muted-foreground">{account.phone_number}</p>
+                        </div>
+                        <Badge variant={account.status === 'connected' ? 'default' : 'secondary'}>
+                          {account.status === 'connected' ? 'Verbunden' : 'Getrennt'}
+                        </Badge>
+                      </div>
+                      
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="w-full justify-between">
+                            <span className="flex items-center gap-2">
+                              <Monitor className="w-4 h-4" />
+                              Fingerprint-Details anzeigen
+                            </span>
+                            <span className="text-xs text-muted-foreground">▼</span>
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-3 space-y-3">
+                          <FingerprintDetails accountId={account.id} />
+                          
+                          {/* Proxy Info */}
+                          <div className="bg-muted/30 p-3 rounded-lg">
+                            <h5 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                              <Globe className="w-4 h-4" />
+                              VPN & Proxy
+                            </h5>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Server</p>
+                                <p className="font-mono text-xs">{proxyInfo?.host || 'Nicht konfiguriert'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Port</p>
+                                <p className="font-mono">{proxyInfo?.port || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Protokoll</p>
+                                <p className="font-mono uppercase">{proxyInfo?.protocol || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Land</p>
+                                <p className="font-mono">{account.proxy_country || '-'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Mullvad VPN Settings */}
       <Card>
