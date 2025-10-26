@@ -106,33 +106,54 @@ async function syncAllMessages(client, accountId, supa) {
             warmupPhones.add(pair.phone1.replace(/\D/g, ''));
           }
         });
-        console.log(`Found ${warmupPhones.size} warmup contacts to exclude from sync`);
+        console.log(`[Sync] Found ${warmupPhones.size} warmup contacts to exclude:`, Array.from(warmupPhones));
       }
     }
     
     const chats = await client.getChats();
-    console.log(`Found ${chats.length} chats to sync`);
+    console.log(`[Sync] Found ${chats.length} total chats to process`);
     
     let totalSynced = 0;
     let totalSkipped = 0;
     let totalWarmupSkipped = 0;
+    let totalProcessed = 0;
 
     for (const chat of chats) {
       try {
+        // Extract phone number safely
+        let chatPhone = '';
+        if (chat.id && chat.id.user) {
+          chatPhone = chat.id.user.replace(/\D/g, '');
+        } else if (chat.id && chat.id._serialized) {
+          chatPhone = chat.id._serialized.split('@')[0].replace(/\D/g, '');
+        }
+        
+        if (!chatPhone) {
+          console.log(`[Sync] Skipping chat without valid phone number:`, chat.id);
+          continue;
+        }
+        
         // Check if this is a warmup chat and skip it
-        const chatPhone = chat.id.user.replace(/\D/g, '');
         if (warmupPhones.has(chatPhone)) {
-          console.log(`Skipping warmup chat: ${chat.name || chat.id.user}`);
+          console.log(`[Sync] Skipping warmup chat: ${chat.name || chatPhone}`);
           totalWarmupSkipped++;
           continue;
         }
         
-        // Fetch messages from this chat (limit can be adjusted)
+        totalProcessed++;
+        console.log(`[Sync] Processing chat ${totalProcessed}: ${chat.name || chatPhone}`);
+        
+        // Fetch messages from this chat
         const messages = await chat.fetchMessages({ limit: 100 });
         
         // Get unread count from WhatsApp
         const unreadCount = chat.unreadCount || 0;
-        console.log(`Chat ${chat.name || chat.id.user}: ${messages.length} messages, ${unreadCount} unread`);
+        console.log(`[Sync] Chat "${chat.name || chatPhone}": ${messages.length} messages, ${unreadCount} unread`);
+
+        if (messages.length === 0) {
+          console.log(`[Sync] No messages in chat, skipping`);
+          continue;
+        }
 
         // Process messages in reverse order (oldest first)
         const sortedMessages = [...messages].reverse();
@@ -222,9 +243,9 @@ async function syncAllMessages(client, accountId, supa) {
       }
     }
 
-    console.log(`Sync complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalWarmupSkipped} warmup chats excluded`);
+    console.log(`[Sync] Complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalWarmupSkipped} warmup chats excluded, ${totalProcessed} chats processed`);
   } catch (error) {
-    console.error('Error in syncAllMessages:', error);
+    console.error('[Sync] Error in syncAllMessages:', error);
   }
 }
 
@@ -460,11 +481,12 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
 
     // Sync all messages
-    console.log('Starting full message sync...');
+    console.log('[Init] Starting full message sync for account:', accountId);
     try {
       await syncAllMessages(client, accountId, supa);
+      console.log('[Init] Message sync completed for account:', accountId);
     } catch (error) {
-      console.error('Error syncing messages:', error);
+      console.error('[Init] Error syncing messages for account:', accountId, error);
     }
   });
 
