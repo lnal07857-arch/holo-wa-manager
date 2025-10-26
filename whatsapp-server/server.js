@@ -1099,15 +1099,46 @@ app.get('/api/status', (req, res) => {
 });
 
 // Auto-cleanup idle clients
-setInterval(() => {
+setInterval(async () => {
   const now = Date.now();
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  
   for (const [accountId, timestamp] of lastActivity.entries()) {
     const idleTime = now - timestamp;
     if (idleTime > IDLE_TIMEOUT) {
-      console.log(`Auto-cleanup: Client ${accountId} idle for ${Math.floor(idleTime / 60000)} minutes`);
+      console.log(`[Auto-cleanup] Client ${accountId} idle for ${Math.floor(idleTime / 60000)} minutes, cleaning up...`);
       const client = clients.get(accountId);
       if (client) {
-        client.destroy().catch(err => console.error('Error destroying idle client:', err));
+        try {
+          await client.destroy();
+          console.log(`[Auto-cleanup] Destroyed client ${accountId}`);
+        } catch (err) {
+          console.error(`[Auto-cleanup] Error destroying idle client ${accountId}:`, err);
+        }
+        
+        // Update database status
+        if (supabaseUrl && supabaseKey) {
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify({
+                status: 'disconnected',
+                qr_code: null,
+                updated_at: new Date().toISOString()
+              })
+            });
+            console.log(`[Auto-cleanup] Updated database status for ${accountId} to disconnected`);
+          } catch (dbErr) {
+            console.error(`[Auto-cleanup] Error updating database for ${accountId}:`, dbErr);
+          }
+        }
+        
         clients.delete(accountId);
         messageQueues.delete(accountId);
         lastActivity.delete(accountId);
