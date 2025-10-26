@@ -4,12 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Activity, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Activity, CheckCircle, XCircle, RefreshCw, Eraser } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { useMullvadProxy } from "@/hooks/useMullvadProxy";
 import { useFingerprint } from "@/hooks/useFingerprint";
 import { useVpnHealth, useRunHealthCheck } from "@/hooks/useVpnHealth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -189,6 +190,23 @@ export const VpnProxies = () => {
     }
   };
 
+  const handleClearHealthCheck = async () => {
+    try {
+      const { error } = await supabase
+        .from('vpn_server_health')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+      
+      if (error) throw error;
+      
+      await refetchHealth();
+      toast.success("Health-Check-Daten zurückgesetzt");
+    } catch (error) {
+      toast.error("Fehler beim Zurücksetzen");
+      console.error(error);
+    }
+  };
+
   const healthyServers = vpnHealth?.filter(s => s.is_healthy).length || 0;
   const totalServers = vpnHealth?.length || 0;
 
@@ -211,16 +229,28 @@ export const VpnProxies = () => {
               <Activity className="w-5 h-5 text-primary" />
               <CardTitle>VPN Server Status</CardTitle>
             </div>
-            <Button
-              onClick={handleRunHealthCheck}
-              disabled={isCheckingHealth}
-              size="sm"
-              variant="outline"
-              className="gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`} />
-              Health-Check
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleRunHealthCheck}
+                disabled={isCheckingHealth}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isCheckingHealth ? 'animate-spin' : ''}`} />
+                Health-Check
+              </Button>
+              <Button
+                onClick={handleClearHealthCheck}
+                disabled={isCheckingHealth}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                <Eraser className="w-4 h-4" />
+                Daten löschen
+              </Button>
+            </div>
           </div>
           <CardDescription>
             Echtzeit-Status aller Mullvad VPN-Server
