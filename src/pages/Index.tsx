@@ -93,6 +93,8 @@ const Index = () => {
             <SheetContent side="left" className="w-72 p-0">
               <SidebarProvider defaultOpen={true}>
                 <Sidebar 
+                  collapsible="none"
+                  className="h-full"
                   activeView={activeView} 
                   onViewChange={(view) => {
                     setActiveView(view);

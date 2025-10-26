@@ -18,9 +18,13 @@ interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   unreadCount?: number;
+  collapsible?: "offcanvas" | "icon" | "none";
+  variant?: "sidebar" | "floating" | "inset";
+  side?: "left" | "right";
+  className?: string;
 }
 
-const Sidebar = ({ activeView, onViewChange, unreadCount = 0 }: SidebarProps) => {
+const Sidebar = ({ activeView, onViewChange, unreadCount = 0, collapsible = "offcanvas", variant = "sidebar", side = "left", className }: SidebarProps) => {
   const sidebar = useSidebar();
   const open = sidebar?.open ?? true; // Default to true for mobile Sheet context
   
@@ -36,7 +40,7 @@ const Sidebar = ({ activeView, onViewChange, unreadCount = 0 }: SidebarProps) =>
   ];
 
   return (
-    <SidebarRoot>
+    <SidebarRoot collapsible={collapsible} variant={variant} side={side} className={className}>
       <SidebarContent>
         <div className="p-6 border-b">
           <div className="flex items-center gap-2">
