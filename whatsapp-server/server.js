@@ -198,16 +198,14 @@ async function syncAllMessages(client, accountId, supa) {
             }
 
             // Determine if message is read
-            // For outgoing: always read
-            // For incoming: unread only if it's in the last 'unreadCount' messages
-            let isRead = true; // Default to read
-            if (!msg.fromMe && unreadCount > 0) {
-              // For incoming messages, check if this is in the unread range
-              // The last 'unreadCount' messages from the original list are unread
-              const messageIndex = recentMessages.findIndex(m => m.id._serialized === msg.id._serialized);
-              if (messageIndex >= recentMessages.length - unreadCount) {
-                isRead = false; // This is an unread message
-              }
+            // Outgoing: always read. Incoming: unread if in the last 'unreadCount' items of the processed list
+            let isRead;
+            if (msg.fromMe) {
+              isRead = true;
+            } else {
+              const effectiveUnread = Math.min(unreadCount, sortedMessages.length);
+              const positionFromEnd = sortedMessages.length - 1 - i; // 0 = newest
+              isRead = positionFromEnd >= effectiveUnread; // last N are unread
             }
 
             // Check if message already exists
