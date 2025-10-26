@@ -143,17 +143,15 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
   // Overall readiness score
   const readinessScore = Math.round((messagesProgress + contactsProgress + avgDailyProgress) / 3);
 
-  // Determine phase based on messages sent
-  let phase = "phase1";
+  // Use phase from DB or calculate based on messages sent
+  const currentPhase = stat.phase || "phase1";
   let phaseLabel = "Phase 1: Sanft";
   let phaseColor = "bg-blue-500";
   
-  if (stat.sent_messages >= 150) {
-    phase = "phase3";
+  if (currentPhase === "phase3") {
     phaseLabel = "Phase 3: Intensiv";
     phaseColor = "bg-green-500";
-  } else if (stat.sent_messages >= 50) {
-    phase = "phase2";
+  } else if (currentPhase === "phase2") {
     phaseLabel = "Phase 2: Moderat";
     phaseColor = "bg-yellow-500";
   }
@@ -170,7 +168,7 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
           <div className="flex items-center gap-2">
             <CardTitle className="text-xl">{account.account_name}</CardTitle>
             <Badge className={`${phaseColor} text-white`}>
-              {stat?.phase?.toUpperCase() || phase.toUpperCase()}
+              {currentPhase.toUpperCase()}
             </Badge>
           </div>
           {bulkReady && (
@@ -182,7 +180,7 @@ const AccountStatCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
           <PhaseSelector
             accountId={account.id}
             accountName={account.account_name}
-            currentPhase={stat?.phase || phase}
+            currentPhase={currentPhase}
             onPhaseChange={onPhaseChange}
           />
         </div>
