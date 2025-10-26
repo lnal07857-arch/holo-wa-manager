@@ -14,10 +14,12 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const AccountCard = ({ account, mullvadAccountIndex, serverNumber }: { 
+const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy, assignPending }: { 
   account: any; 
   mullvadAccountIndex: number; 
   serverNumber: number;
+  onAssignProxy: () => Promise<any>;
+  assignPending: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
@@ -58,6 +60,18 @@ const AccountCard = ({ account, mullvadAccountIndex, serverNumber }: {
             <Badge variant={account.status === "connected" ? "default" : "secondary"}>
               {account.status === "connected" ? "Verbunden" : "Getrennt"}
             </Badge>
+            {!account.proxy_server && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={onAssignProxy}
+                disabled={assignPending}
+              >
+                <Wifi className="w-4 h-4" />
+                {assignPending ? 'Zuweisen...' : 'VPN zuweisen'}
+              </Button>
+            )}
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
                 <Fingerprint className="w-4 h-4" />
@@ -82,11 +96,11 @@ const AccountCard = ({ account, mullvadAccountIndex, serverNumber }: {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="bg-background p-2 rounded border">
                       <p className="text-muted-foreground text-xs">Proxy Server</p>
-                      <p className="font-mono">{fingerprintData.proxy?.host || 'Nicht konfiguriert'}</p>
+                      <p className="font-mono">{(fingerprintData.proxy?.host || (account.proxy_server ? JSON.parse(account.proxy_server).host : null)) || 'Nicht konfiguriert'}</p>
                     </div>
                     <div className="bg-background p-2 rounded border">
                       <p className="text-muted-foreground text-xs">Port</p>
-                      <p className="font-mono">{fingerprintData.proxy?.port || '-'}</p>
+                      <p className="font-mono">{(fingerprintData.proxy?.port || (account.proxy_server ? JSON.parse(account.proxy_server).port : null)) || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -456,6 +470,8 @@ export const VpnProxies = () => {
                     account={account}
                     mullvadAccountIndex={mullvadAccountIndex}
                     serverNumber={serverNumber}
+                    onAssignProxy={() => assignProxy.mutateAsync(account.id)}
+                    assignPending={assignProxy.isPending}
                   />
                 );
               })}
