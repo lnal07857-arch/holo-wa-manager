@@ -155,8 +155,21 @@ async function syncAllMessages(client, accountId, supa) {
           continue;
         }
 
+        // Filter messages: only sync messages from last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoTimestamp = Math.floor(thirtyDaysAgo.getTime() / 1000);
+        
+        const recentMessages = messages.filter(msg => msg.timestamp >= thirtyDaysAgoTimestamp);
+        console.log(`[Sync] Filtered to ${recentMessages.length} messages from last 30 days`);
+        
+        if (recentMessages.length === 0) {
+          console.log(`[Sync] No recent messages in chat, skipping`);
+          continue;
+        }
+
         // Process messages in reverse order (oldest first)
-        const sortedMessages = [...messages].reverse();
+        const sortedMessages = [...recentMessages].reverse();
         
         for (let i = 0; i < sortedMessages.length; i++) {
           const msg = sortedMessages[i];
@@ -184,16 +197,17 @@ async function syncAllMessages(client, accountId, supa) {
               console.error('Error fetching contact name during sync:', e);
             }
 
-            // Determine if message is read based on WhatsApp status
+            // Determine if message is read
             // For outgoing: always read
-            // For incoming: read if not in the last 'unreadCount' messages
-            let isRead = false;
-            if (msg.fromMe) {
-              isRead = true; // Outgoing messages are always marked as read
-            } else {
-              // Incoming message: check if it's in the unread range
-              const positionFromEnd = sortedMessages.length - 1 - i;
-              isRead = positionFromEnd >= unreadCount; // If beyond unread count, it's read
+            // For incoming: unread only if it's in the last 'unreadCount' messages
+            let isRead = true; // Default to read
+            if (!msg.fromMe && unreadCount > 0) {
+              // For incoming messages, check if this is in the unread range
+              // The last 'unreadCount' messages from the original list are unread
+              const messageIndex = recentMessages.findIndex(m => m.id._serialized === msg.id._serialized);
+              if (messageIndex >= recentMessages.length - unreadCount) {
+                isRead = false; // This is an unread message
+              }
             }
 
             // Check if message already exists
