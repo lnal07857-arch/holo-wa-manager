@@ -135,7 +135,22 @@ serve(async (req) => {
             if (!response.ok) {
               const retryText = await response.text();
               console.error(`[Initialize] Retry failed: ${retryText}`);
-              throw new Error(`Railway server error (${response.status}): ${retryText}`);
+
+              // Last-resort fallback: remove proxy and try direct connection
+              console.warn('[Initialize] Applying last-resort fallback: disable proxy and try direct connect...');
+              await supa
+                .from('whatsapp_accounts')
+                .update({ proxy_server: null })
+                .eq('id', accountId);
+
+              response = await attemptInitialize();
+              console.log(`[Initialize] Direct connect retry status: ${response.status}`);
+
+              if (!response.ok) {
+                const directText = await response.text();
+                console.error(`[Initialize] Direct connect failed: ${directText}`);
+                throw new Error(`Railway server error (${response.status}): ${directText}`);
+              }
             }
           } else {
             throw new Error(`Railway server error (${response.status}): ${errorText}`);
