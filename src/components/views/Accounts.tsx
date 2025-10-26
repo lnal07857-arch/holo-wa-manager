@@ -418,12 +418,21 @@ const Accounts = () => {
               </form> : <div className="space-y-4">
                 <Alert>
                   <AlertDescription className="text-sm">
-                    Scannen Sie diesen QR-Code mit WhatsApp auf Ihrem Handy
+                    {loadingQR ? 'Warte auf QR-Code...' : 'Scannen Sie diesen QR-Code mit WhatsApp auf Ihrem Handy'}
                   </AlertDescription>
                 </Alert>
                 <div className="flex justify-center">
                   <div className="w-64 h-64 border-2 rounded-lg flex items-center justify-center bg-white p-4">
-                    <img src={qrCode} alt="WhatsApp Web QR Code" className="w-full h-full object-contain" />
+                    {loadingQR && !qrCode ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="w-12 h-12 animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">QR-Code wird generiert...</p>
+                      </div>
+                    ) : qrCode ? (
+                      <img src={qrCode} alt="WhatsApp Web QR Code" className="w-full h-full object-contain" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Kein QR-Code verfügbar</p>
+                    )}
                   </div>
                 </div>
                 <div className="text-center text-sm text-muted-foreground space-y-1">
