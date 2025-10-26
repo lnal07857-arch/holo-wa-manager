@@ -2,15 +2,13 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Database, Loader2, Clock, CheckCircle2, Power, PowerOff, GripVertical } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import { useWarmupStats } from "@/hooks/useWarmupStats";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -38,7 +36,6 @@ const Accounts = () => {
     deleteAccount,
     refetch
   } = useWhatsAppAccounts();
-  const { data: warmupStats } = useWarmupStats();
   const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
 
   const sensors = useSensors(
@@ -54,32 +51,6 @@ const Accounts = () => {
     setSortedAccounts(sorted);
   }, [accounts]);
 
-  // Fallback: aggregate warmup from messages if no stats yet
-  const accountIds = sortedAccounts.map((a) => a.id);
-  const { data: warmupFallback } = useQuery({
-    queryKey: ["warmup-fallback", accountIds],
-    enabled: accountIds.length > 0 && (!warmupStats || warmupStats.length === 0),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("account_id, contact_phone, is_warmup")
-        .eq("is_warmup", true)
-        .in("account_id", accountIds);
-      if (error) throw error;
-      const map: Record<string, { sent: number; contacts: Set<string> }> = {};
-      (data as any[]).forEach((row) => {
-        const id = row.account_id as string;
-        if (!map[id]) map[id] = { sent: 0, contacts: new Set<string>() };
-        map[id].sent += 1;
-        if (row.contact_phone) map[id].contacts.add(row.contact_phone as string);
-      });
-      const result: Record<string, { sent: number; uniqueContacts: number }> = {};
-      Object.entries(map).forEach(([id, v]) => {
-        result[id] = { sent: v.sent, uniqueContacts: v.contacts.size };
-      });
-      return result;
-    },
-  });
   
   // Validate account status on mount
   useEffect(() => {
@@ -650,55 +621,19 @@ const Accounts = () => {
           strategy={rectSortingStrategy}
         >
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sortedAccounts.map(account => {
-              const stat: any = warmupStats?.find((s: any) => s.account_id === account.id);
-              const sentMessages = stat ? stat.sent_messages : (warmupFallback?.[account.id]?.sent || 0);
-              const uniqueContactsCount = stat 
-                ? Object.keys(stat.unique_contacts || {}).length 
-                : (warmupFallback?.[account.id]?.uniqueContacts || 0);
-              
-              // Calculate phase
-              let phaseLabel = "Phase 1 (Sanft)";
-              let phaseBadgeClass = "bg-blue-500/10 text-blue-600";
-              
-              if (sentMessages >= 150) {
-                phaseLabel = "Phase 3 (Intensiv)";
-                phaseBadgeClass = "bg-green-500/10 text-green-600";
-              } else if (sentMessages >= 50) {
-                phaseLabel = "Phase 2 (Moderat)";
-                phaseBadgeClass = "bg-yellow-500/10 text-yellow-600";
-              }
-              
-              // Check bulk readiness (fallback assumes no Blocks)
-              const blocks = stat?.blocks ?? 0;
-              const bulkReady = sentMessages >= 500 && uniqueContactsCount >= 15 && blocks === 0;
-              
-              // Calculate readiness score
-              const messagesProgress = Math.min((sentMessages / 500) * 100, 100);
-              const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
-              const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
-              
-              return (
-                <SortableAccountCard
-                  key={account.id}
-                  account={account}
-                  stat={stat}
-                  phaseLabel={phaseLabel}
-                  phaseBadgeClass={phaseBadgeClass}
-                  bulkReady={bulkReady}
-                  readinessScore={readinessScore}
-                  disconnecting={disconnecting}
-                  initializeWhatsApp={initializeWhatsApp}
-                  disconnectAccount={disconnectAccount}
-                  deleteAccount={deleteAccount}
-                  setQrCode={setQrCode}
-                  setInitializingAccount={setInitializingAccount}
-                  setOpen={setOpen}
-                  sentMessages={sentMessages}
-                  uniqueContactsCount={uniqueContactsCount}
-                />
-              );
-            })}
+            {sortedAccounts.map(account => (
+              <SortableAccountCard
+                key={account.id}
+                account={account}
+                disconnecting={disconnecting}
+                initializeWhatsApp={initializeWhatsApp}
+                disconnectAccount={disconnectAccount}
+                deleteAccount={deleteAccount}
+                setQrCode={setQrCode}
+                setInitializingAccount={setInitializingAccount}
+                setOpen={setOpen}
+              />
+            ))}
           </div>
         </SortableContext>
       </DndContext>
@@ -719,11 +654,6 @@ const Accounts = () => {
 
 interface SortableAccountCardProps {
   account: any;
-  stat: any;
-  phaseLabel: string;
-  phaseBadgeClass: string;
-  bulkReady: boolean;
-  readinessScore: number;
   disconnecting: string | null;
   initializeWhatsApp: (accountId: string) => Promise<void>;
   disconnectAccount: (accountId: string) => Promise<void>;
@@ -731,17 +661,10 @@ interface SortableAccountCardProps {
   setQrCode: (qrCode: string | null) => void;
   setInitializingAccount: (accountId: string | null) => void;
   setOpen: (open: boolean) => void;
-  sentMessages: number;
-  uniqueContactsCount: number;
 }
 
 const SortableAccountCard = ({
   account,
-  stat,
-  phaseLabel,
-  phaseBadgeClass,
-  bulkReady,
-  readinessScore,
   disconnecting,
   initializeWhatsApp,
   disconnectAccount,
@@ -749,8 +672,6 @@ const SortableAccountCard = ({
   setQrCode,
   setInitializingAccount,
   setOpen,
-  sentMessages,
-  uniqueContactsCount,
 }: SortableAccountCardProps) => {
   const {
     attributes,
@@ -798,55 +719,7 @@ const SortableAccountCard = ({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {/* Warmup Stats */}
-            {stat && (
-              <div className="space-y-3 pb-3 border-b">
-                {/* Phase */}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Warmup Phase</p>
-                  <Badge variant="secondary" className={phaseBadgeClass}>
-                    {phaseLabel}
-                  </Badge>
-                </div>
-
-                {/* Bulk Readiness */}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Bulk Bereitschaft</p>
-                  <div className="flex items-center gap-2">
-                    {bulkReady ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-600">Bereit</span>
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="w-4 h-4 text-yellow-600" />
-                        <span className="text-sm font-medium text-yellow-600">In Vorbereitung</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Readiness Score */}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground font-medium">Bereitschaft</p>
-                  <div className="flex items-center gap-2">
-                    <Progress value={readinessScore} className="h-2 flex-1" />
-                    <span className="text-xs font-bold min-w-[3ch]">{readinessScore}%</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {!stat && (
-              <div className="pb-3 border-b">
-                <p className="text-xs text-muted-foreground">Noch keine Warmup-Daten</p>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-2">
+          <div className="flex gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -880,9 +753,8 @@ const SortableAccountCard = ({
                 className="text-destructive" 
                 onClick={() => deleteAccount.mutate(account.id)}
               >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
