@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -11,6 +11,7 @@ import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -307,11 +308,57 @@ const Chats = () => {
     }
   };
 
+  const handleDeleteAllMessages = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Delete all messages from user's accounts
+      const accountIds = accounts.map(a => a.id);
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .in("account_id", accountIds);
+
+      if (error) throw error;
+
+      toast.success("Alle Nachrichten wurden gelöscht");
+      setSelectedChatKey(null);
+    } catch (error: any) {
+      console.error("Error deleting messages:", error);
+      toast.error(`Fehler beim Löschen: ${error.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Chats</h2>
-        <p className="text-muted-foreground">Alle Konversationen im Überblick</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Chats</h2>
+          <p className="text-muted-foreground">Alle Konversationen im Überblick</p>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" className="gap-2">
+              <Trash2 className="w-4 h-4" />
+              Alle Nachrichten löschen
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Alle Nachrichten löschen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Diese Aktion kann nicht rückgängig gemacht werden. Alle Chat-Nachrichten werden dauerhaft gelöscht.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAllMessages} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Alle löschen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <Card className="h-[calc(100vh-200px)]">
