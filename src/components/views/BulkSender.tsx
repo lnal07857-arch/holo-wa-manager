@@ -33,6 +33,7 @@ const BulkSender = () => {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [textRotation, setTextRotation] = useState(true);
   const [delay, setDelay] = useState("2-5");
+  const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Automatisch nur verbundene Accounts auswählen
@@ -335,6 +336,15 @@ const BulkSender = () => {
             </div>
             <Switch checked={selectedAccounts.length > 1} disabled />
           </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Bereits kontaktierte Personen ausschließen</Label>
+              <p className="text-sm text-muted-foreground">
+                Verhindert, dass Kontakte mit bestehenden Konversationen erneut angeschrieben werden
+              </p>
+            </div>
+            <Switch checked={excludeContacted} onCheckedChange={setExcludeContacted} />
+          </div>
         </CardContent>
       </Card>
 
@@ -365,11 +375,31 @@ const BulkSender = () => {
                     return;
                   }
 
-                  const total = contacts.length;
+                  // Filter bereits kontaktierte Personen wenn aktiviert
+                  let contactsToSend = contacts;
+                  let excludedCount = 0;
+                  
+                  if (excludeContacted) {
+                    const phoneNumbers = contacts.map(c => sanitizePhone(String(c.phone || "")));
+                    const { data: existingMessages } = await supabase
+                      .from("messages")
+                      .select("contact_phone")
+                      .in("contact_phone", phoneNumbers);
+                    
+                    const contactedPhones = new Set(existingMessages?.map(m => m.contact_phone) || []);
+                    contactsToSend = contacts.filter(c => !contactedPhones.has(sanitizePhone(String(c.phone || ""))));
+                    excludedCount = contacts.length - contactsToSend.length;
+                    
+                    if (excludedCount > 0) {
+                      toast.info(`${excludedCount} bereits kontaktierte Person(en) werden übersprungen`);
+                    }
+                  }
+
+                  const total = contactsToSend.length;
                   let created = 0;
 
-                  for (let i = 0; i < contacts.length; i++) {
-                    const contact = contacts[i];
+                  for (let i = 0; i < contactsToSend.length; i++) {
+                    const contact = contactsToSend[i];
                     const contact_phone = sanitizePhone(String(contact.phone || ""));
 
                     // Account-Rotation: Verteile die Kontakte gleichmäßig über alle verbundenen Accounts
