@@ -172,6 +172,27 @@ export const VpnProxies = () => {
     toast.success("Alle Proxies zugewiesen!");
   };
 
+  const handleRemoveAllProxies = async () => {
+    toast.info("Entferne alle VPN-Zuweisungen...");
+    
+    for (const account of accounts) {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .update({ 
+          proxy_server: null,
+          proxy_country: null 
+        })
+        .eq('id', account.id);
+      
+      if (error) {
+        console.error('Error removing proxy:', error);
+      }
+    }
+    
+    toast.success("Alle VPN-Zuweisungen entfernt!");
+    window.location.reload();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -228,6 +249,15 @@ export const VpnProxies = () => {
             >
               <Wifi className="w-4 h-4" />
               {assignProxy.isPending ? "Zuweisen..." : "VPN für alle Accounts aktivieren"}
+            </Button>
+            
+            <Button 
+              onClick={handleRemoveAllProxies}
+              variant="destructive"
+              className="gap-2"
+            >
+              <Shield className="w-4 h-4" />
+              Alle VPN für alle Accounts deaktivieren
             </Button>
           </div>
 
