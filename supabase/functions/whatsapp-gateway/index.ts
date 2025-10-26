@@ -196,6 +196,25 @@ serve(async (req) => {
         });
       }
 
+      case 'get-fingerprint': {
+        // Fingerprint-Informationen abrufen
+        console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint/${accountId}`);
+        
+        const response = await fetch(`${BASE_URL}/api/fingerprint/${accountId}`);
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[Get Fingerprint] Railway error: ${error}`);
+          throw new Error(`Railway error: ${error}`);
+        }
+
+        const data = await response.json();
+        console.log(`[Get Fingerprint] Success:`, data);
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

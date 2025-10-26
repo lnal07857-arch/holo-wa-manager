@@ -4,12 +4,138 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { useMullvadProxy } from "@/hooks/useMullvadProxy";
+import { useFingerprint } from "@/hooks/useFingerprint";
 import { toast } from "sonner";
 import { useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+const AccountCard = ({ account, mullvadAccountIndex, serverNumber }: { 
+  account: any; 
+  mullvadAccountIndex: number; 
+  serverNumber: number;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
+
+  const proxyInfo = account.proxy_server ? JSON.parse(account.proxy_server) : null;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="border rounded-lg hover:bg-muted/50 transition-colors">
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium">{account.account_name}</p>
+              <p className="text-sm text-muted-foreground">
+                {account.phone_number}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-medium">
+                Mullvad Account #{mullvadAccountIndex + 1}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                DE Server #{serverNumber}
+              </p>
+              {account.proxy_server && (
+                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                  <Shield className="w-3 h-3" />
+                  <span>VPN aktiv</span>
+                </div>
+              )}
+            </div>
+            <Badge variant={account.status === "connected" ? "default" : "secondary"}>
+              {account.status === "connected" ? "Verbunden" : "Getrennt"}
+            </Badge>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Fingerprint className="w-4 h-4" />
+                Details
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+        </div>
+
+        <CollapsibleContent>
+          <div className="border-t p-4 bg-muted/20 space-y-4">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground text-center">Lade Fingerprint-Daten...</p>
+            ) : fingerprintData ? (
+              <>
+                {/* Proxy/IP Information */}
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    VPN & IP-Adresse
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs">Proxy Server</p>
+                      <p className="font-mono">{fingerprintData.proxy?.host || 'Nicht konfiguriert'}</p>
+                    </div>
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs">Port</p>
+                      <p className="font-mono">{fingerprintData.proxy?.port || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fingerprint Information */}
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Fingerprint className="w-4 h-4 text-primary" />
+                    Browser Fingerprint
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs flex items-center gap-1">
+                        <Monitor className="w-3 h-3" />
+                        Bildschirmauflösung
+                      </p>
+                      <p className="font-mono text-sm">
+                        {fingerprintData.fingerprint.resolution.width} x {fingerprintData.fingerprint.resolution.height}
+                      </p>
+                    </div>
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs flex items-center gap-1">
+                        <Cpu className="w-3 h-3" />
+                        CPU Kerne
+                      </p>
+                      <p className="font-mono text-sm">{fingerprintData.fingerprint.cores}</p>
+                    </div>
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Zeitzone
+                      </p>
+                      <p className="font-mono text-sm">{fingerprintData.fingerprint.timezone}</p>
+                    </div>
+                    <div className="bg-background p-2 rounded border">
+                      <p className="text-muted-foreground text-xs">User-Agent</p>
+                      <p className="font-mono text-xs break-all">{fingerprintData.fingerprint.userAgent}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center">Keine Fingerprint-Daten verfügbar</p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+};
 
 export const VpnProxies = () => {
   const { accounts } = useWhatsAppAccounts();
@@ -201,42 +327,12 @@ export const VpnProxies = () => {
                 const serverNumber = (index % 5) + 1;
                 
                 return (
-                  <div
+                  <AccountCard
                     key={account.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{account.account_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {account.phone_number}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          Mullvad Account #{mullvadAccountIndex + 1}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          DE Server #{serverNumber}
-                        </p>
-                        {account.proxy_server && (
-                          <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                            <Shield className="w-3 h-3" />
-                            <span>VPN aktiv</span>
-                          </div>
-                        )}
-                      </div>
-                      <Badge variant={account.status === "connected" ? "default" : "secondary"}>
-                        {account.status === "connected" ? "Verbunden" : "Getrennt"}
-                      </Badge>
-                    </div>
-                  </div>
+                    account={account}
+                    mullvadAccountIndex={mullvadAccountIndex}
+                    serverNumber={serverNumber}
+                  />
                 );
               })}
             </div>

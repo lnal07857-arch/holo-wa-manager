@@ -1047,6 +1047,53 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', clients: clients.size });
 });
 
+// Get fingerprint info for an account
+app.get('/api/fingerprint/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  
+  try {
+    const fingerprint = generateFingerprint(accountId);
+    
+    // Get proxy info from database
+    const supa = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    
+    const { data: accountData } = await supa
+      .from('whatsapp_accounts')
+      .select('proxy_server')
+      .eq('id', accountId)
+      .maybeSingle();
+    
+    let proxyInfo = null;
+    if (accountData?.proxy_server) {
+      try {
+        proxyInfo = JSON.parse(accountData.proxy_server);
+      } catch (e) {
+        console.error('Error parsing proxy config:', e);
+      }
+    }
+    
+    res.json({
+      success: true,
+      fingerprint: {
+        userAgent: fingerprint.userAgent,
+        resolution: fingerprint.resolution,
+        timezone: fingerprint.timezone,
+        cores: fingerprint.cores
+      },
+      proxy: proxyInfo
+    });
+  } catch (error) {
+    console.error('Error getting fingerprint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Heartbeat endpoint to keep connections alive and trigger reconnects
 app.post('/api/heartbeat', async (req, res) => {
   const timestamp = new Date().toISOString();
