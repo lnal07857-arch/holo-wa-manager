@@ -101,7 +101,7 @@ export const useMessages = () => {
           (userAccounts || []).map(acc => acc.phone_number.replace(/\D/g, ''))
         );
         
-        // Fetch all messages with account info, excluding warm-up messages
+        // Fetch all messages with account info
         const { data: messagesData, error: messagesError } = await supabase
           .from("messages")
           .select(`
@@ -111,7 +111,6 @@ export const useMessages = () => {
               status
             )
           `)
-          .eq("is_warmup", false)
           .order("sent_at", { ascending: false });
 
         if (messagesError) throw messagesError;
@@ -156,15 +155,15 @@ export const useMessages = () => {
         const groups: Record<string, ChatGroup> = {};
 
         messagesData?.forEach((msg: any) => {
-          // Skip all warm-up messages
-          if (msg.is_warmup) {
-            return; // Skip this message
+          // CRITICAL: Skip all warm-up messages (first priority filter)
+          if (msg.is_warmup === true) {
+            return;
           }
           
-          // Skip chats between own accounts
+          // CRITICAL: Skip chats between own accounts (second priority filter)
           const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
           if (ownPhoneNumbers.has(cleanContactPhone)) {
-            return; // Skip this message
+            return;
           }
           
           const key = `${msg.contact_phone}_${msg.account_id}`;
