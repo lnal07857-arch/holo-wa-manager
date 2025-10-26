@@ -14,6 +14,8 @@ export interface WhatsAppAccount {
   last_connected_at: string | null;
   created_at: string;
   updated_at: string;
+  proxy_server: string | null;
+  proxy_country: string | null;
 }
 
 export const useWhatsAppAccounts = () => {

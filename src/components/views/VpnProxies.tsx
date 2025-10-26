@@ -4,16 +4,32 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2 } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
+import { useMullvadProxy } from "@/hooks/useMullvadProxy";
+import { toast } from "sonner";
 import { useState } from "react";
 
 export const VpnProxies = () => {
   const { accounts } = useWhatsAppAccounts();
   const { accounts: mullvadAccounts, createAccount, deleteAccount } = useMullvadAccounts();
+  const { assignProxy } = useMullvadProxy();
   const [open, setOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
+
+  const handleAssignAllProxies = async () => {
+    if (mullvadAccounts.length === 0) {
+      toast.error("Bitte füge zuerst Mullvad-Accounts hinzu");
+      return;
+    }
+
+    toast.info("Weise Mullvad VPN-Server zu...");
+    for (const account of accounts) {
+      await assignProxy.mutateAsync(account.id);
+    }
+    toast.success("Alle Proxies zugewiesen!");
+  };
 
   return (
     <div className="space-y-6">
@@ -60,6 +76,17 @@ export const VpnProxies = () => {
                 <p className="text-2xl font-bold">DE 🇩🇪</p>
               </div>
             </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleAssignAllProxies}
+              disabled={mullvadAccounts.length === 0 || assignProxy.isPending}
+              className="gap-2"
+            >
+              <Wifi className="w-4 h-4" />
+              {assignProxy.isPending ? "Zuweisen..." : "VPN für alle Accounts aktivieren"}
+            </Button>
           </div>
 
           <div className="space-y-3">
@@ -198,6 +225,12 @@ export const VpnProxies = () => {
                         <p className="text-xs text-muted-foreground">
                           DE Server #{serverNumber}
                         </p>
+                        {account.proxy_server && (
+                          <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                            <Shield className="w-3 h-3" />
+                            <span>VPN aktiv</span>
+                          </div>
+                        )}
                       </div>
                       <Badge variant={account.status === "connected" ? "default" : "secondary"}>
                         {account.status === "connected" ? "Verbunden" : "Getrennt"}
@@ -228,6 +261,9 @@ export const VpnProxies = () => {
           </p>
           <p>
             • SOCKS5 Proxy wird für optimale Kompatibilität mit WhatsApp Web verwendet
+          </p>
+          <p>
+            • Nach der Aktivierung müssen die WhatsApp-Accounts neu verbunden werden
           </p>
         </CardContent>
       </Card>

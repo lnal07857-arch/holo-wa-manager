@@ -323,21 +323,46 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // Supabase client using service role key for privileged updates
   const supa = createClient(supabaseUrl, supabaseKey);
 
+  // Fetch proxy configuration for this account
+  let puppeteerConfig = {
+    headless: true,
+    executablePath: puppeteer.executablePath(),
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu'
+    ]
+  };
+
+  try {
+    const { data: accountData } = await supa
+      .from('whatsapp_accounts')
+      .select('proxy_server')
+      .eq('id', accountId)
+      .maybeSingle();
+
+    if (accountData?.proxy_server) {
+      const proxyConfig = JSON.parse(accountData.proxy_server);
+      console.log(`[Proxy] Using Mullvad proxy for ${accountId}:`, proxyConfig.host);
+      
+      // Add proxy args to puppeteer
+      puppeteerConfig.args.push(
+        `--proxy-server=socks5://${proxyConfig.host}:${proxyConfig.port}`
+      );
+    } else {
+      console.log(`[Proxy] No proxy configured for ${accountId}, using direct connection`);
+    }
+  } catch (proxyError) {
+    console.error('[Proxy] Error fetching proxy config:', proxyError);
+  }
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
-    puppeteer: {
-      headless: true,
-      executablePath: puppeteer.executablePath(),
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu'
-      ]
-    }
+    puppeteer: puppeteerConfig
   });
 
   // QR Code event
