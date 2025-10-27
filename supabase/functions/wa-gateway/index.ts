@@ -53,27 +53,17 @@ serve(async (req) => {
           });
         };
 
-        // Ensure VPN is assigned BEFORE initialization
+        // Optional: Check if VPN is assigned (nicht erzwungen)
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
           .select('proxy_server, user_id')
           .eq('id', accountId)
           .maybeSingle();
 
-        if (!accountData?.proxy_server) {
-          console.log('🔐 [Initialize] No VPN assigned yet. Assigning now...');
-          
-          // Assign VPN before proceeding
-          const { error: vpnError } = await supa.functions.invoke('mullvad-proxy-manager', {
-            body: { action: 'assign-proxy', accountId }
-          });
-          
-          if (vpnError) {
-            console.error('❌ [Initialize] Failed to assign VPN:', vpnError);
-            throw new Error('VPN-Zuweisung fehlgeschlagen. Bitte versuchen Sie es erneut.');
-          }
-          
-          console.log('✅ [Initialize] VPN assigned successfully');
+        if (accountData?.proxy_server) {
+          console.log('✅ [Initialize] VPN/Proxy configured, using it');
+        } else {
+          console.log('ℹ️ [Initialize] No VPN configured, using direct connection (Railway mode)');
         }
 
         // Intelligent retry with up to 3 VPN reassignments across regions
@@ -207,7 +197,7 @@ serve(async (req) => {
           throw new Error('Phone and message are required');
         }
 
-        // CRITICAL: Check if VPN/Proxy is assigned before sending
+        // Optional: Check if VPN/Proxy is configured (nicht erzwungen)
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
@@ -222,36 +212,10 @@ serve(async (req) => {
           throw new Error('Account not found');
         }
 
-        // If no proxy assigned, auto-assign one before sending
-        if (!accountData.proxy_server) {
-          console.log('⚠️ [Send Message] No VPN assigned! Auto-assigning healthy proxy...');
-          
-          // Try to assign a healthy proxy
-          try {
-            const proxyResponse = await fetch(`${supabaseUrl}/functions/v1/mullvad-proxy-manager`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`
-              },
-              body: JSON.stringify({
-                action: 'assign-proxy',
-                accountId
-              })
-            });
-
-            if (!proxyResponse.ok) {
-              const error = await proxyResponse.text();
-              console.error('[Send Message] VPN assignment failed:', error);
-              throw new Error('Kein VPN verfügbar. Bitte warten Sie, bis der VPN-Service wieder verfügbar ist.');
-            }
-
-            const proxyResult = await proxyResponse.json();
-            console.log('✅ [Send Message] VPN auto-assigned:', proxyResult.server);
-          } catch (proxyError) {
-            console.error('[Send Message] Critical: Cannot send without VPN:', proxyError);
-            throw new Error('Nachrichten können nur mit aktivem VPN gesendet werden. Bitte versuchen Sie es später erneut.');
-          }
+        if (accountData.proxy_server) {
+          console.log('✅ [Send Message] Using configured VPN/Proxy');
+        } else {
+          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (Railway mode)');
         }
 
         console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);

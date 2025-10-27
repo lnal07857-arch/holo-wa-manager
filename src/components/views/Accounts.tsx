@@ -447,13 +447,9 @@ const Accounts = () => {
       });
       console.log('[Account Create] Account created:', result);
 
-      // Nach dem Erstellen des Accounts, VPN zuweisen und dann initialisieren
+      // Direkt initialisieren (VPN/Proxy ist optional, nicht automatisch)
       if (result) {
-        // VPN zuweisen vor der Initialisierung
-        console.log('[Account Create] Assigning VPN...');
-        await assignProxy.mutateAsync(result.id);
-        console.log('[Account Create] VPN assigned, now initializing WhatsApp...');
-        
+        console.log('[Account Create] Initializing WhatsApp without automatic VPN...');
         await initializeWhatsApp(result.id);
       }
       setAccountName("");

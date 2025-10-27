@@ -55,21 +55,8 @@ export const useWhatsAppAccounts = () => {
 
       if (error) throw error;
       
-      // Sofort VPN zuweisen nach Account-Erstellung
-      try {
-        const { error: vpnError } = await supabase.functions.invoke('mullvad-proxy-manager', {
-          body: { action: 'assign-proxy', accountId: data.id }
-        });
-        
-        if (vpnError) {
-          console.warn('[Auto VPN] Konnte VPN nicht sofort zuweisen:', vpnError);
-          toast.warning('Account erstellt, aber VPN-Zuweisung fehlgeschlagen. Bitte manuell zuweisen.');
-        } else {
-          toast.success('Account erstellt und VPN automatisch zugewiesen');
-        }
-      } catch (vpnErr) {
-        console.warn('[Auto VPN] VPN-Zuweisung fehlgeschlagen:', vpnErr);
-      }
+      // VPN/Proxy-Zuweisung ist jetzt optional (manuell über UI)
+      console.log('[Account Create] Account created without automatic VPN assignment');
       
       return data;
     },
