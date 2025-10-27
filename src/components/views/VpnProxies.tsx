@@ -439,6 +439,12 @@ export const VpnProxies = () => {
   const totalConfigs = configs.length;
   const healthPercentage = totalConfigs > 0 ? Math.round((healthyConfigs / totalConfigs) * 100) : 0;
 
+  // Calculate capacity
+  const requiredConfigs = accounts.length * 3; // Each account needs 3 configs
+  const totalMullvadCapacity = mullvadAccounts.reduce((sum, acc) => sum + acc.max_devices, 0);
+  const totalMullvadUsed = mullvadAccounts.reduce((sum, acc) => sum + (acc.devices_used || 0), 0);
+  const availableCapacity = totalMullvadCapacity - totalMullvadUsed;
+
   // Calculate active connections per Mullvad account
   const getActiveConnectionsForMullvad = (mullvadAccountId: string): number => {
     const configsFromAccount = configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId);
@@ -762,24 +768,40 @@ export const VpnProxies = () => {
               Jeder Account benötigt 3 Configs für optimales Failover. 
               Für 20 Accounts = 60 Configs empfohlen (4 Mullvad-Accounts à 5€).
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
               <div className="bg-background p-3 rounded border">
                 <p className="text-sm text-muted-foreground">WhatsApp Accounts</p>
                 <p className="text-2xl font-bold">{accounts.length}</p>
               </div>
-              <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Hochgeladene Configs</p>
-                <p className="text-2xl font-bold">{configs.length}</p>
+              <div className={`bg-background p-3 rounded border ${configs.length < requiredConfigs ? 'border-orange-500 border-2' : 'border-green-500'}`}>
+                <p className="text-sm text-muted-foreground">Configs vorhanden</p>
+                <p className="text-2xl font-bold">{configs.length} / {requiredConfigs}</p>
               </div>
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Empfohlene Configs</p>
-                <p className="text-2xl font-bold">{accounts.length * 3}</p>
+                <p className="text-sm text-muted-foreground">Mullvad Kapazität</p>
+                <p className="text-2xl font-bold">{totalMullvadUsed} / {totalMullvadCapacity}</p>
               </div>
-              <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Mullvad Accounts</p>
-                <p className="text-2xl font-bold">{Math.ceil(accounts.length / 5)}</p>
+              <div className={`bg-background p-3 rounded border ${availableCapacity < requiredConfigs - configs.length ? 'border-red-500 border-2' : 'border-green-500'}`}>
+                <p className="text-sm text-muted-foreground">Noch verfügbar</p>
+                <p className="text-2xl font-bold">{availableCapacity}</p>
               </div>
             </div>
+
+            {configs.length < requiredConfigs && (
+              <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 p-3 rounded-lg mt-4">
+                <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                  ⚠️ Nicht genug Configs vorhanden
+                </p>
+                <p className="text-xs text-orange-800 dark:text-orange-200 mt-1">
+                  Du brauchst noch <strong>{requiredConfigs - configs.length} weitere Configs</strong> für optimale Abdeckung (3 pro WhatsApp Account).
+                  {availableCapacity < (requiredConfigs - configs.length) && (
+                    <span className="block mt-1 text-red-600 dark:text-red-400 font-medium">
+                      ❌ Deine Mullvad Accounts haben nicht genug Kapazität! Füge weitere Accounts hinzu oder erhöhe max_devices.
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3">
