@@ -5,19 +5,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// List of German Mullvad servers for rotation
-const DE_SERVERS = [
-  'de-ber-wg-001.relays.mullvad.net',
-  'de-ber-wg-002.relays.mullvad.net',
-  'de-ber-wg-003.relays.mullvad.net',
-  'de-fra-wg-001.relays.mullvad.net',
-  'de-fra-wg-002.relays.mullvad.net',
-  'de-fra-wg-003.relays.mullvad.net',
-  'de-dus-wg-001.relays.mullvad.net',
-  'de-dus-wg-002.relays.mullvad.net',
-  'de-dus-wg-003.relays.mullvad.net',
-  'de-ham-wg-001.relays.mullvad.net',
-];
+// Multi-Region Mullvad servers for automatic failover
+const MULLVAD_SERVERS = {
+  DE: [
+    'de-ber-wg-001.relays.mullvad.net',
+    'de-ber-wg-002.relays.mullvad.net',
+    'de-ber-wg-003.relays.mullvad.net',
+    'de-fra-wg-001.relays.mullvad.net',
+    'de-fra-wg-002.relays.mullvad.net',
+    'de-fra-wg-003.relays.mullvad.net',
+    'de-dus-wg-001.relays.mullvad.net',
+    'de-dus-wg-002.relays.mullvad.net',
+    'de-dus-wg-003.relays.mullvad.net',
+  ],
+  NL: [
+    'nl-ams-wg-001.relays.mullvad.net',
+    'nl-ams-wg-002.relays.mullvad.net',
+    'nl-ams-wg-003.relays.mullvad.net',
+  ],
+  SE: [
+    'se-sto-wg-001.relays.mullvad.net',
+    'se-sto-wg-002.relays.mullvad.net',
+    'se-got-wg-001.relays.mullvad.net',
+  ],
+  CH: [
+    'ch-zrh-wg-001.relays.mullvad.net',
+    'ch-zrh-wg-002.relays.mullvad.net',
+  ],
+};
+
+// Priority order for regions (Germany first, then neighbors)
+const REGION_PRIORITY = ['DE', 'NL', 'CH', 'SE'];
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -57,23 +75,44 @@ Deno.serve(async (req) => {
         throw new Error('No Mullvad accounts found. Please add at least one Mullvad account first.');
       }
 
-      // Get healthy servers with recent checks (last 15 minutes)
+      // Get healthy servers from ALL regions with recent checks (last 15 minutes)
       const { data: healthyServers } = await supabase
         .from('vpn_server_health')
-        .select('server_host, response_time_ms')
+        .select('server_host, response_time_ms, server_region')
         .eq('is_healthy', true)
-        .eq('server_region', 'DE')
-        .gte('last_check', new Date(Date.now() - 15 * 60 * 1000).toISOString())
+        .gte('last_check_at', new Date(Date.now() - 15 * 60 * 1000).toISOString())
         .order('response_time_ms', { ascending: true });
 
-      // Use healthy servers if available, otherwise use fallback list
-      let availableServers: string[];
+      // Build available servers list with region priority
+      let availableServers: string[] = [];
+      let usedRegion = 'DE';
+      
       if (healthyServers && healthyServers.length > 0) {
-        availableServers = healthyServers.map(s => s.server_host);
-        console.log(`✅ Using ${availableServers.length} verified healthy servers`);
-      } else {
-        console.warn('⚠️ No recent health data available. Using fallback server list.');
-        availableServers = DE_SERVERS;
+        // Try each region in priority order
+        for (const region of REGION_PRIORITY) {
+          const regionServers = healthyServers
+            .filter(s => s.server_region === region)
+            .map(s => s.server_host);
+          
+          if (regionServers.length > 0) {
+            availableServers = regionServers;
+            usedRegion = region;
+            console.log(`✅ Using ${availableServers.length} healthy ${region} servers`);
+            break;
+          }
+        }
+      }
+      
+      // Fallback to full server list if no healthy servers found
+      if (availableServers.length === 0) {
+        console.warn('⚠️ No recent health data. Using fallback multi-region list.');
+        for (const region of REGION_PRIORITY) {
+          availableServers = MULLVAD_SERVERS[region as keyof typeof MULLVAD_SERVERS];
+          if (availableServers.length > 0) {
+            usedRegion = region;
+            break;
+          }
+        }
       }
 
       // Get all WhatsApp accounts to determine the index
@@ -113,7 +152,7 @@ Deno.serve(async (req) => {
         .from('whatsapp_accounts')
         .update({
           proxy_server: JSON.stringify(proxyConfig),
-          proxy_country: 'DE'
+          proxy_country: usedRegion
         })
         .eq('id', accountId);
 

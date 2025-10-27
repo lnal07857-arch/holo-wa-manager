@@ -76,50 +76,76 @@ serve(async (req) => {
           console.log('✅ [Initialize] VPN assigned successfully');
         }
 
-        // Try with assigned VPN (STICKY - no automatic IP rotation)
+        // Intelligent retry with up to 3 VPN reassignments across regions
+        const MAX_RETRIES = 3;
         let response = await attemptInitialize();
         console.log(`[Initialize] Initial attempt status: ${response.status}`);
 
-        if (!response.ok) {
+        let retryCount = 0;
+        while (!response.ok && retryCount < MAX_RETRIES) {
           const errorText = await response.text();
-          console.error(`[Initialize] Error: ${errorText}`);
+          console.error(`[Initialize] Attempt ${retryCount + 1} failed: ${errorText}`);
 
-          const isProxyError = errorText.includes('ERR_PROXY_CONNECTION_FAILED') || errorText.toLowerCase().includes('proxy');
+          const isProxyError = errorText.includes('ERR_PROXY_CONNECTION_FAILED') || 
+                               errorText.includes('ERR_TUNNEL_CONNECTION_FAILED') ||
+                               errorText.toLowerCase().includes('proxy') ||
+                               errorText.includes('browser has disconnected');
 
           if (isProxyError) {
-            console.warn('⚠️ [Initialize] Proxy failed. Your VPN server may be down.');
+            retryCount++;
+            console.warn(`⚠️ [Initialize] Proxy failed (attempt ${retryCount}/${MAX_RETRIES}). Reassigning VPN...`);
             
-            // Mark current VPN as unhealthy for future assignments
+            // Mark current VPN as unhealthy
             const currentProxy = accountData?.proxy_server ? JSON.parse(accountData.proxy_server) : null;
             if (currentProxy?.host) {
-              console.log(`📊 [Initialize] Marking ${currentProxy.host} as potentially unhealthy`);
-              // The health check will handle this in the background
+              console.log(`📊 [Initialize] Marking ${currentProxy.host} as unhealthy`);
+              await supa.rpc('mark_vpn_server_unhealthy', {
+                p_server_host: currentProxy.host,
+                p_error_message: 'Proxy connection failed during initialization'
+              });
             }
 
-            // Give ONE chance: Try to get a different healthy VPN (not multiple retries)
-            console.log('🔄 [Initialize] Attempting ONE VPN reassignment...');
+            // Try to get a different healthy VPN from a different region
+            console.log(`🔄 [Initialize] Attempting VPN reassignment ${retryCount}/${MAX_RETRIES}...`);
             
             const { error: reassignError } = await supa.functions.invoke('mullvad-proxy-manager', {
               body: { action: 'assign-proxy', accountId }
             });
 
             if (reassignError) {
-              console.error('❌ [Initialize] Could not reassign VPN:', reassignError);
-              throw new Error('Ihr VPN-Server ist nicht erreichbar und kein alternativer Server verfügbar. Bitte versuchen Sie es später erneut.');
+              console.error(`❌ [Initialize] VPN reassignment ${retryCount} failed:`, reassignError);
+              if (retryCount >= MAX_RETRIES) {
+                throw new Error('Alle VPN-Server sind nicht erreichbar. Bitte versuchen Sie es später erneut oder kontaktieren Sie den Support.');
+              }
+              continue;
             }
 
-            console.log('✅ [Initialize] VPN reassigned, retrying once...');
+            // Refresh account data to get new proxy
+            const { data: refreshedData } = await supa
+              .from('whatsapp_accounts')
+              .select('proxy_server')
+              .eq('id', accountId)
+              .single();
+
+            if (refreshedData?.proxy_server) {
+              const newProxy = JSON.parse(refreshedData.proxy_server);
+              console.log(`✅ [Initialize] New VPN assigned: ${newProxy.host} (${newProxy.country || 'Unknown'})`);
+            }
+
+            // Retry with new VPN
             response = await attemptInitialize();
-            console.log(`[Initialize] Retry with new VPN status: ${response.status}`);
-
-            if (!response.ok) {
-              const retryError = await response.text();
-              console.error(`❌ [Initialize] Retry also failed: ${retryError}`);
-              throw new Error('VPN-Verbindung fehlgeschlagen. Bitte klicken Sie auf "VPN zuweisen" um einen neuen Server zu erhalten.');
-            }
+            console.log(`[Initialize] Retry ${retryCount} status: ${response.status}`);
           } else {
+            // Non-proxy error - don't retry
             throw new Error(`Railway server error (${response.status}): ${errorText}`);
           }
+        }
+
+        // If still not successful after all retries
+        if (!response.ok) {
+          const finalError = await response.text();
+          console.error(`❌ [Initialize] All ${MAX_RETRIES} retries exhausted: ${finalError}`);
+          throw new Error(`VPN-Verbindung nach ${MAX_RETRIES} Versuchen fehlgeschlagen. Bitte prüfen Sie Ihren Mullvad-Account oder versuchen Sie es später erneut.`);
         }
 
         const data = await response.json();
