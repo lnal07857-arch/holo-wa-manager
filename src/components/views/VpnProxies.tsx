@@ -708,6 +708,259 @@ export const VpnProxies = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Upload Config Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>WireGuard Config hochladen</DialogTitle>
+            <DialogDescription>
+              Lade eine oder mehrere .conf Dateien hoch
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="mullvad-account-select">Mullvad Account</Label>
+              <select
+                id="mullvad-account-select"
+                value={uploadMullvadAccountId}
+                onChange={(e) => setUploadMullvadAccountId(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="">Keinem Account zuordnen</option>
+                {mullvadAccounts.map(ma => (
+                  <option key={ma.id} value={ma.id}>
+                    {ma.account_name} ({ma.account_number.substring(0,4)}...)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="server-location">Server Location</Label>
+              <Input
+                id="server-location"
+                placeholder="z.B. DE, US, SE"
+                value={serverLocation}
+                onChange={(e) => setServerLocation(e.target.value)}
+              />
+            </div>
+
+            {selectedFiles.length === 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="config-name">Config Name</Label>
+                <Input
+                  id="config-name"
+                  placeholder="z.B. Mullvad DE-1"
+                  value={configName}
+                  onChange={(e) => setConfigName(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>WireGuard Konfiguration</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".conf"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" />
+                {selectedFiles.length === 0 
+                  ? 'Dateien auswählen'
+                  : `${selectedFiles.length} Datei${selectedFiles.length > 1 ? 'en' : ''} ausgewählt`
+                }
+              </Button>
+              {selectedFiles.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  {selectedFiles.map(f => f.name).join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpen(false);
+                setSelectedFiles([]);
+                setConfigName("");
+                setUploadMullvadAccountId("");
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={uploadConfig.isPending || selectedFiles.length === 0}
+            >
+              {uploadConfig.isPending ? "Lade hoch..." : "Hochladen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Configs Dialog */}
+      <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>WireGuard Configs generieren</DialogTitle>
+            <DialogDescription>
+              Automatisch {generateCount} WireGuard Keys für {selectedMullvadForGeneration?.account_name} generieren
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="generate-count">Anzahl Configs</Label>
+              <Input
+                id="generate-count"
+                type="number"
+                min={1}
+                max={5}
+                value={generateCount}
+                onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Mullvad erlaubt max. 5 gleichzeitige Verbindungen pro Account
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generate-location">Server Location</Label>
+              <select
+                id="generate-location"
+                value={generateLocation}
+                onChange={(e) => setGenerateLocation(e.target.value)}
+                className="w-full p-2 border rounded"
+                disabled={locationsLoading}
+              >
+                {locationsLoading ? (
+                  <option>Lade Locations...</option>
+                ) : locations.length === 0 ? (
+                  <option>Keine Locations verfügbar</option>
+                ) : (
+                  locations.map(loc => (
+                    <option key={loc.code} value={loc.code}>
+                      {loc.country} - {loc.city} ({loc.code})
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">ℹ️ Info</p>
+              <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                <li>• Configs werden automatisch in Mullvad erstellt</li>
+                <li>• Jede Config erhält einen eigenen Public Key</li>
+                <li>• WhatsApp Accounts können dann automatisch die beste Config nutzen</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setGenerateDialogOpen(false);
+                setSelectedMullvadForGeneration(null);
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedMullvadForGeneration) return;
+                
+                await generateConfigs.mutateAsync({
+                  mullvadAccountId: selectedMullvadForGeneration.id,
+                  selectedLocations: [generateLocation],
+                  count: generateCount
+                });
+                
+                setGenerateDialogOpen(false);
+                setSelectedMullvadForGeneration(null);
+                await refetchConfigs();
+              }}
+              disabled={isGenerating || locationsLoading || locations.length === 0}
+            >
+              {isGenerating ? "Generiere..." : `${generateCount} Config${generateCount > 1 ? 's' : ''} generieren`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Mullvad Account Dialog */}
+      <Dialog open={editMullvadDialogOpen} onOpenChange={setEditMullvadDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mullvad Account bearbeiten</DialogTitle>
+            <DialogDescription>
+              Account-Daten aktualisieren
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-mullvad-name">Account-Name</Label>
+              <Input
+                id="edit-mullvad-name"
+                value={editMullvadAccountName}
+                onChange={(e) => setEditMullvadAccountName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-mullvad-number">Account Number</Label>
+              <Input
+                id="edit-mullvad-number"
+                value={editMullvadAccountNumber}
+                onChange={(e) => setEditMullvadAccountNumber(e.target.value)}
+                maxLength={16}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditMullvadDialogOpen(false);
+                setEditingMullvadAccount(null);
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editingMullvadAccount) return;
+                
+                await updateMullvadAccount.mutateAsync({
+                  id: editingMullvadAccount.id,
+                  accountName: editMullvadAccountName,
+                  accountNumber: editMullvadAccountNumber
+                });
+                
+                setEditMullvadDialogOpen(false);
+                setEditingMullvadAccount(null);
+              }}
+              disabled={updateMullvadAccount.isPending}
+            >
+              {updateMullvadAccount.isPending ? "Speichere..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
