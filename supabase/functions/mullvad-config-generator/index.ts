@@ -61,10 +61,11 @@ Deno.serve(async (req) => {
       // Filter servers by requested locations
       const filteredServers = locations && locations.length > 0
         ? allServers.filter((s: MullvadServer) => 
-            locations.some((loc: string) => 
-              s.hostname.includes(loc.toLowerCase()) || 
-              s.city_name.toLowerCase().includes(loc.toLowerCase())
-            )
+            locations.some((loc: string) => {
+              const locLower = loc?.toLowerCase() || '';
+              return s.hostname.toLowerCase().includes(locLower) || 
+                     s.city_name.toLowerCase().includes(locLower);
+            })
           )
         : allServers;
 
@@ -77,30 +78,56 @@ Deno.serve(async (req) => {
       const generatedConfigs = [];
 
       for (let i = 0; i < count; i++) {
-        // Generate WireGuard key pair
-        const keygenResponse = await fetch('https://api.mullvad.net/wg/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Token ${accountNumber}`
-          },
-          body: JSON.stringify({})
-        });
+        try {
+          // Generate WireGuard key pair locally using Web Crypto API
+          const keyPair = await crypto.subtle.generateKey(
+            {
+              name: 'X25519',
+              namedCurve: 'X25519'
+            },
+            true,
+            ['deriveKey', 'deriveBits']
+          );
 
-        if (!keygenResponse.ok) {
-          console.error(`❌ Failed to generate key ${i + 1}: ${keygenResponse.statusText}`);
-          continue;
-        }
+          // Export keys to base64
+          const privateKeyRaw = await crypto.subtle.exportKey('raw', keyPair.privateKey);
+          const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+          
+          const privateKey = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)));
+          const publicKey = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)));
 
-        const keyData = await keygenResponse.json();
-        const { private_key, address } = keyData;
+          // Register public key with Mullvad using the old API endpoint (more reliable)
+          const registerResponse = await fetch('https://api.mullvad.net/wg/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `account=${accountNumber}&pubkey=${encodeURIComponent(publicKey)}`
+          });
 
-        // Select server (round-robin)
-        const server = filteredServers[i % filteredServers.length];
+          if (!registerResponse.ok) {
+            const errorText = await registerResponse.text();
+            console.error(`❌ Failed to register key ${i + 1}: ${registerResponse.status} - ${errorText}`);
+            continue;
+          }
 
-        // Generate config content
-        const configContent = `[Interface]
-PrivateKey = ${private_key}
+          const registerData = await registerResponse.text();
+          
+          // Parse the response (format: "10.x.x.x/32")
+          const ipMatch = registerData.match(/(\d+\.\d+\.\d+\.\d+\/\d+)/);
+          if (!ipMatch) {
+            console.error(`❌ Failed to parse IP from response: ${registerData}`);
+            continue;
+          }
+          
+          const address = ipMatch[1];
+
+          // Select server (round-robin)
+          const server = filteredServers[i % filteredServers.length];
+
+          // Generate config content
+          const configContent = `[Interface]
+PrivateKey = ${privateKey}
 Address = ${address}
 DNS = 193.138.218.74
 
@@ -110,35 +137,38 @@ AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = ${server.ipv4_addr_in}:51820
 PersistentKeepalive = 25`;
 
-        const configName = `${server.city_name}-${server.hostname}-${i + 1}`;
-        const serverLocation = `${server.country_code}-${server.city_name}`;
+          const configName = `${server.city_name}-${server.hostname}-${i + 1}`;
+          const serverLocation = `${server.country_code}-${server.city_name}`;
 
-        // Extract public key from private key (we'll use the server's public key as identifier)
-        const publicKey = server.public_key;
+          // Insert into database
+          const { data, error } = await supabase
+            .from('wireguard_configs')
+            .insert({
+              user_id: userId,
+              config_name: configName,
+              config_content: configContent,
+              server_location: serverLocation,
+              public_key: publicKey
+            })
+            .select()
+            .single();
 
-        // Insert into database
-        const { data, error } = await supabase
-          .from('wireguard_configs')
-          .insert({
-            user_id: userId,
-            config_name: configName,
-            config_content: configContent,
-            server_location: serverLocation,
-            public_key: publicKey
-          })
-          .select()
-          .single();
+          if (error) {
+            console.error(`❌ Failed to save config ${i + 1}:`, error);
+            continue;
+          }
 
-        if (error) {
-          console.error(`❌ Failed to save config ${i + 1}:`, error);
+          generatedConfigs.push(data);
+          console.log(`✅ Generated config ${i + 1}/${count}: ${configName}`);
+
+          // Rate limiting - wait 2 seconds between requests to avoid 429
+          if (i < count - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (keyError) {
+          console.error(`❌ Failed to generate config ${i + 1}:`, keyError);
           continue;
         }
-
-        generatedConfigs.push(data);
-        console.log(`✅ Generated config ${i + 1}/${count}: ${configName}`);
-
-        // Rate limiting - wait 500ms between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       console.log(`🎉 Successfully generated ${generatedConfigs.length}/${count} configs`);
