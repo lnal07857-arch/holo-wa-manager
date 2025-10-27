@@ -477,12 +477,6 @@ export const VpnProxies = () => {
   const totalConfigs = configs.length;
   const healthPercentage = totalConfigs > 0 ? Math.round((healthyConfigs / totalConfigs) * 100) : 0;
 
-  // Calculate capacity
-  const requiredConfigs = accounts.length * 3; // Each account needs 3 configs
-  const totalMullvadCapacity = mullvadAccounts.reduce((sum, acc) => sum + acc.max_devices, 0);
-  const totalMullvadUsed = mullvadAccounts.reduce((sum, acc) => sum + (acc.devices_used || 0), 0);
-  const availableCapacity = totalMullvadCapacity - totalMullvadUsed;
-
   // Calculate active connections per Mullvad account
   const getActiveConnectionsForMullvad = (mullvadAccountId: string): number => {
     const configsFromAccount = configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId);
@@ -498,6 +492,17 @@ export const VpnProxies = () => {
     }
     return activeCount;
   };
+
+  // Calculate capacity
+  const requiredConfigs = accounts.length * 3; // Each account needs 3 configs
+  const totalMullvadCapacity = mullvadAccounts.reduce((sum, acc) => sum + acc.max_devices, 0);
+  
+  // Calculate actual active connections (not devices_used from DB)
+  const totalActiveConnections = mullvadAccounts.reduce((sum, mullvadAcc) => {
+    return sum + getActiveConnectionsForMullvad(mullvadAcc.id);
+  }, 0);
+  
+  const availableCapacity = totalMullvadCapacity - totalActiveConnections;
 
   // Get Mullvad account name for a config
   const getMullvadAccountName = (configId: string): string => {
@@ -821,15 +826,15 @@ export const VpnProxies = () => {
                 <p className="text-2xl font-bold">{accounts.length}</p>
               </div>
               <div className={`bg-background p-3 rounded border ${configs.length < requiredConfigs ? 'border-orange-500 border-2' : 'border-green-500'}`}>
-                <p className="text-sm text-muted-foreground">Configs vorhanden</p>
-                <p className="text-2xl font-bold">{configs.length} / {requiredConfigs}</p>
+                <p className="text-sm text-muted-foreground">Benötigt / Vorhanden</p>
+                <p className="text-2xl font-bold">{requiredConfigs} / {configs.length}</p>
               </div>
-              <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Mullvad Kapazität</p>
-                <p className="text-2xl font-bold">{totalMullvadUsed} / {totalMullvadCapacity}</p>
+              <div className={`bg-background p-3 rounded border ${totalActiveConnections >= totalMullvadCapacity ? 'border-red-500 border-2' : 'border-green-500'}`}>
+                <p className="text-sm text-muted-foreground">Aktive Verbindungen</p>
+                <p className="text-2xl font-bold">{totalActiveConnections} / {totalMullvadCapacity}</p>
               </div>
-              <div className={`bg-background p-3 rounded border ${availableCapacity < requiredConfigs - configs.length ? 'border-red-500 border-2' : 'border-green-500'}`}>
-                <p className="text-sm text-muted-foreground">Noch verfügbar</p>
+              <div className={`bg-background p-3 rounded border ${availableCapacity < 5 ? 'border-orange-500 border-2' : 'border-green-500'}`}>
+                <p className="text-sm text-muted-foreground">Freie Slots</p>
                 <p className="text-2xl font-bold">{availableCapacity}</p>
               </div>
             </div>
