@@ -455,7 +455,7 @@ const Chats = () => {
                       <span className="flex items-center gap-1.5">
                         Alle
                         {unreadChatsCount > 0 && (
-                          <Badge className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
+                          <Badge variant="destructive" className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
                             {unreadChatsCount}
                           </Badge>
                         )}
@@ -465,7 +465,7 @@ const Chats = () => {
                       <span className="flex items-center gap-1.5">
                         Ungelesen
                         {unreadChatsCount > 0 && (
-                          <Badge className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
+                          <Badge variant="destructive" className="rounded-full h-4 min-w-4 flex items-center justify-center px-1 text-[10px]">
                             {unreadChatsCount}
                           </Badge>
                         )}
@@ -516,7 +516,7 @@ const Chats = () => {
                               <div className="flex items-center gap-2">
                                 <span className={cn("text-xs", hasUnread ? "text-primary font-semibold" : "text-muted-foreground")}>{formatTime(chat.last_message_time)}</span>
                                 {hasUnread && (
-                                  <Badge variant="default" className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                                  <Badge variant="destructive" className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
                                     {chat.unread_count}
                                   </Badge>
                                 )}

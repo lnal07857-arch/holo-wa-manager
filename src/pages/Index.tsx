@@ -123,7 +123,7 @@ const Index = () => {
                   <Icon className="w-4 h-4" />
                   <span>{item.label}</span>
                   {showBadge && (
-                    <Badge className="ml-1 rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                    <Badge variant="destructive" className="ml-1 rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
                       {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
                     </Badge>
                   )}

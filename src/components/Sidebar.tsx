@@ -76,7 +76,7 @@ const Sidebar = ({ activeView, onViewChange, unreadCount = 0, collapsible = "off
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       {open && <span>{item.label}</span>}
                       {showBadge && open && (
-                        <Badge className="ml-auto rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
+                        <Badge variant="destructive" className="ml-auto rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
                           {unreadCount > 99 ? "99+" : unreadCount}
                         </Badge>
                       )}
