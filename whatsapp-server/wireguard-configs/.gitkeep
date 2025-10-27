@@ -1,0 +1,14 @@
+# Dieser Ordner enthält die Mullvad WireGuard-Konfigurationsdateien
+# 
+# Beispiel-Struktur:
+# wireguard-configs/
+#   ├── account-1.conf  (Deutschland - Frankfurt)
+#   ├── account-2.conf  (Deutschland - Düsseldorf)
+#   ├── account-3.conf  (Deutschland - Berlin)
+#   └── ... (weitere Accounts)
+#
+# WICHTIG: Die .conf Dateien enthalten private Schlüssel und sollten NIEMALS
+# in Git committed werden! Sie sind in .gitignore ausgeschlossen.
+#
+# Anleitung zum Generieren der Configs:
+# Siehe MULLVAD_SETUP.md oder https://mullvad.net/account/
