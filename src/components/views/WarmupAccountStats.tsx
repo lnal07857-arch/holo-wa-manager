@@ -49,6 +49,26 @@ export const WarmupAccountStats = () => {
     })
   );
 
+  // Merge accounts with their warmup stats and sort by display_order
+  const accountsWithStats = accounts
+    ? accounts
+        .map(account => {
+          const stats = warmupStats?.find(s => s.account_id === account.id);
+          return {
+            ...account,
+            warmup_stats: stats || null
+          };
+        })
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    : [];
+
+  // Sync sortedAccounts with accountsWithStats when accounts change
+  useEffect(() => {
+    if (accounts) {
+      setSortedAccounts(accountsWithStats);
+    }
+  }, [accounts, warmupStats]);
+
   if (statsLoading || accountsLoading) {
     return (
       <Card>
@@ -75,22 +95,6 @@ export const WarmupAccountStats = () => {
       </Card>
     );
   }
-
-  // Merge accounts with their warmup stats and sort by display_order
-  const accountsWithStats = accounts
-    .map(account => {
-      const stats = warmupStats?.find(s => s.account_id === account.id);
-      return {
-        ...account,
-        warmup_stats: stats || null
-      };
-    })
-    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-
-  // Sync sortedAccounts with accountsWithStats when accounts change
-  useEffect(() => {
-    setSortedAccounts(accountsWithStats);
-  }, [accounts, warmupStats]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -191,6 +195,7 @@ interface AccountStatCardProps {
 
 const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountStatCardProps) => {
   const stat = account.warmup_stats;
+  const { data: dailyHistory } = useWarmupDailyHistory(stat?.account_id || '');
   
   // If no warmup stats exist yet, show a starter card
   if (!stat) {
@@ -245,7 +250,6 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
     );
   }
 
-  const { data: dailyHistory } = useWarmupDailyHistory(stat.account_id);
   const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
   const accountAge = computeAccountAge(stat.created_at);
   const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
