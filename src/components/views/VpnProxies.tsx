@@ -265,6 +265,7 @@ export const VpnProxies = () => {
   const [open, setOpen] = useState(false);
   const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [mullvadDialogOpen, setMullvadDialogOpen] = useState(false);
+  const [mullvadDialogStep, setMullvadDialogStep] = useState(1);
   const [editMullvadDialogOpen, setEditMullvadDialogOpen] = useState(false);
   const [editingMullvadAccount, setEditingMullvadAccount] = useState<any>(null);
   const [configName, setConfigName] = useState("");
@@ -275,9 +276,12 @@ export const VpnProxies = () => {
   const [uploadMullvadAccountId, setUploadMullvadAccountId] = useState<string>("");
   const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
   const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
+  const [newMullvadAccountId, setNewMullvadAccountId] = useState<string>("");
+  const [configFiles, setConfigFiles] = useState<FileList | null>(null);
   const [editMullvadAccountNumber, setEditMullvadAccountNumber] = useState("");
   const [editMullvadAccountName, setEditMullvadAccountName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -474,60 +478,179 @@ export const VpnProxies = () => {
                   Account hinzufügen
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Mullvad Account hinzufügen</DialogTitle>
+                  <DialogTitle>
+                    {mullvadDialogStep === 1 ? "Mullvad Account hinzufügen" : "WireGuard Configs hochladen"}
+                  </DialogTitle>
                   <DialogDescription>
-                    Füge eine Mullvad Account Number hinzu (16-stellig)
+                    {mullvadDialogStep === 1 
+                      ? "Schritt 1: Account-Daten eingeben"
+                      : "Schritt 2: Lade WireGuard .conf Dateien hoch"}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="mullvad-name">Account-Name</Label>
-                    <Input
-                      id="mullvad-name"
-                      placeholder="z.B. Mullvad Account 1"
-                      value={newMullvadAccountName}
-                      onChange={(e) => setNewMullvadAccountName(e.target.value)}
-                    />
+
+                {mullvadDialogStep === 1 ? (
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="mullvad-name">Account-Name</Label>
+                      <Input
+                        id="mullvad-name"
+                        placeholder="z.B. Mullvad Account 1"
+                        value={newMullvadAccountName}
+                        onChange={(e) => setNewMullvadAccountName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mullvad-number">Account Number</Label>
+                      <Input
+                        id="mullvad-number"
+                        placeholder="1234567890123456"
+                        value={newMullvadAccountNumber}
+                        onChange={(e) => setNewMullvadAccountNumber(e.target.value)}
+                        maxLength={16}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        16-stellige Mullvad Account Number (findest du unter mullvad.net/account)
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mullvad-number">Account Number</Label>
-                    <Input
-                      id="mullvad-number"
-                      placeholder="1234567890123456"
-                      value={newMullvadAccountNumber}
-                      onChange={(e) => setNewMullvadAccountNumber(e.target.value)}
-                      maxLength={16}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      16-stellige Mullvad Account Number (findest du unter mullvad.net/account)
-                    </p>
+                ) : (
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="config-files">WireGuard Konfigurationsdateien</Label>
+                      <Input
+                        id="config-files"
+                        type="file"
+                        accept=".conf"
+                        multiple
+                        ref={multiFileInputRef}
+                        onChange={(e) => setConfigFiles(e.target.files)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {configFiles ? `${configFiles.length} Datei(en) ausgewählt` : "Wähle eine oder mehrere .conf Dateien"}
+                      </p>
+                    </div>
+
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                      <p className="text-sm font-medium">ℹ️ Info</p>
+                      <ul className="text-xs text-muted-foreground space-y-1">
+                        <li>• Lade alle WireGuard Keys für diesen Account hoch</li>
+                        <li>• Jede .conf Datei = 1 Device (max. 5 pro Account)</li>
+                        <li>• Config-Name wird automatisch aus Dateinamen generiert</li>
+                        <li>• Du kannst auch später noch weitere hinzufügen</li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
+                )}
+
                 <DialogFooter>
-                  <Button
-                    onClick={async () => {
-                      if (!newMullvadAccountName || !newMullvadAccountNumber) {
-                        toast.error("Bitte fülle alle Felder aus");
-                        return;
-                      }
-                      if (newMullvadAccountNumber.length !== 16) {
-                        toast.error("Account Number muss 16 Zeichen lang sein");
-                        return;
-                      }
-                      await addMullvadAccount.mutateAsync({
-                        accountNumber: newMullvadAccountNumber,
-                        accountName: newMullvadAccountName
-                      });
-                      setNewMullvadAccountName("");
-                      setNewMullvadAccountNumber("");
-                      setMullvadDialogOpen(false);
-                    }}
-                    disabled={addMullvadAccount.isPending}
-                  >
-                    {addMullvadAccount.isPending ? "Hinzufügen..." : "Hinzufügen"}
-                  </Button>
+                  {mullvadDialogStep === 2 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setMullvadDialogStep(1);
+                        setConfigFiles(null);
+                      }}
+                    >
+                      Zurück
+                    </Button>
+                  )}
+                  
+                  {mullvadDialogStep === 1 ? (
+                    <Button
+                      onClick={async () => {
+                        if (!newMullvadAccountName || !newMullvadAccountNumber) {
+                          toast.error("Bitte fülle alle Felder aus");
+                          return;
+                        }
+                        if (newMullvadAccountNumber.length !== 16) {
+                          toast.error("Account Number muss 16 Zeichen lang sein");
+                          return;
+                        }
+                        const result = await addMullvadAccount.mutateAsync({
+                          accountNumber: newMullvadAccountNumber,
+                          accountName: newMullvadAccountName
+                        });
+                        setNewMullvadAccountId(result.id);
+                        setMullvadDialogStep(2);
+                      }}
+                      disabled={addMullvadAccount.isPending}
+                    >
+                      {addMullvadAccount.isPending ? "Erstelle..." : "Weiter"}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setNewMullvadAccountName("");
+                          setNewMullvadAccountNumber("");
+                          setNewMullvadAccountId("");
+                          setConfigFiles(null);
+                          setMullvadDialogStep(1);
+                          setMullvadDialogOpen(false);
+                        }}
+                      >
+                        Überspringen
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          if (!configFiles || configFiles.length === 0) {
+                            toast.error("Bitte wähle mindestens eine Config-Datei aus");
+                            return;
+                          }
+
+                          toast.info(`Lade ${configFiles.length} Config(s) hoch...`);
+                          
+                          for (let i = 0; i < configFiles.length; i++) {
+                            const file = configFiles[i];
+                            const configContent = await file.text();
+                            const configName = file.name.replace('.conf', '');
+                            
+                            // Extract server location from filename if possible
+                            let serverLocation = "DE";
+                            const locationMatch = configName.match(/([A-Z]{2})-/);
+                            if (locationMatch) {
+                              serverLocation = locationMatch[1];
+                            }
+
+                            await uploadConfig.mutateAsync({
+                              configName,
+                              configContent,
+                              serverLocation
+                            });
+                          }
+
+                          // Update device count
+                          if (newMullvadAccountId) {
+                            const account = mullvadAccounts.find(acc => acc.id === newMullvadAccountId);
+                            if (account) {
+                              await updateMullvadAccount.mutateAsync({
+                                id: newMullvadAccountId,
+                                devicesUsed: (account.devices_used || 0) + configFiles.length
+                              });
+                            }
+                          }
+
+                          toast.success(`${configFiles.length} Config(s) erfolgreich hochgeladen`);
+                          
+                          setNewMullvadAccountName("");
+                          setNewMullvadAccountNumber("");
+                          setNewMullvadAccountId("");
+                          setConfigFiles(null);
+                          setMullvadDialogStep(1);
+                          setMullvadDialogOpen(false);
+                          if (multiFileInputRef.current) {
+                            multiFileInputRef.current.value = "";
+                          }
+                        }}
+                        disabled={uploadConfig.isPending}
+                      >
+                        {uploadConfig.isPending ? "Hochladen..." : `${configFiles?.length || 0} Config(s) hochladen`}
+                      </Button>
+                    </>
+                  )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
