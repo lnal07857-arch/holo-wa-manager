@@ -42,9 +42,14 @@ Deno.serve(async (req) => {
         throw new Error('WireGuard config not found or access denied');
       }
 
+      // Determine assignment type (Primary, Backup, or Tertiary)
+      const isPrimaryAssignment = !account.wireguard_config_id;
+      const isBackupAssignment = account.wireguard_config_id && !account.wireguard_backup_config_id;
+      const isTertiaryAssignment = account.wireguard_config_id && account.wireguard_backup_config_id;
+
       // Check concurrent ACTIVE connection limit (5 per Mullvad account)
-      // Only count active_config_id, not all assigned configs (backup/tertiary are standby)
-      if (config.mullvad_account_id) {
+      // ONLY for PRIMARY assignments, not for backup/tertiary
+      if (isPrimaryAssignment && config.mullvad_account_id) {
         // Get all configs from the same Mullvad account
         const { data: configsFromSameAccount } = await supabase
           .from('wireguard_configs')
@@ -66,7 +71,7 @@ Deno.serve(async (req) => {
 
         if ((activeConnections || 0) >= 5) {
           const mullvadName = (config as any).mullvad_accounts?.account_name || 'Unknown';
-          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 aktive Verbindungen (max. Limit). Du kannst diese Config als Backup/Tertiary zuweisen, aber nicht als Primary.`);
+          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 aktive Verbindungen (max. Limit). Bitte verwende einen anderen Mullvad-Account oder warte bis eine Verbindung frei wird.`);
         }
       }
 
