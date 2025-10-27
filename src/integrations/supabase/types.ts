@@ -594,6 +594,7 @@ export type Database = {
           id: string
           last_connected_at: string | null
           last_failover_at: string | null
+          mullvad_account_id: string | null
           phone_number: string
           proxy_country: string | null
           proxy_server: string | null
@@ -615,6 +616,7 @@ export type Database = {
           id?: string
           last_connected_at?: string | null
           last_failover_at?: string | null
+          mullvad_account_id?: string | null
           phone_number: string
           proxy_country?: string | null
           proxy_server?: string | null
@@ -636,6 +638,7 @@ export type Database = {
           id?: string
           last_connected_at?: string | null
           last_failover_at?: string | null
+          mullvad_account_id?: string | null
           phone_number?: string
           proxy_country?: string | null
           proxy_server?: string | null
@@ -654,6 +657,13 @@ export type Database = {
             columns: ["active_config_id"]
             isOneToOne: false
             referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_accounts_mullvad_account_id_fkey"
+            columns: ["mullvad_account_id"]
+            isOneToOne: false
+            referencedRelation: "mullvad_accounts"
             referencedColumns: ["id"]
           },
           {

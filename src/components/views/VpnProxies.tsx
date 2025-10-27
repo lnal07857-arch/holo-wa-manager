@@ -970,7 +970,7 @@ export const VpnProxies = () => {
             <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
               <p className="text-sm font-medium text-blue-900 dark:text-blue-100">🚀 Automatische Zuweisung</p>
               <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
-                Die Configs werden nach der Generierung automatisch allen WhatsApp-Accounts zugewiesen, die noch Configs benötigen (Primary → Backup → Tertiary).
+                Die Configs werden automatisch den WhatsApp-Accounts zugewiesen, die diesem Mullvad-Account zugeordnet sind und noch Configs benötigen (Primary → Backup → Tertiary).
               </p>
             </div>
           </div>
@@ -1030,6 +1030,13 @@ export const VpnProxies = () => {
                   
                   for (const account of latestAccounts) {
                     const acc = account as any;
+                    
+                    // Skip if no mullvad account assigned
+                    if (!acc.mullvad_account_id) {
+                      console.log(`Skipping ${acc.account_name}: No Mullvad account assigned`);
+                      continue;
+                    }
+                    
                     const primary = acc.wireguard_config_id ? latestConfigs.find(c => c.id === acc.wireguard_config_id) : null;
                     const backup = acc.wireguard_backup_config_id ? latestConfigs.find(c => c.id === acc.wireguard_backup_config_id) : null;
                     const tertiary = acc.wireguard_tertiary_config_id ? latestConfigs.find(c => c.id === acc.wireguard_tertiary_config_id) : null;
@@ -1038,11 +1045,17 @@ export const VpnProxies = () => {
                     
                     if (missingCount === 0) continue;
                     
-                    // Get available configs (not yet assigned to this account)
+                    // Get available configs from the assigned Mullvad account
                     const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
-                    const availableConfigs = latestConfigs.filter(c => !assignedIds.includes(c.id));
+                    const availableConfigs = latestConfigs.filter((c: any) => 
+                      c.mullvad_account_id === acc.mullvad_account_id && 
+                      !assignedIds.includes(c.id)
+                    );
                     
-                    if (availableConfigs.length < missingCount) continue;
+                    if (availableConfigs.length < missingCount) {
+                      console.log(`Not enough configs for ${acc.account_name}: need ${missingCount}, have ${availableConfigs.length}`);
+                      continue;
+                    }
                     
                     // Assign configs
                     for (let i = 0; i < missingCount; i++) {
@@ -1280,9 +1293,19 @@ export const VpnProxies = () => {
                         return;
                       }
 
-                      // Get available configs (not yet assigned to this account)
+                      const mullvadAccountId = (account as any).mullvad_account_id;
+                      
+                      if (!mullvadAccountId) {
+                        toast.error("Bitte erst einen Mullvad Account zuweisen!");
+                        return;
+                      }
+
+                      // Get available configs from the assigned Mullvad account
                       const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
-                      const availableConfigs = configs.filter(c => !assignedIds.includes(c.id));
+                      const availableConfigs = configs.filter((c: any) => 
+                        c.mullvad_account_id === mullvadAccountId && 
+                        !assignedIds.includes(c.id)
+                      );
                       
                       if (availableConfigs.length < missingCount) {
                         toast.error(`Nicht genug verfügbare Configs! Benötigt: ${missingCount}, Verfügbar: ${availableConfigs.length}`);

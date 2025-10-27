@@ -2,15 +2,23 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Shield, AlertTriangle } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Shield, AlertTriangle, Server } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DndContext,
   closestCenter,
@@ -662,6 +670,7 @@ const Accounts = () => {
                 setQrCode={setQrCode}
                 setInitializingAccount={setInitializingAccount}
                 setOpen={setOpen}
+                refetchAccounts={refetch}
               />
             ))}
           </div>
@@ -690,6 +699,7 @@ interface SortableAccountCardProps {
   setQrCode: (qrCode: string | null) => void;
   setInitializingAccount: (accountId: string | null) => void;
   setOpen: (open: boolean) => void;
+  refetchAccounts: () => void;
 }
 
 const SortableAccountCard = ({
@@ -701,6 +711,7 @@ const SortableAccountCard = ({
   setQrCode,
   setInitializingAccount,
   setOpen,
+  refetchAccounts,
 }: SortableAccountCardProps) => {
   const {
     attributes,
@@ -710,6 +721,28 @@ const SortableAccountCard = ({
     transition,
     isDragging,
   } = useSortable({ id: account.id });
+
+  const { accounts: mullvadAccounts } = useMullvadAccounts();
+  const [assigningMullvad, setAssigningMullvad] = useState(false);
+
+  const handleMullvadAssignment = async (mullvadAccountId: string) => {
+    setAssigningMullvad(true);
+    try {
+      const { error } = await supabase
+        .from("whatsapp_accounts")
+        .update({ mullvad_account_id: mullvadAccountId })
+        .eq("id", account.id);
+
+      if (error) throw error;
+
+      toast.success("Mullvad Account zugewiesen");
+      refetchAccounts();
+    } catch (error: any) {
+      toast.error(`Fehler: ${error.message}`);
+    } finally {
+      setAssigningMullvad(false);
+    }
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -763,6 +796,34 @@ const SortableAccountCard = ({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
+            {/* Mullvad Account Assignment */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Server className="w-3 h-3" />
+                Mullvad Account
+              </Label>
+              <Select
+                value={account.mullvad_account_id || "none"}
+                onValueChange={(value) => {
+                  if (value === "none") return;
+                  handleMullvadAssignment(value);
+                }}
+                disabled={assigningMullvad || mullvadAccounts.length === 0}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder={mullvadAccounts.length === 0 ? "Keine Mullvad Accounts" : "Mullvad Account wählen..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Kein Mullvad Account</SelectItem>
+                  {mullvadAccounts.map((mullvadAccount) => (
+                    <SelectItem key={mullvadAccount.id} value={mullvadAccount.id}>
+                      {mullvadAccount.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
