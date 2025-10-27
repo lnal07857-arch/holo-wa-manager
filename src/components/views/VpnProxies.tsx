@@ -928,12 +928,12 @@ export const VpnProxies = () => {
                 id="generate-count"
                 type="number"
                 min="1"
-                max="5"
+                max="15"
                 value={generateCount}
                 onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
               />
               <p className="text-xs text-muted-foreground">
-                Maximal 5 Configs pro Mullvad Account
+                Empfohlen: 15 Configs für 5 WhatsApp Accounts (je 3 pro Account)
               </p>
             </div>
 
@@ -985,7 +985,7 @@ export const VpnProxies = () => {
                   toast.error(`Fehler: ${error.message}`);
                 }
               }}
-              disabled={isGenerating || generateCount < 1 || generateCount > 5}
+              disabled={isGenerating || generateCount < 1 || generateCount > 15}
             >
               {isGenerating ? "Generiere..." : `${generateCount} Configs generieren`}
             </Button>
