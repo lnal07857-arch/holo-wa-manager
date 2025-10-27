@@ -577,6 +577,11 @@ export const VpnProxies = () => {
     return activeCount;
   };
 
+  // Calculate total configs per Mullvad account
+  const getTotalConfigsForMullvad = (mullvadAccountId: string): number => {
+    return configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId).length;
+  };
+
   // Calculate actual assigned configs
   const accountsWithPrimary = accounts.filter(acc => (acc as any).wireguard_config_id).length;
   const accountsWithBackup = accounts.filter(acc => (acc as any).wireguard_backup_config_id).length;
@@ -756,6 +761,7 @@ export const VpnProxies = () => {
             <div className="space-y-3">
               {mullvadAccounts.map((acc) => {
                 const activeConnections = getActiveConnectionsForMullvad(acc.id);
+                const totalConfigs = getTotalConfigsForMullvad(acc.id);
                 const connectionLimit = 5;
                 const isAtLimit = activeConnections >= connectionLimit;
                 
@@ -767,16 +773,16 @@ export const VpnProxies = () => {
                         Account: {acc.account_number.substring(0, 4)}...{acc.account_number.substring(12)}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="secondary">
-                          {acc.devices_used}/{acc.max_devices} Configs generiert
+                        <Badge variant="outline">
+                          {totalConfigs} Config{totalConfigs !== 1 ? 's' : ''} hochgeladen
                         </Badge>
                         <Badge variant={isAtLimit ? "destructive" : activeConnections >= 3 ? "secondary" : "default"}>
-                          {activeConnections}/{connectionLimit} aktive Verbindungen
+                          {activeConnections}/{connectionLimit} aktiv
                         </Badge>
                         {isAtLimit && (
                           <Badge variant="destructive" className="gap-1">
                             <AlertTriangle className="w-3 h-3" />
-                            Verbindungslimit erreicht
+                            Limit erreicht
                           </Badge>
                         )}
                       </div>
