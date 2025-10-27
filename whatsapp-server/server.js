@@ -561,17 +561,23 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 
     if (accountData?.proxy_server) {
       const proxyConfig = JSON.parse(accountData.proxy_server);
-      console.log(`[Proxy] Mullvad proxy found for ${accountId}:`, proxyConfig.host);
-      console.log(`[Proxy] ⚠️ WARNING: Chromium does not support SOCKS5 with auth via --proxy-server`);
-      console.log(`[Proxy] Skipping proxy for now - connecting directly to test WhatsApp functionality`);
+      console.log(`[Proxy] ✅ Mullvad SOCKS5 proxy configured for ${accountId}`);
+      console.log(`[Proxy] Server: ${proxyConfig.host}:${proxyConfig.port}`);
+      console.log(`[Proxy] Protocol: ${proxyConfig.protocol}`);
       
-      // TODO: Implement proper SOCKS5 proxy with authentication
-      // Options:
-      // 1. Use HTTP proxy instead of SOCKS5 (Mullvad doesn't offer this)
-      // 2. Run local proxy server that handles SOCKS5 auth
-      // 3. Use Mullvad WireGuard VPN on Railway container (complex)
+      // Build SOCKS5 proxy URL with authentication
+      const proxyUrl = `${proxyConfig.protocol}://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
       
-      // For now: Skip proxy
+      // Remove no-proxy-server flag and add proxy-server
+      const noProxyIndex = puppeteerConfig.args.indexOf('--no-proxy-server');
+      if (noProxyIndex !== -1) {
+        puppeteerConfig.args.splice(noProxyIndex, 1);
+      }
+      
+      // Add proxy server configuration
+      puppeteerConfig.args.push(`--proxy-server=${proxyUrl}`);
+      
+      console.log(`[Proxy] ✅ SOCKS5 proxy will be used for all connections`);
     } else {
       console.log(`[Proxy] No proxy configured for ${accountId}, using direct connection`);
     }
