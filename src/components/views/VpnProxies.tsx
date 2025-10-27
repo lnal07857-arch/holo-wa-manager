@@ -273,15 +273,11 @@ export const VpnProxies = () => {
   const { accounts: mullvadAccounts, addAccount: addMullvadAccount, updateAccount: updateMullvadAccount, deleteAccount: deleteMullvadAccount } = useMullvadAccounts();
   
   const [open, setOpen] = useState(false);
-  const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [mullvadDialogOpen, setMullvadDialogOpen] = useState(false);
   const [editMullvadDialogOpen, setEditMullvadDialogOpen] = useState(false);
   const [editingMullvadAccount, setEditingMullvadAccount] = useState<any>(null);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
-  const [configCount, setConfigCount] = useState(15);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedMullvadAccountId, setSelectedMullvadAccountId] = useState<string>("");
   const [uploadMullvadAccountId, setUploadMullvadAccountId] = useState<string>("");
   const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
   const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
@@ -951,126 +947,6 @@ export const VpnProxies = () => {
                   <Trash2 className="w-4 h-4" />
                   Alle löschen ({configs.length})
                 </Button>
-
-                {/* Auto-Generate Dialog */}
-                <Dialog open={autoGenOpen} onOpenChange={setAutoGenOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-2" variant="default">
-                      <Plus className="w-4 h-4" />
-                      Automatisch generieren
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>WireGuard-Configs automatisch generieren</DialogTitle>
-                      <DialogDescription>
-                        Generiert automatisch WireGuard-Konfigurationen über die Mullvad API
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="mullvad-account">Mullvad Account</Label>
-                        <select
-                          id="mullvad-account"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                          value={selectedMullvadAccountId}
-                          onChange={(e) => setSelectedMullvadAccountId(e.target.value)}
-                        >
-                          <option value="">Account auswählen...</option>
-                          {mullvadAccounts.map((acc) => (
-                            <option key={acc.id} value={acc.id}>
-                              {acc.account_name} ({acc.devices_used}/{acc.max_devices} Devices)
-                            </option>
-                          ))}
-                        </select>
-                        {mullvadAccounts.length === 0 && (
-                          <p className="text-xs text-orange-500">
-                            ⚠️ Keine Mullvad Accounts vorhanden. Füge zuerst einen Account hinzu.
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="config-count">Anzahl der Configs</Label>
-                        <Input
-                          id="config-count"
-                          type="number"
-                          min="1"
-                          max="60"
-                          value={configCount}
-                          onChange={(e) => setConfigCount(parseInt(e.target.value) || 1)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Empfohlen: {accounts.length * 3} Configs für {accounts.length} Accounts (3 pro Account)
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Server-Standorte (optional)</Label>
-                        <div className="border rounded-md p-4 max-h-60 overflow-y-auto">
-                          {locationsLoading ? (
-                            <p className="text-sm text-muted-foreground">Lade verfügbare Standorte...</p>
-                          ) : locations.length > 0 ? (
-                            <div className="grid grid-cols-2 gap-2">
-                              {locations.map((location: string) => (
-                                <label key={location} className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedLocations.includes(location)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setSelectedLocations([...selectedLocations, location]);
-                                      } else {
-                                        setSelectedLocations(selectedLocations.filter(l => l !== location));
-                                      }
-                                    }}
-                                    className="rounded"
-                                  />
-                                  <span className="text-sm">{location}</span>
-                                </label>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Keine Standorte verfügbar</p>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Leer lassen für automatische Server-Auswahl
-                        </p>
-                      </div>
-
-                      <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                        <p className="text-sm font-medium">ℹ️ Info</p>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          <li>• Verwendet deinen ausgewählten Mullvad Account</li>
-                          <li>• Generiert automatisch neue WireGuard Keys</li>
-                          <li>• Erstellt .conf Dateien und lädt sie in die Datenbank</li>
-                          <li>• Rate-Limiting: 1 Config alle 500ms (~2 pro Sekunde)</li>
-                          <li>• Device-Counter wird automatisch erhöht</li>
-                        </ul>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        onClick={async () => {
-                          if (!selectedMullvadAccountId) {
-                            toast.error("Bitte wähle einen Mullvad Account aus");
-                            return;
-                          }
-                          await generateConfigs.mutateAsync({
-                            count: configCount,
-                            selectedLocations: selectedLocations,
-                            mullvadAccountId: selectedMullvadAccountId
-                          });
-                          setAutoGenOpen(false);
-                        }}
-                        disabled={isGenerating || !selectedMullvadAccountId}
-                      >
-                        {isGenerating ? "Generiere..." : `${configCount} Configs generieren`}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
 
                 {/* Manual Upload Dialog */}
                 <Dialog open={open} onOpenChange={(isOpen) => {
