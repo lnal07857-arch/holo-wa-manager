@@ -266,7 +266,7 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
 
 export const VpnProxies = () => {
   const { accounts, refetch: refetchAccounts } = useWhatsAppAccounts();
-  const { configs, uploadConfig, deleteConfig } = useWireGuardConfigs();
+  const { configs, uploadConfig, deleteConfig, refetch: refetchConfigs } = useWireGuardConfigs();
   const { assignConfig } = useWireGuardManager();
   const { healthStatus, getConfigHealth } = useWireGuardHealth();
   const { locations, locationsLoading, generateConfigs, isGenerating } = useMullvadConfigGenerator();
@@ -466,6 +466,60 @@ export const VpnProxies = () => {
     
     await refetchAccounts();
     toast.success("Alle VPN-Zuweisungen entfernt!");
+  };
+
+  const handleDeleteAllConfigs = async () => {
+    // Bestätigungsdialog
+    if (!confirm(`⚠️ ACHTUNG: Möchtest du wirklich ALLE ${configs.length} WireGuard-Konfigurationen DAUERHAFT LÖSCHEN?\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!\n\n• Alle ${configs.length} Configs werden aus der Datenbank gelöscht\n• Alle Zuweisungen zu WhatsApp Accounts werden entfernt\n• Die Health-Einträge werden gelöscht`)) {
+      return;
+    }
+
+    // Zweite Sicherheitsabfrage
+    if (!confirm('Bist du dir WIRKLICH sicher? Letzte Warnung!')) {
+      return;
+    }
+
+    toast.info(`Lösche alle ${configs.length} WireGuard-Konfigurationen...`);
+    
+    try {
+      // Erst alle Zuweisungen entfernen
+      for (const account of accounts) {
+        await supabase
+          .from('whatsapp_accounts')
+          .update({ 
+            wireguard_config_id: null,
+            wireguard_backup_config_id: null,
+            wireguard_tertiary_config_id: null,
+            active_config_id: null,
+            proxy_country: null,
+            proxy_server: null,
+            failover_count: 0
+          })
+          .eq('id', account.id);
+      }
+
+      // Dann alle Health-Einträge löschen
+      await supabase
+        .from('wireguard_health')
+        .delete()
+        .in('config_id', configs.map(c => c.id));
+
+      // Dann alle Configs löschen
+      const { error } = await supabase
+        .from('wireguard_configs')
+        .delete()
+        .in('id', configs.map(c => c.id));
+
+      if (error) throw error;
+
+      await refetchAccounts();
+      await refetchConfigs();
+      
+      toast.success(`✅ Alle ${configs.length} WireGuard-Konfigurationen wurden gelöscht!`);
+    } catch (error) {
+      console.error('Error deleting configs:', error);
+      toast.error('Fehler beim Löschen der Konfigurationen');
+    }
   };
 
   // Get configs for account
@@ -886,6 +940,18 @@ export const VpnProxies = () => {
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">Hochgeladene WireGuard-Konfigurationen</h3>
               <div className="flex gap-2">
+                {/* Delete All Configs Button */}
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  className="gap-2"
+                  onClick={handleDeleteAllConfigs}
+                  disabled={configs.length === 0}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Alle löschen ({configs.length})
+                </Button>
+
                 {/* Auto-Generate Dialog */}
                 <Dialog open={autoGenOpen} onOpenChange={setAutoGenOpen}>
                   <DialogTrigger asChild>

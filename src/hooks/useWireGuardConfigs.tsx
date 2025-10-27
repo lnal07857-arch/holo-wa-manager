@@ -16,7 +16,7 @@ export interface WireGuardConfig {
 export const useWireGuardConfigs = () => {
   const queryClient = useQueryClient();
 
-  const { data: configs = [], isLoading } = useQuery({
+  const { data: configs = [], isLoading, refetch } = useQuery({
     queryKey: ["wireguard-configs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -91,5 +91,6 @@ export const useWireGuardConfigs = () => {
     isLoading,
     uploadConfig,
     deleteConfig,
+    refetch,
   };
 };
