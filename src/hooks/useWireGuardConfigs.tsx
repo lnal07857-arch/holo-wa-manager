@@ -30,10 +30,11 @@ export const useWireGuardConfigs = () => {
   });
 
   const uploadConfig = useMutation({
-    mutationFn: async ({ configName, configContent, serverLocation }: {
+    mutationFn: async ({ configName, configContent, serverLocation, mullvadAccountId }: {
       configName: string;
       configContent: string;
       serverLocation: string;
+      mullvadAccountId?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -49,7 +50,8 @@ export const useWireGuardConfigs = () => {
           config_name: configName,
           config_content: configContent,
           server_location: serverLocation,
-          public_key: publicKey
+          public_key: publicKey,
+          mullvad_account_id: mullvadAccountId || null
         })
         .select()
         .single();

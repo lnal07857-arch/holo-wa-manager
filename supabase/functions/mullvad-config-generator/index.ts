@@ -148,7 +148,8 @@ PersistentKeepalive = 25`;
               config_name: configName,
               config_content: configContent,
               server_location: serverLocation,
-              public_key: publicKey
+              public_key: publicKey,
+              mullvad_account_id: mullvadAccountId
             })
             .select()
             .single();

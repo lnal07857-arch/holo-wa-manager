@@ -302,7 +302,8 @@ export const VpnProxies = () => {
       await uploadConfig.mutateAsync({
         configName,
         configContent,
-        serverLocation
+        serverLocation,
+        mullvadAccountId: uploadMullvadAccountId || undefined
       });
 
       // Update device count for selected Mullvad account
@@ -413,6 +414,22 @@ export const VpnProxies = () => {
   const healthyConfigs = healthStatus.filter(h => h.is_healthy).length;
   const totalConfigs = configs.length;
   const healthPercentage = totalConfigs > 0 ? Math.round((healthyConfigs / totalConfigs) * 100) : 0;
+
+  // Calculate active connections per Mullvad account
+  const getActiveConnectionsForMullvad = (mullvadAccountId: string): number => {
+    const configsFromAccount = configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId);
+    const configIds = configsFromAccount.map(c => c.id);
+    
+    let activeCount = 0;
+    for (const account of accounts) {
+      const acc = account as any;
+      const activeConfigId = acc.active_config_id;
+      if (activeConfigId && configIds.includes(activeConfigId)) {
+        activeCount++;
+      }
+    }
+    return activeCount;
+  };
 
   return (
     <div className="space-y-6">
@@ -571,45 +588,57 @@ export const VpnProxies = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {mullvadAccounts.map((acc) => (
-                <div key={acc.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{acc.account_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Account: {acc.account_number.substring(0, 4)}...{acc.account_number.substring(12)}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="secondary">
-                        {acc.devices_used}/{acc.max_devices} Devices
-                      </Badge>
-                      {acc.devices_used >= acc.max_devices && (
-                        <Badge variant="destructive">Limit erreicht</Badge>
-                      )}
+              {mullvadAccounts.map((acc) => {
+                const activeConnections = getActiveConnectionsForMullvad(acc.id);
+                const connectionLimit = 5;
+                const isAtLimit = activeConnections >= connectionLimit;
+                
+                return (
+                  <div key={acc.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{acc.account_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Account: {acc.account_number.substring(0, 4)}...{acc.account_number.substring(12)}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="secondary">
+                          {acc.devices_used}/{acc.max_devices} Configs generiert
+                        </Badge>
+                        <Badge variant={isAtLimit ? "destructive" : activeConnections >= 3 ? "secondary" : "default"}>
+                          {activeConnections}/{connectionLimit} aktive Verbindungen
+                        </Badge>
+                        {isAtLimit && (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Verbindungslimit erreicht
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingMullvadAccount(acc);
+                          setEditMullvadAccountName(acc.account_name);
+                          setEditMullvadAccountNumber(acc.account_number);
+                          setEditMullvadDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteMullvadAccount.mutate(acc.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingMullvadAccount(acc);
-                        setEditMullvadAccountName(acc.account_name);
-                        setEditMullvadAccountNumber(acc.account_number);
-                        setEditMullvadDialogOpen(true);
-                      }}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteMullvadAccount.mutate(acc.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
