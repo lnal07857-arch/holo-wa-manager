@@ -4,6 +4,7 @@ const cors = require('cors');
 const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
 const puppeteer = require('puppeteer');
+const ProxyChain = require('proxy-chain');
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,8 @@ app.use(express.json());
 
 // Store active WhatsApp clients
 const clients = new Map();
+// Local HTTP proxy bridges per account (proxy-chain)
+const proxyServers = new Map();
 
 // Message queue for rate limiting
 class MessageQueue {
@@ -565,24 +568,31 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       console.log(`[Proxy] Server: ${proxyConfig.host}:${proxyConfig.port}`);
       console.log(`[Proxy] Protocol: ${proxyConfig.protocol}`);
       
-      // Build SOCKS5 proxy URL with authentication
-      const proxyUrl = `${proxyConfig.protocol}://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
-      
-      // Remove no-proxy-server flag and add proxy-server
-      const noProxyIndex = puppeteerConfig.args.indexOf('--no-proxy-server');
-      if (noProxyIndex !== -1) {
-        puppeteerConfig.args.splice(noProxyIndex, 1);
-      }
-      
-      // Add proxy server configuration
-      puppeteerConfig.args.push(`--proxy-server=${proxyUrl}`);
-      
-      console.log(`[Proxy] ✅ SOCKS5 proxy will be used for all connections`);
+      // Upstream SOCKS5 URL with credentials
+      const upstreamUrl = `${proxyConfig.protocol}://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
+
+      // Remove flags that disable/bypass proxies
+      puppeteerConfig.args = puppeteerConfig.args.filter(arg => arg !== '--no-proxy-server' && arg !== '--proxy-bypass-list=<-loopback>');
+
+      // Start local HTTP->SOCKS5 bridge (proxy-chain)
+      const localPort = 18000 + Math.floor(Math.random() * 1000);
+      const server = new ProxyChain.Server({
+        port: localPort,
+        verbose: false,
+        prepareRequestFunction: () => ({ upstreamProxyUrl: upstreamUrl })
+      });
+
+      await new Promise((resolve) => server.listen(resolve));
+      proxyServers.set(accountId, server);
+
+      // Point Chromium to local HTTP proxy
+      puppeteerConfig.args.push(`--proxy-server=http://127.0.0.1:${localPort}`);
+      console.log(`[Proxy] ✅ Using local HTTP bridge at 127.0.0.1:${localPort} -> ${proxyConfig.host}`);
     } else {
       console.log(`[Proxy] No proxy configured for ${accountId}, using direct connection`);
     }
   } catch (proxyError) {
-    console.error('[Proxy] Error fetching proxy config:', proxyError);
+    console.error('[Proxy] Error setting up proxy:', proxyError);
   }
 
   const client = new Client({
@@ -656,6 +666,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         messageQueues.delete(accountId);
         lastActivity.delete(accountId);
         qrTimeouts.delete(accountId);
+
+        // Stop local proxy bridge if running
+        const srv = proxyServers.get(accountId);
+        if (srv) {
+          try { await srv.close(); } catch (e) { console.warn('[QR Timeout] Error closing proxy server:', e?.message || e); }
+          proxyServers.delete(accountId);
+        }
         
         // Update status in database
         await supa
@@ -1025,6 +1042,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       clearTimeout(existingTimeout);
       qrTimeouts.delete(accountId);
     }
+
+    // Stop local proxy bridge if running
+    const srv = proxyServers.get(accountId);
+    if (srv) {
+      try { await srv.close(); } catch (e) { console.warn('[Disconnect] Error closing proxy server:', e?.message || e); }
+      proxyServers.delete(accountId);
+    }
     
     // Update status in Supabase
     try {
@@ -1073,6 +1097,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     if (existingTimeout) {
       clearTimeout(existingTimeout);
       qrTimeouts.delete(accountId);
+    }
+
+    // Stop local proxy bridge if running
+    const srv = proxyServers.get(accountId);
+    if (srv) {
+      try { await srv.close(); } catch (e) { console.warn('[Auth Failure] Error closing proxy server:', e?.message || e); }
+      proxyServers.delete(accountId);
     }
     
     try {
