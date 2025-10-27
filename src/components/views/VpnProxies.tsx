@@ -346,14 +346,8 @@ export const VpnProxies = () => {
         toast.success(`✅ ${successCount} Config(s) erfolgreich hochgeladen${failCount > 0 ? ` (${failCount} fehlgeschlagen)` : ''}`);
       }
 
-      setSelectedFiles([]);
-      setConfigName("");
-      setServerLocation("DE");
-      setUploadMullvadAccountId("");
+      // Close dialog (reset handled by onOpenChange)
       setOpen(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Fehler beim Hochladen");
@@ -933,7 +927,19 @@ export const VpnProxies = () => {
                 </Dialog>
 
                 {/* Manual Upload Dialog */}
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog open={open} onOpenChange={(isOpen) => {
+                  setOpen(isOpen);
+                  if (!isOpen) {
+                    // Reset state when dialog closes
+                    setSelectedFiles([]);
+                    setConfigName("");
+                    setServerLocation("DE");
+                    setUploadMullvadAccountId("");
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="gap-2" variant="outline">
                       <Upload className="w-4 h-4" />
