@@ -141,7 +141,25 @@ export const useMessages = () => {
           media_mimetype: msg.media_mimetype,
         }));
 
-        setMessages(typedMessages);
+        // Merge with existing messages, removing optimistic (temp-) messages that now have real IDs
+        setMessages((prevMessages) => {
+          const realMessageIds = new Set(typedMessages.map(m => m.id));
+          const optimisticMessages = prevMessages.filter(m => m.id.startsWith('temp-'));
+          
+          // Remove optimistic messages that have been replaced by real messages
+          // We check if a real message exists with the same content, contact, and account
+          const validOptimisticMessages = optimisticMessages.filter(optMsg => {
+            return !typedMessages.some(realMsg => 
+              realMsg.message_text === optMsg.message_text &&
+              realMsg.contact_phone === optMsg.contact_phone &&
+              realMsg.account_id === optMsg.account_id &&
+              realMsg.direction === optMsg.direction &&
+              Math.abs(new Date(realMsg.sent_at).getTime() - new Date(optMsg.sent_at).getTime()) < 5000 // within 5 seconds
+            );
+          });
+
+          return typedMessages;
+        });
 
         // Fetch contacts to override display names when available
         let contactNameMap = new Map<string, string>();
