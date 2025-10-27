@@ -520,6 +520,9 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   let puppeteerConfig = {
     headless: true,
     executablePath: puppeteer.executablePath(),
+    // Improve stability over flaky networks
+    ignoreHTTPSErrors: true,
+    protocolTimeout: 90000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -528,6 +531,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       '--no-first-run',
       '--no-zygote',
       '--disable-gpu',
+      '--proxy-bypass-list=<-loopback>',
       `--window-size=${fingerprint.resolution.width},${fingerprint.resolution.height}`,
       `--user-agent=${fingerprint.userAgent}`,
       '--disable-blink-features=AutomationControlled',
@@ -548,10 +552,14 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       const proxyConfig = JSON.parse(accountData.proxy_server);
       console.log(`[Proxy] Using Mullvad proxy for ${accountId}:`, proxyConfig.host);
       
+      // Build SOCKS5 proxy URL with optional credentials (Mullvad requires user/pass)
+      const user = proxyConfig.username ? encodeURIComponent(proxyConfig.username) : null;
+      const pass = proxyConfig.password ? encodeURIComponent(proxyConfig.password) : null;
+      const authPart = user ? `${user}:${pass || 'm'}@` : '';
+      const proxyUrl = `socks5://${authPart}${proxyConfig.host}:${proxyConfig.port}`;
+
       // Add proxy args to puppeteer
-      puppeteerConfig.args.push(
-        `--proxy-server=socks5://${proxyConfig.host}:${proxyConfig.port}`
-      );
+      puppeteerConfig.args.push(`--proxy-server=${proxyUrl}`);
     } else {
       console.log(`[Proxy] No proxy configured for ${accountId}, using direct connection`);
     }
