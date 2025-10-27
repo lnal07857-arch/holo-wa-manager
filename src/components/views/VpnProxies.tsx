@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Zap, RefreshCw } from "lucide-react";
+import { Shield, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Zap, RefreshCw, X, Settings } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
@@ -497,37 +497,63 @@ export const VpnProxies = () => {
                 System wählt automatisch die beste gesunde Config vom zugewiesenen Mullvad Account
               </CardDescription>
             </div>
-            <Button
-              onClick={async () => {
-                let successCount = 0;
-                let failCount = 0;
-                
-                for (const account of accounts) {
-                  if ((account as any).mullvad_account_id) {
-                    try {
-                      await selectBestConfig.mutateAsync(account.id);
-                      successCount++;
-                    } catch (error) {
-                      failCount++;
+            <div className="flex gap-2">
+              <Button
+                onClick={async () => {
+                  let successCount = 0;
+                  let failCount = 0;
+                  
+                  for (const account of accounts) {
+                    if ((account as any).mullvad_account_id) {
+                      try {
+                        await selectBestConfig.mutateAsync(account.id);
+                        successCount++;
+                      } catch (error) {
+                        failCount++;
+                      }
                     }
                   }
-                }
-                
-                await refetchAccounts();
-                
-                if (successCount > 0) {
-                  toast.success(`✅ ${successCount} Account${successCount > 1 ? 's' : ''} Config zugewiesen`);
-                }
-                if (failCount > 0) {
-                  toast.error(`❌ ${failCount} Account${failCount > 1 ? 's' : ''} fehlgeschlagen`);
-                }
-              }}
-              disabled={selectBestConfig.isPending || accounts.length === 0}
-              className="gap-2"
-            >
-              <Zap className="w-4 h-4" />
-              Allen Configs zuweisen
-            </Button>
+                  
+                  await refetchAccounts();
+                  
+                  if (successCount > 0) {
+                    toast.success(`✅ ${successCount} Account${successCount > 1 ? 's' : ''} Config zugewiesen`);
+                  }
+                  if (failCount > 0) {
+                    toast.error(`❌ ${failCount} Account${failCount > 1 ? 's' : ''} fehlgeschlagen`);
+                  }
+                }}
+                disabled={selectBestConfig.isPending || accounts.length === 0}
+                className="gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Allen Configs zuweisen
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const updates = accounts.map(account =>
+                      supabase
+                        .from('whatsapp_accounts')
+                        .update({ active_config_id: null })
+                        .eq('id', account.id)
+                    );
+                    
+                    await Promise.all(updates);
+                    await refetchAccounts();
+                    toast.success('Alle Config-Zuweisungen entfernt');
+                  } catch (error) {
+                    toast.error('Fehler beim Entfernen der Configs');
+                  }
+                }}
+                disabled={accounts.length === 0}
+                className="gap-2"
+              >
+                <X className="w-4 h-4" />
+                Alle Configs entfernen
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
