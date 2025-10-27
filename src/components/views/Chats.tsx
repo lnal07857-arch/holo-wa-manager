@@ -150,15 +150,6 @@ const Chats = () => {
     const messageText = messageInput;
     setMessageInput(""); // Clear input immediately for better UX
     
-    // Add optimistic message to UI immediately
-    addOptimisticMessage({
-      account_id: selectedChat.account_id,
-      contact_phone: selectedChat.contact_phone,
-      contact_name: selectedChat.contact_name,
-      message_text: messageText,
-      direction: "outgoing",
-    });
-    
     try {
       // 1) Save message to database
       const { error: dbError } = await supabase
