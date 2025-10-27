@@ -40,19 +40,6 @@ serve(async (req) => {
         console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
-        const attemptInitialize = async () => {
-          return await fetch(`${BASE_URL}/api/initialize`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              accountId,
-              userId: accountId,
-              supabaseUrl,
-              supabaseKey,
-            }),
-          });
-        };
-
         // Optional: Check if VPN is assigned (nicht erzwungen)
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
@@ -60,11 +47,36 @@ serve(async (req) => {
           .eq('id', accountId)
           .maybeSingle();
 
+        let proxyConfig = null;
         if (accountData?.proxy_server) {
-          console.log('✅ [Initialize] VPN/Proxy configured, using it');
+          try {
+            proxyConfig = JSON.parse(accountData.proxy_server);
+            console.log('✅ [Initialize] VPN/Proxy configured, using:', proxyConfig.host);
+          } catch (e) {
+            console.warn('⚠️ [Initialize] Invalid proxy config, proceeding without proxy');
+          }
         } else {
           console.log('ℹ️ [Initialize] No VPN configured, using direct connection (Railway mode)');
         }
+
+        const attemptInitialize = async () => {
+          const requestBody: any = {
+            accountId,
+            userId: accountId,
+            supabaseUrl,
+            supabaseKey,
+          };
+
+          if (proxyConfig) {
+            requestBody.proxyConfig = proxyConfig;
+          }
+
+          return await fetch(`${BASE_URL}/api/initialize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+        };
 
         // Intelligent retry with up to 3 VPN reassignments across regions
         const MAX_RETRIES = 3;
@@ -212,22 +224,34 @@ serve(async (req) => {
           throw new Error('Account not found');
         }
 
+        let proxyConfig = null;
         if (accountData.proxy_server) {
-          console.log('✅ [Send Message] Using configured VPN/Proxy');
+          try {
+            proxyConfig = JSON.parse(accountData.proxy_server);
+            console.log('✅ [Send Message] Using configured VPN/Proxy:', proxyConfig.host);
+          } catch (e) {
+            console.warn('⚠️ [Send Message] Invalid proxy config, proceeding without proxy');
+          }
         } else {
           console.log('ℹ️ [Send Message] No VPN configured, using direct connection (Railway mode)');
         }
 
         console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);
 
+        const requestBody: any = {
+          accountId,
+          phoneNumber: phoneNum,
+          message: messageText,
+        };
+
+        if (proxyConfig) {
+          requestBody.proxyConfig = proxyConfig;
+        }
+
         const response = await fetch(`${BASE_URL}/api/send-message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountId,
-            phoneNumber: phoneNum,
-            message: messageText,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         console.log(`[Send Message] Railway response status: ${response.status}`);
