@@ -52,7 +52,7 @@ const ConfigHealthBadge = ({ configId, getConfigHealth }: { configId: string | n
   );
 };
 
-const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, assignPending, getConfigHealth }: { 
+const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, assignPending, getConfigHealth, getMullvadAccountName }: { 
   account: any; 
   primaryConfig: any | null;
   backupConfig: any | null;
@@ -61,6 +61,7 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
   onAssignConfig: (configId: string) => Promise<any>;
   assignPending: boolean;
   getConfigHealth: (id: string) => any;
+  getMullvadAccountName: (configId: string) => string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
@@ -142,6 +143,9 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                     <>
                       <p className="font-mono text-sm">{primaryConfig.config_name}</p>
                       <p className="text-xs text-muted-foreground">{primaryConfig.server_location}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Mullvad: {getMullvadAccountName(primaryConfig.id)}
+                      </p>
                       <div className="mt-2">
                         <ConfigHealthBadge configId={primaryConfig.id} getConfigHealth={getConfigHealth} />
                       </div>
@@ -163,6 +167,9 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                     <>
                       <p className="font-mono text-sm">{backupConfig.config_name}</p>
                       <p className="text-xs text-muted-foreground">{backupConfig.server_location}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Mullvad: {getMullvadAccountName(backupConfig.id)}
+                      </p>
                       <div className="mt-2">
                         <ConfigHealthBadge configId={backupConfig.id} getConfigHealth={getConfigHealth} />
                       </div>
@@ -184,6 +191,9 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                     <>
                       <p className="font-mono text-sm">{tertiaryConfig.config_name}</p>
                       <p className="text-xs text-muted-foreground">{tertiaryConfig.server_location}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Mullvad: {getMullvadAccountName(tertiaryConfig.id)}
+                      </p>
                       <div className="mt-2">
                         <ConfigHealthBadge configId={tertiaryConfig.id} getConfigHealth={getConfigHealth} />
                       </div>
@@ -366,37 +376,65 @@ export const VpnProxies = () => {
 
     toast.info("Weise WireGuard-Konfigurationen zu...");
     
+    // Group configs by Mullvad account for smart distribution
+    const configsByMullvad = new Map<string, typeof configs>();
+    configs.forEach(config => {
+      const mullvadId = (config as any).mullvad_account_id || 'unknown';
+      if (!configsByMullvad.has(mullvadId)) {
+        configsByMullvad.set(mullvadId, []);
+      }
+      configsByMullvad.get(mullvadId)!.push(config);
+    });
+
+    let assignmentErrors = 0;
+    
     // Assign configs in order: Primary → Backup → Tertiary
     for (const account of accounts) {
-      // Determine which slot to fill (cast to any for new fields)
       const acc = account as any;
       const needsPrimary = !acc.wireguard_config_id;
       const needsBackup = acc.wireguard_config_id && !acc.wireguard_backup_config_id;
       const needsTertiary = acc.wireguard_backup_config_id && !acc.wireguard_tertiary_config_id;
 
       if (needsPrimary || needsBackup || needsTertiary) {
-        // Round-robin config selection
-        const accountIndex = accounts.indexOf(account);
-        let configIndex;
+        // Find a Mullvad account with available capacity
+        let selectedConfig = null;
         
-        if (needsPrimary) {
-          configIndex = accountIndex % configs.length;
-        } else if (needsBackup) {
-          configIndex = (accountIndex + 1) % configs.length;
-        } else {
-          configIndex = (accountIndex + 2) % configs.length;
+        for (const [mullvadId, mullvadConfigs] of configsByMullvad.entries()) {
+          const activeConnections = getActiveConnectionsForMullvad(mullvadId);
+          
+          if (activeConnections < 5 && mullvadConfigs.length > 0) {
+            // Round-robin within this Mullvad account's configs
+            const configIndex = activeConnections % mullvadConfigs.length;
+            selectedConfig = mullvadConfigs[configIndex];
+            break;
+          }
         }
-        
-        const config = configs[configIndex];
-        await assignConfig.mutateAsync({ 
-          accountId: account.id,
-          configId: config.id 
-        });
+
+        if (!selectedConfig) {
+          console.warn(`❌ No available config for account ${account.account_name}`);
+          assignmentErrors++;
+          continue;
+        }
+
+        try {
+          await assignConfig.mutateAsync({ 
+            accountId: account.id,
+            configId: selectedConfig.id 
+          });
+        } catch (error) {
+          console.error(`Failed to assign config to ${account.account_name}:`, error);
+          assignmentErrors++;
+        }
       }
     }
     
     await refetchAccounts();
-    toast.success("WireGuard-Konfigurationen zugewiesen!");
+    
+    if (assignmentErrors > 0) {
+      toast.warning(`${assignmentErrors} Zuweisungen fehlgeschlagen. Prüfe Mullvad-Kapazitäten.`);
+    } else {
+      toast.success("WireGuard-Konfigurationen zugewiesen!");
+    }
   };
 
   const handleRemoveAllConfigs = async () => {
@@ -459,6 +497,15 @@ export const VpnProxies = () => {
       }
     }
     return activeCount;
+  };
+
+  // Get Mullvad account name for a config
+  const getMullvadAccountName = (configId: string): string => {
+    const config = configs.find(c => c.id === configId);
+    if (!config || !(config as any).mullvad_account_id) return 'Unbekannt';
+    
+    const mullvadAccount = mullvadAccounts.find(m => m.id === (config as any).mullvad_account_id);
+    return mullvadAccount?.account_name || 'Unbekannt';
   };
 
   return (
@@ -1152,6 +1199,7 @@ export const VpnProxies = () => {
                     }}
                     assignPending={assignConfig.isPending}
                     getConfigHealth={getConfigHealth}
+                    getMullvadAccountName={getMullvadAccountName}
                   />
                 );
               })}
