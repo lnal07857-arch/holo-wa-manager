@@ -18,7 +18,7 @@ USER root
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --omit=dev --force && \
+RUN npm install --omit=dev --force && \
     npx puppeteer browsers install chrome && \
     chown -R pptruser:pptruser /app
 
