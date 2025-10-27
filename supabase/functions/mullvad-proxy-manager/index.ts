@@ -75,43 +75,19 @@ Deno.serve(async (req) => {
         throw new Error('No Mullvad accounts found. Please add at least one Mullvad account first.');
       }
 
-      // Get healthy servers from ALL regions with recent checks (last 15 minutes)
-      const { data: healthyServers } = await supabase
-        .from('vpn_server_health')
-        .select('server_host, response_time_ms, server_region')
-        .eq('is_healthy', true)
-        .gte('last_check_at', new Date(Date.now() - 15 * 60 * 1000).toISOString())
-        .order('response_time_ms', { ascending: true });
-
-      // Build available servers list with region priority
+      // Use all servers from priority regions (Health checks disabled - Edge Functions can't reach SOCKS5)
+      console.log('ℹ️ Using full server list (Health checks disabled in Edge Functions)');
+      
       let availableServers: string[] = [];
       let usedRegion = 'DE';
       
-      if (healthyServers && healthyServers.length > 0) {
-        // Try each region in priority order
-        for (const region of REGION_PRIORITY) {
-          const regionServers = healthyServers
-            .filter(s => s.server_region === region)
-            .map(s => s.server_host);
-          
-          if (regionServers.length > 0) {
-            availableServers = regionServers;
-            usedRegion = region;
-            console.log(`✅ Using ${availableServers.length} healthy ${region} servers`);
-            break;
-          }
-        }
-      }
-      
-      // Fallback to full server list if no healthy servers found
-      if (availableServers.length === 0) {
-        console.warn('⚠️ No recent health data. Using fallback multi-region list.');
-        for (const region of REGION_PRIORITY) {
-          availableServers = MULLVAD_SERVERS[region as keyof typeof MULLVAD_SERVERS];
-          if (availableServers.length > 0) {
-            usedRegion = region;
-            break;
-          }
+      // Use all servers from highest priority region
+      for (const region of REGION_PRIORITY) {
+        availableServers = MULLVAD_SERVERS[region as keyof typeof MULLVAD_SERVERS];
+        if (availableServers.length > 0) {
+          usedRegion = region;
+          console.log(`✅ Using ${availableServers.length} ${region} servers`);
+          break;
         }
       }
 
