@@ -438,6 +438,11 @@ export const VpnProxies = () => {
   };
 
   const handleRemoveAllConfigs = async () => {
+    // Bestätigungsdialog
+    if (!confirm('⚠️ Möchtest du wirklich ALLE VPN-Zuweisungen von allen WhatsApp Accounts entfernen?\n\nDie Configs selbst bleiben erhalten, nur die Zuweisungen werden entfernt.')) {
+      return;
+    }
+
     toast.info("Entferne alle VPN-Zuweisungen...");
     
     for (const account of accounts) {
@@ -870,6 +875,7 @@ export const VpnProxies = () => {
               onClick={handleRemoveAllConfigs}
               variant="destructive"
               className="gap-2"
+              disabled={accounts.length === 0}
             >
               <Shield className="w-4 h-4" />
               Alle VPN-Zuweisungen entfernen
