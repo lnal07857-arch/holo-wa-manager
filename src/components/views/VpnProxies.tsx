@@ -1032,37 +1032,54 @@ export const VpnProxies = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {configs.map((config) => {
-                  const health = getConfigHealth(config.id);
-                  return (
-                    <div
-                      key={config.id}
-                      className="flex items-center justify-between p-3 border rounded-lg bg-background"
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Shield className="w-5 h-5 text-primary" />
+              <Collapsible>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-primary" />
+                    <span className="font-medium">
+                      Hochgeladene Konfigurationen ({configs.length})
+                    </span>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <span className="text-sm">Ein-/Ausklappen</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                <CollapsibleContent>
+                  <div className="space-y-2">
+                    {configs.map((config) => {
+                      const health = getConfigHealth(config.id);
+                      return (
+                        <div
+                          key={config.id}
+                          className="flex items-center justify-between p-3 border rounded-lg bg-background"
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Shield className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium">{config.config_name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {config.server_location} • {config.public_key?.substring(0, 20)}...
+                              </p>
+                            </div>
+                            <ConfigHealthBadge configId={config.id} getConfigHealth={getConfigHealth} />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteConfig.mutate(config.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium">{config.config_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {config.server_location} • {config.public_key?.substring(0, 20)}...
-                          </p>
-                        </div>
-                        <ConfigHealthBadge configId={config.id} getConfigHealth={getConfigHealth} />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteConfig.mutate(config.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </div>
         </CardContent>
