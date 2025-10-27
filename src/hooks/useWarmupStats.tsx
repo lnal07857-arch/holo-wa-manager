@@ -8,7 +8,6 @@ export interface WarmupStats {
   sent_messages: number;
   received_messages: number;
   unique_contacts: Record<string, number>;
-  blocks: number;
   status: 'warming' | 'bulk_ready' | 'blocked';
   phase: string;
   created_at: string;
@@ -49,7 +48,6 @@ export function useWarmupStats() {
         sent_messages: stat.sent_messages || 0,
         received_messages: stat.received_messages || 0,
         unique_contacts: stat.unique_contacts || {},
-        blocks: stat.blocks || 0,
         status: stat.status || 'warming',
         phase: stat.phase || 'phase1',
         created_at: stat.created_at,
@@ -105,13 +103,11 @@ export function getPhaseFromAge(age: number): string {
   return 'phase1';
 }
 
-export function isBulkReady(stats: WarmupStats, age: number): boolean {
+export function isBulkReady(stats: WarmupStats): boolean {
   const uniqueContactsCount = Object.keys(stats.unique_contacts).length;
   
   return (
     stats.sent_messages >= 500 &&
-    uniqueContactsCount >= 15 &&
-    stats.blocks === 0 &&
-    age >= 21
+    uniqueContactsCount >= 15
   );
 }

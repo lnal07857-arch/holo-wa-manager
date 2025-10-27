@@ -17,8 +17,7 @@ const Dashboard = () => {
     
     // Simple bulk ready check without daily history for dashboard overview
     const bulkReady = stat.sent_messages >= 500 && 
-                      uniqueContactsCount >= 15 && 
-                      stat.blocks === 0;
+                      uniqueContactsCount >= 15;
 
     // Determine phase
     let phase = 1;
@@ -218,8 +217,7 @@ const Dashboard = () => {
                 // Check bulk readiness
                 const bulkReady = accountStat && 
                                  accountStat.sent_messages >= 500 && 
-                                 uniqueContactsCount >= 15 && 
-                                 accountStat.blocks === 0;
+                                 uniqueContactsCount >= 15;
                 
                 // Calculate readiness score
                 const messagesProgress = accountStat ? Math.min((accountStat.sent_messages / 500) * 100, 100) : 0;

@@ -6,7 +6,6 @@ import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { PhaseSelector } from "@/components/PhaseSelector";
 import { 
   CheckCircle, 
-  AlertCircle, 
   TrendingUp, 
   Users, 
   MessageCircle, 
@@ -253,15 +252,14 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
   const avgDaily = dailyHistory ? computeAvgDaily(dailyHistory, 7) : 0;
   const accountAge = computeAccountAge(stat.created_at);
   const uniqueContactsCount = Object.keys(stat.unique_contacts || {}).length;
-  const bulkReady = isBulkReady(stat, accountAge);
+  const bulkReady = isBulkReady(stat);
 
   // Calculate progress percentages
   const messagesProgress = Math.min((stat.sent_messages / 500) * 100, 100);
   const contactsProgress = Math.min((uniqueContactsCount / 15) * 100, 100);
-  const ageProgress = Math.min((accountAge / 21) * 100, 100);
   
-  // Overall readiness score
-  const readinessScore = Math.round((messagesProgress + contactsProgress + ageProgress) / 3);
+  // Overall readiness score (only messages and contacts)
+  const readinessScore = Math.round((messagesProgress + contactsProgress) / 2);
 
   // Use phase from DB or calculate based on messages sent
   const currentPhase = stat.phase || "phase1";
@@ -365,39 +363,17 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
             <Progress value={contactsProgress} className="h-2" />
           </div>
 
-          {/* Account Age */}
+          {/* Account Age - Info only */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                Age
+                Alter (Tage)
               </span>
               <span className="text-xs font-medium">
-                {accountAge} / 21
+                {accountAge}
               </span>
             </div>
-            <Progress value={ageProgress} className="h-2" />
-          </div>
-
-          {/* Blocks */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                {stat.blocks > 0 ? (
-                  <AlertCircle className="w-3 h-3 text-destructive" />
-                ) : (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                )}
-                Blocks
-              </span>
-              <span className={`text-xs font-medium ${stat.blocks > 0 ? 'text-destructive' : 'text-green-500'}`}>
-                {stat.blocks}
-              </span>
-            </div>
-            <Progress 
-              value={stat.blocks === 0 ? 100 : 0} 
-              className="h-2"
-            />
           </div>
         </div>
 
@@ -410,7 +386,7 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
                 {stat.sent_messages >= 500 ? (
                   <CheckCircle className="w-3 h-3 text-green-500" />
                 ) : (
-                  <AlertCircle className="w-3 h-3 text-orange-500" />
+                  <div className="w-3 h-3 rounded-full border-2 border-orange-500" />
                 )}
                 <span className={stat.sent_messages >= 500 ? "text-green-600" : ""}>
                   500+ Nachrichten ({stat.sent_messages}/500)
@@ -420,30 +396,10 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
                 {uniqueContactsCount >= 15 ? (
                   <CheckCircle className="w-3 h-3 text-green-500" />
                 ) : (
-                  <AlertCircle className="w-3 h-3 text-orange-500" />
+                  <div className="w-3 h-3 rounded-full border-2 border-orange-500" />
                 )}
                 <span className={uniqueContactsCount >= 15 ? "text-green-600" : ""}>
                   15+ Kontakte ({uniqueContactsCount}/15)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {stat.blocks === 0 ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 text-orange-500" />
-                )}
-                <span className={stat.blocks === 0 ? "text-green-600" : ""}>
-                  Keine Blocks (aktuell: {stat.blocks})
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {accountAge >= 21 ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-3 h-3 text-orange-500" />
-                )}
-                <span className={accountAge >= 21 ? "text-green-600" : ""}>
-                  21+ Tage alt ({accountAge}/21)
                 </span>
               </div>
             </div>
