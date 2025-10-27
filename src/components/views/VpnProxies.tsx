@@ -477,13 +477,48 @@ export const VpnProxies = () => {
       {/* WhatsApp Accounts Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            WhatsApp Accounts mit VPN
-          </CardTitle>
-          <CardDescription>
-            System wählt automatisch die beste gesunde Config vom zugewiesenen Mullvad Account
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                WhatsApp Accounts mit VPN
+              </CardTitle>
+              <CardDescription>
+                System wählt automatisch die beste gesunde Config vom zugewiesenen Mullvad Account
+              </CardDescription>
+            </div>
+            <Button
+              onClick={async () => {
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (const account of accounts) {
+                  if ((account as any).mullvad_account_id) {
+                    try {
+                      await selectBestConfig.mutateAsync(account.id);
+                      successCount++;
+                    } catch (error) {
+                      failCount++;
+                    }
+                  }
+                }
+                
+                await refetchAccounts();
+                
+                if (successCount > 0) {
+                  toast.success(`✅ ${successCount} Account${successCount > 1 ? 's' : ''} Config zugewiesen`);
+                }
+                if (failCount > 0) {
+                  toast.error(`❌ ${failCount} Account${failCount > 1 ? 's' : ''} fehlgeschlagen`);
+                }
+              }}
+              disabled={selectBestConfig.isPending || accounts.length === 0}
+              className="gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Allen Configs zuweisen
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {accounts.length === 0 ? (
