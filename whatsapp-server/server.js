@@ -593,98 +593,8 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
   });
 
-  // Inject fingerprint spoofing scripts on page load
-  client.on('authenticated', async () => {
-    console.log(`[Fingerprint] Applying fingerprint overrides for ${accountId}`);
-    
-    const pages = await client.pupPage.browser().pages();
-    for (const page of pages) {
-      try {
-        // Override navigator properties
-        await page.evaluateOnNewDocument((fp) => {
-          // Override hardware concurrency
-          Object.defineProperty(navigator, 'hardwareConcurrency', {
-            get: () => fp.cores
-          });
-          
-          // Override platform
-          Object.defineProperty(navigator, 'platform', {
-            get: () => {
-              if (fp.userAgent.includes('Windows')) return 'Win32';
-              if (fp.userAgent.includes('Macintosh')) return 'MacIntel';
-              return 'Linux x86_64';
-            }
-          });
-          
-          // Override webdriver
-          Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined
-          });
-          
-          // Override plugins
-          Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5]
-          });
-          
-          // Override languages
-          Object.defineProperty(navigator, 'languages', {
-            get: () => ['de-DE', 'de', 'en-US', 'en']
-          });
-          
-          // Canvas fingerprint noise
-          const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-          HTMLCanvasElement.prototype.toDataURL = function(...args) {
-            const context = this.getContext('2d');
-            if (context) {
-              const imageData = context.getImageData(0, 0, this.width, this.height);
-              // Add minimal noise based on accountId
-              for (let i = 0; i < imageData.data.length; i += 4) {
-                imageData.data[i] = imageData.data[i] ^ (fp.cores % 2);
-              }
-              context.putImageData(imageData, 0, 0);
-            }
-            return originalToDataURL.apply(this, args);
-          };
-          
-          // WebGL fingerprint variation
-          const getParameter = WebGLRenderingContext.prototype.getParameter;
-          WebGLRenderingContext.prototype.getParameter = function(parameter) {
-            if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
-              return 'Intel Inc.';
-            }
-            if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
-              const renderers = [
-                'Intel Iris OpenGL Engine',
-                'ANGLE (Intel, Intel(R) UHD Graphics 620, OpenGL 4.1)',
-                'Intel(R) HD Graphics 620'
-              ];
-              return renderers[fp.cores % renderers.length];
-            }
-            return getParameter.call(this, parameter);
-          };
-          
-          // Screen resolution override
-          Object.defineProperty(screen, 'width', {
-            get: () => fp.resolution.width
-          });
-          Object.defineProperty(screen, 'height', {
-            get: () => fp.resolution.height
-          });
-          Object.defineProperty(screen, 'availWidth', {
-            get: () => fp.resolution.width
-          });
-          Object.defineProperty(screen, 'availHeight', {
-            get: () => fp.resolution.height - 40
-          });
-          
-        }, fingerprint);
-        
-        console.log(`[Fingerprint] Applied overrides to page for ${accountId}`);
-      } catch (err) {
-        console.error(`[Fingerprint] Error applying overrides:`, err);
-      }
-    }
-  });
+  // Store fingerprint for later use after initialization
+  const storedFingerprint = fingerprint;
 
   // QR Code event
   client.on('qr', async (qr) => {
@@ -1188,7 +1098,123 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   
   await client.initialize();
   
+  // Apply fingerprint overrides IMMEDIATELY after initialization, before WhatsApp loads
+  console.log(`[Fingerprint] Applying fingerprint overrides for ${accountId} BEFORE WhatsApp loads`);
+  try {
+    // Wait a moment for browser to be ready
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const browser = await client.pupBrowser;
+    const pages = await browser.pages();
+    
+    // Apply to all existing pages
+    for (const page of pages) {
+      await applyFingerprintOverrides(page, storedFingerprint, accountId);
+    }
+    
+    // Listen for new pages and apply overrides immediately
+    browser.on('targetcreated', async (target) => {
+      if (target.type() === 'page') {
+        const page = await target.page();
+        if (page) {
+          await applyFingerprintOverrides(page, storedFingerprint, accountId);
+        }
+      }
+    });
+    
+    console.log(`[Fingerprint] ✅ Fingerprint overrides applied successfully for ${accountId}`);
+  } catch (err) {
+    console.error(`[Fingerprint] ❌ Error applying overrides for ${accountId}:`, err);
+  }
+  
   return { success: true, message: 'Client initialized' };
+}
+
+// Helper function to apply fingerprint overrides to a page
+async function applyFingerprintOverrides(page, fp, accountId) {
+  try {
+    await page.evaluateOnNewDocument((fp) => {
+      // Override hardware concurrency
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => fp.cores
+      });
+      
+      // Override platform
+      Object.defineProperty(navigator, 'platform', {
+        get: () => {
+          if (fp.userAgent.includes('Windows')) return 'Win32';
+          if (fp.userAgent.includes('Macintosh')) return 'MacIntel';
+          return 'Linux x86_64';
+        }
+      });
+      
+      // Override webdriver
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined
+      });
+      
+      // Override plugins
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5]
+      });
+      
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['de-DE', 'de', 'en-US', 'en']
+      });
+      
+      // Canvas fingerprint noise
+      const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function(...args) {
+        const context = this.getContext('2d');
+        if (context) {
+          const imageData = context.getImageData(0, 0, this.width, this.height);
+          // Add minimal noise based on accountId
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            imageData.data[i] = imageData.data[i] ^ (fp.cores % 2);
+          }
+          context.putImageData(imageData, 0, 0);
+        }
+        return originalToDataURL.apply(this, args);
+      };
+      
+      // WebGL fingerprint variation
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+          return 'Intel Inc.';
+        }
+        if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+          const renderers = [
+            'Intel Iris OpenGL Engine',
+            'ANGLE (Intel, Intel(R) UHD Graphics 620, OpenGL 4.1)',
+            'Intel(R) HD Graphics 620'
+          ];
+          return renderers[fp.cores % renderers.length];
+        }
+        return getParameter.call(this, parameter);
+      };
+      
+      // Screen resolution override
+      Object.defineProperty(screen, 'width', {
+        get: () => fp.resolution.width
+      });
+      Object.defineProperty(screen, 'height', {
+        get: () => fp.resolution.height
+      });
+      Object.defineProperty(screen, 'availWidth', {
+        get: () => fp.resolution.width
+      });
+      Object.defineProperty(screen, 'availHeight', {
+        get: () => fp.resolution.height - 40
+      });
+      
+    }, fp);
+    
+    console.log(`[Fingerprint] ✅ Overrides applied to page for ${accountId}`);
+  } catch (err) {
+    console.error(`[Fingerprint] ❌ Error applying overrides to page:`, err);
+  }
 }
 
 // API Routes
