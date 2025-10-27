@@ -774,6 +774,18 @@ export const VpnProxies = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          setUploadMullvadAccountId(acc.id);
+                          setOpen(true);
+                        }}
+                        className="gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Manuell hochladen
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
                           setEditingMullvadAccount(acc);
                           setEditMullvadAccountName(acc.account_name);
                           setEditMullvadAccountNumber(acc.account_number);
