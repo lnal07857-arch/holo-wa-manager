@@ -63,8 +63,9 @@ Deno.serve(async (req) => {
         ? allServers.filter((s: MullvadServer) => 
             locations.some((loc: string) => {
               const locLower = loc?.toLowerCase() || '';
-              return s.hostname.toLowerCase().includes(locLower) || 
-                     s.city_name.toLowerCase().includes(locLower);
+              const hostname = s.hostname?.toLowerCase() || '';
+              const cityName = s.city_name?.toLowerCase() || '';
+              return hostname.includes(locLower) || cityName.includes(locLower);
             })
           )
         : allServers;
@@ -208,7 +209,12 @@ PersistentKeepalive = 25`;
 
       // Extract unique locations
       const locations = Array.from(new Set(
-        servers.map((s: MullvadServer) => `${s.country_code}-${s.city_name}`)
+        servers
+          .filter((s: MullvadServer) => s.country_code && s.city_name)
+          .map((s: MullvadServer) => ({
+            code: s.country_code.toLowerCase(),
+            name: `${s.country_code} - ${s.city_name}`
+          }))
       ));
 
       return new Response(
