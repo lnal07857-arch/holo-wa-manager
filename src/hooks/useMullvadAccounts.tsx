@@ -60,14 +60,16 @@ export const useMullvadAccounts = () => {
   });
 
   const updateAccount = useMutation({
-    mutationFn: async ({ id, accountNumber, accountName }: {
+    mutationFn: async ({ id, accountNumber, accountName, devicesUsed }: {
       id: string;
       accountNumber?: string;
       accountName?: string;
+      devicesUsed?: number;
     }) => {
       const updateData: any = {};
-      if (accountNumber) updateData.account_number = accountNumber;
-      if (accountName) updateData.account_name = accountName;
+      if (accountNumber !== undefined) updateData.account_number = accountNumber;
+      if (accountName !== undefined) updateData.account_name = accountName;
+      if (devicesUsed !== undefined) updateData.devices_used = devicesUsed;
 
       const { error } = await supabase
         .from("mullvad_accounts")

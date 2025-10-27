@@ -272,6 +272,7 @@ export const VpnProxies = () => {
   const [configCount, setConfigCount] = useState(15);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedMullvadAccountId, setSelectedMullvadAccountId] = useState<string>("");
+  const [uploadMullvadAccountId, setUploadMullvadAccountId] = useState<string>("");
   const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
   const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
   const [editMullvadAccountNumber, setEditMullvadAccountNumber] = useState("");
@@ -301,9 +302,22 @@ export const VpnProxies = () => {
         configContent,
         serverLocation
       });
+
+      // Update device count for selected Mullvad account
+      if (uploadMullvadAccountId) {
+        const selectedAccount = mullvadAccounts.find(acc => acc.id === uploadMullvadAccountId);
+        if (selectedAccount) {
+          await updateMullvadAccount.mutateAsync({
+            id: uploadMullvadAccountId,
+            devicesUsed: (selectedAccount.devices_used || 0) + 1
+          });
+        }
+      }
+
       setSelectedFile(null);
       setConfigName("");
       setServerLocation("DE");
+      setUploadMullvadAccountId("");
       setOpen(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -851,6 +865,26 @@ export const VpnProxies = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="upload-mullvad-account">Mullvad Account (optional)</Label>
+                        <select
+                          id="upload-mullvad-account"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          value={uploadMullvadAccountId}
+                          onChange={(e) => setUploadMullvadAccountId(e.target.value)}
+                        >
+                          <option value="">Keinen Account zuordnen</option>
+                          {mullvadAccounts.map((acc) => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.account_name} ({acc.devices_used}/{acc.max_devices} Devices)
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-muted-foreground">
+                          Wähle den Mullvad Account aus, zu dem dieser Key gehört
+                        </p>
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="config-file">Konfigurationsdatei</Label>
                         <Input
