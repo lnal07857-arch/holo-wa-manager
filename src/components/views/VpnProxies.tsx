@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
@@ -260,11 +260,13 @@ export const VpnProxies = () => {
   const { assignConfig } = useWireGuardManager();
   const { healthStatus, getConfigHealth } = useWireGuardHealth();
   const { locations, locationsLoading, generateConfigs, isGenerating } = useMullvadConfigGenerator();
-  const { accounts: mullvadAccounts, addAccount: addMullvadAccount, deleteAccount: deleteMullvadAccount } = useMullvadAccounts();
+  const { accounts: mullvadAccounts, addAccount: addMullvadAccount, updateAccount: updateMullvadAccount, deleteAccount: deleteMullvadAccount } = useMullvadAccounts();
   
   const [open, setOpen] = useState(false);
   const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [mullvadDialogOpen, setMullvadDialogOpen] = useState(false);
+  const [editMullvadDialogOpen, setEditMullvadDialogOpen] = useState(false);
+  const [editingMullvadAccount, setEditingMullvadAccount] = useState<any>(null);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
   const [configCount, setConfigCount] = useState(15);
@@ -272,6 +274,8 @@ export const VpnProxies = () => {
   const [selectedMullvadAccountId, setSelectedMullvadAccountId] = useState<string>("");
   const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
   const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
+  const [editMullvadAccountNumber, setEditMullvadAccountNumber] = useState("");
+  const [editMullvadAccountName, setEditMullvadAccountName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -545,19 +549,106 @@ export const VpnProxies = () => {
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteMullvadAccount.mutate(acc.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingMullvadAccount(acc);
+                        setEditMullvadAccountName(acc.account_name);
+                        setEditMullvadAccountNumber(acc.account_number);
+                        setEditMullvadDialogOpen(true);
+                      }}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteMullvadAccount.mutate(acc.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Mullvad Account Dialog */}
+      <Dialog open={editMullvadDialogOpen} onOpenChange={setEditMullvadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mullvad Account bearbeiten</DialogTitle>
+            <DialogDescription>
+              Aktualisiere die Account-Details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-mullvad-name">Account-Name</Label>
+              <Input
+                id="edit-mullvad-name"
+                placeholder="z.B. Mullvad Account 1"
+                value={editMullvadAccountName}
+                onChange={(e) => setEditMullvadAccountName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-mullvad-number">Account Number</Label>
+              <Input
+                id="edit-mullvad-number"
+                placeholder="1234567890123456"
+                value={editMullvadAccountNumber}
+                onChange={(e) => setEditMullvadAccountNumber(e.target.value)}
+                maxLength={16}
+              />
+              <p className="text-xs text-muted-foreground">
+                16-stellige Mullvad Account Number
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditMullvadDialogOpen(false);
+                setEditingMullvadAccount(null);
+                setEditMullvadAccountName("");
+                setEditMullvadAccountNumber("");
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editMullvadAccountName || !editMullvadAccountNumber) {
+                  toast.error("Bitte fülle alle Felder aus");
+                  return;
+                }
+                if (editMullvadAccountNumber.length !== 16) {
+                  toast.error("Account Number muss 16 Zeichen lang sein");
+                  return;
+                }
+                await updateMullvadAccount.mutateAsync({
+                  id: editingMullvadAccount.id,
+                  accountNumber: editMullvadAccountNumber,
+                  accountName: editMullvadAccountName
+                });
+                setEditMullvadDialogOpen(false);
+                setEditingMullvadAccount(null);
+                setEditMullvadAccountName("");
+                setEditMullvadAccountNumber("");
+              }}
+              disabled={updateMullvadAccount.isPending}
+            >
+              {updateMullvadAccount.isPending ? "Speichern..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* WireGuard VPN Settings */}
       <Card>

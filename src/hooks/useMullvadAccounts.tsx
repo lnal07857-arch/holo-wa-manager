@@ -60,19 +60,28 @@ export const useMullvadAccounts = () => {
   });
 
   const updateAccount = useMutation({
-    mutationFn: async ({ id, devicesUsed }: {
+    mutationFn: async ({ id, accountNumber, accountName }: {
       id: string;
-      devicesUsed: number;
+      accountNumber?: string;
+      accountName?: string;
     }) => {
+      const updateData: any = {};
+      if (accountNumber) updateData.account_number = accountNumber;
+      if (accountName) updateData.account_name = accountName;
+
       const { error } = await supabase
         .from("mullvad_accounts")
-        .update({ devices_used: devicesUsed })
+        .update(updateData)
         .eq("id", id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mullvad-accounts"] });
+      toast.success("Mullvad Account aktualisiert");
+    },
+    onError: (error: Error) => {
+      toast.error(`Fehler: ${error.message}`);
     },
   });
 
