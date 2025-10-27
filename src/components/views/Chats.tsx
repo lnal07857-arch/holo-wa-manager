@@ -160,20 +160,7 @@ const Chats = () => {
     });
     
     try {
-      // 1) Save message to database
-      const { error: dbError } = await supabase
-        .from("messages")
-        .insert({
-          account_id: selectedChat.account_id,
-          contact_phone: selectedChat.contact_phone,
-          contact_name: selectedChat.contact_name,
-          message_text: messageText,
-          direction: "outgoing",
-        });
-
-      if (dbError) throw dbError;
-
-      // 2) Try to send via WhatsApp gateway
+      // Sende direkt über das Gateway (Server speichert die Nachricht via message_create)
       const trySend = async () => {
         const { error } = await supabase.functions.invoke("wa-gateway", {
           body: {
