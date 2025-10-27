@@ -227,27 +227,48 @@ export const useMessages = () => {
 
     fetchMessages(true);
 
+    // Debounced fetch to avoid multiple rapid reloads
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        console.log('[Realtime] Fetching messages after update');
+        fetchMessages(false);
+      }, 300);
+    };
+
     // Subscribe to realtime updates - don't show loading state on updates
     const messagesChannel = supabase
-      .channel("messages-changes")
+      .channel(`messages-changes-${user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        () => fetchMessages(false)
+        (payload) => {
+          console.log('[Realtime] Message change detected:', payload.eventType);
+          debouncedFetch();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Messages channel status:', status);
+      });
 
     // Also listen to account status updates to refresh after connection
     const accountsChannel = supabase
-      .channel("whatsapp-accounts-changes")
+      .channel(`whatsapp-accounts-changes-${user.id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "whatsapp_accounts" },
-        () => fetchMessages(false)
+        (payload) => {
+          console.log('[Realtime] Account update detected:', payload.new);
+          debouncedFetch();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Accounts channel status:', status);
+      });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(accountsChannel);
     };
