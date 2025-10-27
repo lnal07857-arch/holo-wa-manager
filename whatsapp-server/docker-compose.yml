@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Account 1 with WireGuard (Germany)
+  whatsapp-account-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.wireguard
+    container_name: wa-account-1
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./wireguard-configs/account-1.conf:/etc/wireguard/wg0.conf:ro
+      - wa-sessions-1:/app/.wwebjs_auth
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - PORT=3001
+      - ACCOUNT_INDEX=1
+    ports:
+      - "3001:3001"
+    networks:
+      - wa-network
+
+  # Account 2 with WireGuard (Netherlands)
+  whatsapp-account-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.wireguard
+    container_name: wa-account-2
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./wireguard-configs/account-2.conf:/etc/wireguard/wg0.conf:ro
+      - wa-sessions-2:/app/.wwebjs_auth
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - PORT=3002
+      - ACCOUNT_INDEX=2
+    ports:
+      - "3002:3002"
+    networks:
+      - wa-network
+
+  # Account 3 with WireGuard (Sweden)
+  whatsapp-account-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.wireguard
+    container_name: wa-account-3
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./wireguard-configs/account-3.conf:/etc/wireguard/wg0.conf:ro
+      - wa-sessions-3:/app/.wwebjs_auth
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - PORT=3003
+      - ACCOUNT_INDEX=3
+    ports:
+      - "3003:3003"
+    networks:
+      - wa-network
+
+  # Nginx reverse proxy (load balancer)
+  nginx:
+    image: nginx:alpine
+    container_name: wa-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "3000:80"
+    depends_on:
+      - whatsapp-account-1
+      - whatsapp-account-2
+      - whatsapp-account-3
+    networks:
+      - wa-network
+
+volumes:
+  wa-sessions-1:
+  wa-sessions-2:
+  wa-sessions-3:
+
+networks:
+  wa-network:
+    driver: bridge
