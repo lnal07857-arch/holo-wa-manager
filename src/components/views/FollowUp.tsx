@@ -496,49 +496,6 @@ export const FollowUp = () => {
         </Button>
       </div>
 
-      {disabledContacts.size > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Deaktivierte Kontakte</CardTitle>
-            <CardDescription>
-              {disabledContacts.size} Kontakte werden nicht für Follow-up vorgeschlagen
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {Array.from(disabledContacts).map((phone) => {
-                const contactName = disabledContactsMap.get(phone);
-                return (
-                  <div
-                    key={phone}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div>
-                      <div className="text-sm font-medium">
-                        {contactName || phone}
-                      </div>
-                      {contactName && (
-                        <div className="text-xs text-muted-foreground">
-                          {phone}
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => enableContact(phone)}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Aktivieren
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <AlertDialog open={contactToDisable !== null} onOpenChange={() => setContactToDisable(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
