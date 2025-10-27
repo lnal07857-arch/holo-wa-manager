@@ -42,30 +42,31 @@ Deno.serve(async (req) => {
         throw new Error('WireGuard config not found or access denied');
       }
 
-      // Check concurrent connection limit (5 per Mullvad account)
+      // Check concurrent ACTIVE connection limit (5 per Mullvad account)
+      // Only count active_config_id, not all assigned configs (backup/tertiary are standby)
       if (config.mullvad_account_id) {
-        const { count } = await supabase
-          .from('whatsapp_accounts')
-          .select('id', { count: 'exact', head: true })
-          .or(`wireguard_config_id.in.(${config.mullvad_account_id}),wireguard_backup_config_id.in.(${config.mullvad_account_id}),wireguard_tertiary_config_id.in.(${config.mullvad_account_id})`)
-          .neq('id', accountId);
-
+        // Get all configs from the same Mullvad account
         const { data: configsFromSameAccount } = await supabase
           .from('wireguard_configs')
           .select('id')
           .eq('mullvad_account_id', config.mullvad_account_id);
 
-        const assignedConfigIds = configsFromSameAccount?.map(c => c.id) || [];
+        const configIds = configsFromSameAccount?.map(c => c.id) || [];
         
+        if (configIds.length === 0) {
+          throw new Error('Keine Configs für diesen Mullvad-Account gefunden');
+        }
+
+        // Count only ACTIVE connections (active_config_id, not backup/tertiary)
         const { count: activeConnections } = await supabase
           .from('whatsapp_accounts')
           .select('id', { count: 'exact', head: true })
-          .or(`wireguard_config_id.in.(${assignedConfigIds.join(',')}),wireguard_backup_config_id.in.(${assignedConfigIds.join(',')}),wireguard_tertiary_config_id.in.(${assignedConfigIds.join(',')})`)
+          .in('active_config_id', configIds)
           .neq('id', accountId);
 
         if ((activeConnections || 0) >= 5) {
           const mullvadName = (config as any).mullvad_accounts?.account_name || 'Unknown';
-          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 gleichzeitige Verbindungen (max. Limit). Bitte verwende einen anderen Mullvad-Account oder entferne bestehende Zuweisungen.`);
+          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 aktive Verbindungen (max. Limit). Du kannst diese Config als Backup/Tertiary zuweisen, aber nicht als Primary.`);
         }
       }
 
