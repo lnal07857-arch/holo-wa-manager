@@ -685,6 +685,7 @@ export type Database = {
           config_name: string
           created_at: string
           id: string
+          mullvad_account_id: string | null
           public_key: string | null
           server_location: string
           updated_at: string
@@ -695,6 +696,7 @@ export type Database = {
           config_name: string
           created_at?: string
           id?: string
+          mullvad_account_id?: string | null
           public_key?: string | null
           server_location?: string
           updated_at?: string
@@ -705,12 +707,21 @@ export type Database = {
           config_name?: string
           created_at?: string
           id?: string
+          mullvad_account_id?: string | null
           public_key?: string | null
           server_location?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wireguard_configs_mullvad_account_id_fkey"
+            columns: ["mullvad_account_id"]
+            isOneToOne: false
+            referencedRelation: "mullvad_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wireguard_health: {
         Row: {

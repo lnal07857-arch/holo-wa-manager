@@ -30,16 +30,43 @@ Deno.serve(async (req) => {
         throw new Error('Account not found');
       }
 
-      // Get WireGuard config
+      // Get WireGuard config with Mullvad account info
       const { data: config, error: configError } = await supabase
         .from('wireguard_configs')
-        .select('*')
+        .select('*, mullvad_accounts!inner(account_name, max_devices)')
         .eq('id', configId)
         .eq('user_id', account.user_id)
         .single();
 
       if (configError || !config) {
         throw new Error('WireGuard config not found or access denied');
+      }
+
+      // Check concurrent connection limit (5 per Mullvad account)
+      if (config.mullvad_account_id) {
+        const { count } = await supabase
+          .from('whatsapp_accounts')
+          .select('id', { count: 'exact', head: true })
+          .or(`wireguard_config_id.in.(${config.mullvad_account_id}),wireguard_backup_config_id.in.(${config.mullvad_account_id}),wireguard_tertiary_config_id.in.(${config.mullvad_account_id})`)
+          .neq('id', accountId);
+
+        const { data: configsFromSameAccount } = await supabase
+          .from('wireguard_configs')
+          .select('id')
+          .eq('mullvad_account_id', config.mullvad_account_id);
+
+        const assignedConfigIds = configsFromSameAccount?.map(c => c.id) || [];
+        
+        const { count: activeConnections } = await supabase
+          .from('whatsapp_accounts')
+          .select('id', { count: 'exact', head: true })
+          .or(`wireguard_config_id.in.(${assignedConfigIds.join(',')}),wireguard_backup_config_id.in.(${assignedConfigIds.join(',')}),wireguard_tertiary_config_id.in.(${assignedConfigIds.join(',')})`)
+          .neq('id', accountId);
+
+        if ((activeConnections || 0) >= 5) {
+          const mullvadName = (config as any).mullvad_accounts?.account_name || 'Unknown';
+          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 gleichzeitige Verbindungen (max. Limit). Bitte verwende einen anderen Mullvad-Account oder entferne bestehende Zuweisungen.`);
+        }
       }
 
       // Smart assignment: Primary → Backup → Tertiary
