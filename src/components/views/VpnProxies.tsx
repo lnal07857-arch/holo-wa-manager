@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit, MoreHorizontal } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit, MoreHorizontal, Zap } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
@@ -53,19 +53,24 @@ const ConfigHealthBadge = ({ configId, getConfigHealth }: { configId: string | n
   );
 };
 
-const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, assignPending, getConfigHealth, getMullvadAccountName }: { 
+const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, onAutoAssignConfigs, assignPending, getConfigHealth, getMullvadAccountName }: { 
   account: any; 
   primaryConfig: any | null;
   backupConfig: any | null;
   tertiaryConfig: any | null;
   activeConfig: any | null;
   onAssignConfig: (configId: string) => Promise<any>;
+  onAutoAssignConfigs: () => Promise<void>;
   assignPending: boolean;
   getConfigHealth: (id: string) => any;
   getMullvadAccountName: (configId: string) => string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
+
+  // Check if all 3 configs are assigned
+  const missingConfigs = !primaryConfig || !backupConfig || !tertiaryConfig;
+  const missingCount = [!primaryConfig, !backupConfig, !tertiaryConfig].filter(Boolean).length;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -211,6 +216,25 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                   <p className="text-xs text-orange-700 dark:text-orange-300">
                     <AlertTriangle className="w-3 h-3 inline mr-1" />
                     Letzter Failover: {format(new Date(account.last_failover_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                  </p>
+                </div>
+              )}
+
+              {/* Auto-Assign Button */}
+              {missingConfigs && (
+                <div className="mt-3">
+                  <Button
+                    onClick={onAutoAssignConfigs}
+                    disabled={assignPending}
+                    variant="default"
+                    size="sm"
+                    className="w-full gap-2"
+                  >
+                    <Zap className="w-4 h-4" />
+                    {assignPending ? "Weise zu..." : `${missingCount} Config${missingCount > 1 ? 's' : ''} automatisch zuweisen`}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1 text-center">
+                    Weist automatisch die nächsten {missingCount} verfügbare{missingCount > 1 ? 'n' : ''} Config{missingCount > 1 ? 's' : ''} zu
                   </p>
                 </div>
               )}
@@ -1186,6 +1210,42 @@ export const VpnProxies = () => {
                         configId 
                       });
                       await refetchAccounts();
+                    }}
+                    onAutoAssignConfigs={async () => {
+                      // Find how many configs are missing
+                      const missingCount = [!primary, !backup, !tertiary].filter(Boolean).length;
+                      
+                      if (missingCount === 0) {
+                        toast.info("Alle Configs sind bereits zugewiesen!");
+                        return;
+                      }
+
+                      // Get available configs (not yet assigned to this account)
+                      const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
+                      const availableConfigs = configs.filter(c => !assignedIds.includes(c.id));
+                      
+                      if (availableConfigs.length < missingCount) {
+                        toast.error(`Nicht genug verfügbare Configs! Benötigt: ${missingCount}, Verfügbar: ${availableConfigs.length}`);
+                        return;
+                      }
+
+                      // Assign the next configs in order
+                      toast.info(`Weise ${missingCount} Config${missingCount > 1 ? 's' : ''} zu...`);
+                      
+                      for (let i = 0; i < missingCount; i++) {
+                        try {
+                          await assignConfig.mutateAsync({
+                            accountId: account.id,
+                            configId: availableConfigs[i].id
+                          });
+                        } catch (error: any) {
+                          toast.error(`Fehler beim Zuweisen: ${error.message}`);
+                          break;
+                        }
+                      }
+                      
+                      await refetchAccounts();
+                      toast.success(`${missingCount} Config${missingCount > 1 ? 's' : ''} erfolgreich zugewiesen!`);
                     }}
                     assignPending={assignConfig.isPending}
                     getConfigHealth={getConfigHealth}
