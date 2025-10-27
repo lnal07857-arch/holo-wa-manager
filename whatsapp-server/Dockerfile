@@ -14,16 +14,13 @@ WORKDIR /app
 # Switch to root for installation
 USER root
 
-# Copy package files first (for better caching)
-COPY package*.json ./
+# Copy application files
+COPY . ./
 
-# Install dependencies
+# Install dependencies (after copying source)
 RUN npm install --omit=dev --force && \
     npx puppeteer browsers install chrome && \
     chown -R pptruser:pptruser /app
-
-# Copy application files
-COPY . ./
 
 # Ensure correct ownership
 RUN chown -R pptruser:pptruser /app
