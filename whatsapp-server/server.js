@@ -3,9 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const ProxyChain = require('proxy-chain');
 require('dotenv').config();
+
+// Configure stealth plugin with all evasions
+puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -595,14 +599,217 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     console.error('[Proxy] Error setting up proxy:', proxyError);
   }
 
+  // Create custom browser instance with stealth
+  const browser = await puppeteer.launch({
+    ...puppeteerConfig,
+    ignoreDefaultArgs: ['--enable-automation'],
+  });
+
+  // Get the first page and inject anti-detection scripts
+  const pages = await browser.pages();
+  const page = pages[0] || await browser.newPage();
+
+  // Advanced anti-detection injection
+  await page.evaluateOnNewDocument((fp) => {
+    // 1. Override navigator.webdriver
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+
+    // 2. Override navigator properties from fingerprint
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      get: () => fp.cores,
+    });
+
+    Object.defineProperty(navigator, 'deviceMemory', {
+      get: () => [4, 8, 16][Math.floor(Math.random() * 3)],
+    });
+
+    // Determine platform from user agent
+    const ua = navigator.userAgent;
+    let platform = 'Win32';
+    if (ua.includes('Mac')) platform = 'MacIntel';
+    else if (ua.includes('Linux')) platform = 'Linux x86_64';
+    
+    Object.defineProperty(navigator, 'platform', {
+      get: () => platform,
+    });
+
+    // 3. Override languages
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['de-DE', 'de', 'en-US', 'en'],
+    });
+
+    // 4. Add realistic plugins
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [
+        {
+          0: { type: "application/x-google-chrome-pdf", suffixes: "pdf", description: "Portable Document Format" },
+          description: "Portable Document Format",
+          filename: "internal-pdf-viewer",
+          length: 1,
+          name: "Chrome PDF Plugin"
+        },
+        {
+          0: { type: "application/pdf", suffixes: "pdf", description: "Portable Document Format" },
+          description: "Portable Document Format",
+          filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+          length: 1,
+          name: "Chrome PDF Viewer"
+        },
+        {
+          0: { type: "application/x-nacl", suffixes: "", description: "Native Client Executable" },
+          1: { type: "application/x-pnacl", suffixes: "", description: "Portable Native Client Executable" },
+          description: "",
+          filename: "internal-nacl-plugin",
+          length: 2,
+          name: "Native Client"
+        }
+      ],
+    });
+
+    // 5. Override chrome runtime
+    if (window.chrome) {
+      Object.defineProperty(window, 'chrome', {
+        get: () => ({
+          runtime: {},
+          loadTimes: function() {},
+          csi: function() {},
+          app: {}
+        }),
+      });
+    }
+
+    // 6. Override permissions
+    const originalQuery = navigator.permissions.query;
+    navigator.permissions.query = (parameters) => (
+      parameters.name === 'notifications' ?
+        Promise.resolve({ state: Notification.permission }) :
+        originalQuery(parameters)
+    );
+
+    // 7. WebGL fingerprinting protection
+    const getParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+      if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+        return 'Intel Inc.';
+      }
+      if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+        return 'Intel Iris OpenGL Engine';
+      }
+      return getParameter.call(this, parameter);
+    };
+
+    // 8. Canvas fingerprinting protection
+    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function(type) {
+      if (type === 'image/png' && this.width === 16 && this.height === 16) {
+        // Fingerprinting attempt detected, add noise
+        const ctx = this.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, this.width, this.height);
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          imageData.data[i] += Math.floor(Math.random() * 10) - 5;
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+      return originalToDataURL.apply(this, arguments);
+    };
+
+    // 9. AudioContext fingerprinting protection
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      const originalCreateAnalyser = AudioContext.prototype.createAnalyser;
+      AudioContext.prototype.createAnalyser = function() {
+        const analyser = originalCreateAnalyser.call(this);
+        const originalGetFloatFrequencyData = analyser.getFloatFrequencyData;
+        analyser.getFloatFrequencyData = function(array) {
+          originalGetFloatFrequencyData.call(this, array);
+          for (let i = 0; i < array.length; i++) {
+            array[i] += Math.random() * 0.01;
+          }
+          return array;
+        };
+        return analyser;
+      };
+    }
+
+    // 10. Battery API spoofing
+    if (navigator.getBattery) {
+      const originalGetBattery = navigator.getBattery;
+      navigator.getBattery = function() {
+        return originalGetBattery.call(this).then(battery => {
+          Object.defineProperty(battery, 'charging', { value: true });
+          Object.defineProperty(battery, 'chargingTime', { value: 0 });
+          Object.defineProperty(battery, 'dischargingTime', { value: Infinity });
+          Object.defineProperty(battery, 'level', { value: 1.0 });
+          return battery;
+        });
+      };
+    }
+
+    // 11. Media devices spoofing
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
+      navigator.mediaDevices.enumerateDevices = function() {
+        return originalEnumerateDevices.call(this).then(devices => {
+          return devices.length > 0 ? devices : [
+            { deviceId: "default", kind: "audioinput", label: "Default - Microphone", groupId: "default" },
+            { deviceId: "default", kind: "audiooutput", label: "Default - Speaker", groupId: "default" },
+            { deviceId: "default", kind: "videoinput", label: "Default - Camera", groupId: "default" }
+          ];
+        });
+      };
+    }
+
+    // 12. Screen resolution from fingerprint
+    Object.defineProperty(screen, 'width', {
+      get: () => fp.resolution.width,
+    });
+    Object.defineProperty(screen, 'height', {
+      get: () => fp.resolution.height,
+    });
+    Object.defineProperty(screen, 'availWidth', {
+      get: () => fp.resolution.width,
+    });
+    Object.defineProperty(screen, 'availHeight', {
+      get: () => fp.resolution.height - 40,
+    });
+
+    // 13. Timezone override
+    try {
+      Intl.DateTimeFormat = function() {
+        return {
+          resolvedOptions: () => ({ timeZone: fp.timezone })
+        };
+      };
+    } catch (e) {}
+
+    // 14. Date.now precision reduction (prevent timing attacks)
+    const originalDateNow = Date.now;
+    Date.now = function() {
+      return Math.floor(originalDateNow() / 100) * 100;
+    };
+
+    // 15. Performance timing randomization
+    if (window.performance && window.performance.now) {
+      const originalPerformanceNow = performance.now;
+      let performanceOffset = Math.random() * 10;
+      performance.now = function() {
+        return originalPerformanceNow.call(this) + performanceOffset;
+      };
+    }
+
+    console.log('[Anti-Detection] All evasion scripts injected successfully');
+  }, storedFingerprint);
+
+  // Close the initialization page
+  await page.close();
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
     puppeteer: {
-      ...puppeteerConfig,
-      // Additional launch options
-      ignoreDefaultArgs: ['--enable-automation'],
+      browserWSEndpoint: browser.wsEndpoint(),
     },
-    // Inject scripts to override fingerprint detection
     webVersionCache: {
       type: 'remote',
       remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
