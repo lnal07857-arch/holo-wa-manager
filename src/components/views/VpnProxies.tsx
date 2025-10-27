@@ -58,7 +58,8 @@ const AccountCard = ({
   onSelectBestConfig, 
   selectPending, 
   getConfigHealth,
-  availableConfigsCount 
+  availableConfigsCount,
+  getMullvadAccountName
 }: { 
   account: any; 
   activeConfig: any | null;
@@ -66,6 +67,7 @@ const AccountCard = ({
   selectPending: boolean;
   getConfigHealth: (id: string) => any;
   availableConfigsCount: number;
+  getMullvadAccountName: (configId: string) => string;
 })  => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
@@ -107,6 +109,10 @@ const AccountCard = ({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {activeConfig.server_location}
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Server className="w-3 h-3" />
+                    {getMullvadAccountName(activeConfig.id)}
                   </p>
                   <ConfigHealthBadge configId={activeConfig.id} getConfigHealth={getConfigHealth} />
                 </>
@@ -160,6 +166,10 @@ const AccountCard = ({
                         <div>
                           <p className="font-mono text-sm">{activeConfig.config_name}</p>
                           <p className="text-xs text-muted-foreground">{activeConfig.server_location}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <Server className="w-3 h-3" />
+                            Mullvad: {getMullvadAccountName(activeConfig.id)}
+                          </p>
                         </div>
                         <ConfigHealthBadge configId={activeConfig.id} getConfigHealth={getConfigHealth} />
                       </div>
@@ -544,6 +554,7 @@ export const VpnProxies = () => {
                     selectPending={selectBestConfig.isPending}
                     getConfigHealth={getConfigHealth}
                     availableConfigsCount={availableConfigs.length}
+                    getMullvadAccountName={getMullvadAccountName}
                   />
                 );
               })}
