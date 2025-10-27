@@ -235,7 +235,7 @@ export const useMessages = () => {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(accountsChannel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   return { messages, chatGroups, loading, addOptimisticMessage, markMessagesAsRead };
 };
