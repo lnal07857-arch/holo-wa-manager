@@ -603,9 +603,6 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
-          wireguard_backup_config_id: string | null
-          wireguard_config_id: string | null
-          wireguard_tertiary_config_id: string | null
         }
         Insert: {
           account_name: string
@@ -625,9 +622,6 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
-          wireguard_backup_config_id?: string | null
-          wireguard_config_id?: string | null
-          wireguard_tertiary_config_id?: string | null
         }
         Update: {
           account_name?: string
@@ -647,9 +641,6 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
-          wireguard_backup_config_id?: string | null
-          wireguard_config_id?: string | null
-          wireguard_tertiary_config_id?: string | null
         }
         Relationships: [
           {
@@ -664,27 +655,6 @@ export type Database = {
             columns: ["mullvad_account_id"]
             isOneToOne: false
             referencedRelation: "mullvad_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_accounts_wireguard_backup_config_id_fkey"
-            columns: ["wireguard_backup_config_id"]
-            isOneToOne: false
-            referencedRelation: "wireguard_configs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_accounts_wireguard_config_id_fkey"
-            columns: ["wireguard_config_id"]
-            isOneToOne: false
-            referencedRelation: "wireguard_configs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_accounts_wireguard_tertiary_config_id_fkey"
-            columns: ["wireguard_tertiary_config_id"]
-            isOneToOne: false
-            referencedRelation: "wireguard_configs"
             referencedColumns: ["id"]
           },
         ]

@@ -16,119 +16,121 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { action, accountId, configId } = await req.json();
+    const { action, accountId } = await req.json();
 
-    if (action === 'assign-config') {
-      // Get account info
-      const { data: account } = await supabase
+    if (action === 'select-best-config') {
+      // Get account with mullvad assignment
+      const { data: account, error: accountError } = await supabase
         .from('whatsapp_accounts')
-        .select('user_id, id, wireguard_config_id, wireguard_backup_config_id')
+        .select('user_id, id, mullvad_account_id, active_config_id')
         .eq('id', accountId)
         .single();
 
-      if (!account) {
+      if (accountError || !account) {
         throw new Error('Account not found');
       }
 
-      // Get WireGuard config with Mullvad account info
-      const { data: config, error: configError } = await supabase
+      if (!account.mullvad_account_id) {
+        throw new Error('Kein Mullvad Account zugewiesen. Bitte erst in Account-Verwaltung einen Mullvad Account zuweisen.');
+      }
+
+      // Get all configs from the assigned Mullvad account
+      const { data: configs, error: configsError } = await supabase
         .from('wireguard_configs')
-        .select('*, mullvad_accounts!inner(account_name, max_devices)')
-        .eq('id', configId)
-        .eq('user_id', account.user_id)
-        .single();
+        .select('id, config_name, server_location, mullvad_account_id')
+        .eq('mullvad_account_id', account.mullvad_account_id)
+        .eq('user_id', account.user_id);
 
-      if (configError || !config) {
-        throw new Error('WireGuard config not found or access denied');
+      if (configsError || !configs || configs.length === 0) {
+        throw new Error('Keine WireGuard Configs für diesen Mullvad Account gefunden');
       }
 
-      // Determine assignment type (Primary, Backup, or Tertiary)
-      const isPrimaryAssignment = !account.wireguard_config_id;
-      const isBackupAssignment = account.wireguard_config_id && !account.wireguard_backup_config_id;
-      const isTertiaryAssignment = account.wireguard_config_id && account.wireguard_backup_config_id;
+      // Check 5-connection limit for this Mullvad account
+      const configIds = configs.map(c => c.id);
+      const { count: activeConnections } = await supabase
+        .from('whatsapp_accounts')
+        .select('id', { count: 'exact', head: true })
+        .in('active_config_id', configIds)
+        .neq('id', accountId);
 
-      // Check concurrent ACTIVE connection limit (5 per Mullvad account)
-      // ONLY for PRIMARY assignments, not for backup/tertiary
-      if (isPrimaryAssignment && config.mullvad_account_id) {
-        // Get all configs from the same Mullvad account
-        const { data: configsFromSameAccount } = await supabase
-          .from('wireguard_configs')
-          .select('id')
-          .eq('mullvad_account_id', config.mullvad_account_id);
+      if ((activeConnections || 0) >= 5) {
+        throw new Error(`Mullvad Account hat bereits 5 aktive Verbindungen (max. Limit). Bitte verwende einen anderen Mullvad Account.`);
+      }
 
-        const configIds = configsFromSameAccount?.map(c => c.id) || [];
+      // Get health status for all configs
+      const { data: healthData } = await supabase
+        .from('wireguard_health')
+        .select('config_id, is_healthy, consecutive_failures')
+        .in('config_id', configIds);
+
+      // Score configs: healthy > less failures > not used yet
+      const healthMap = new Map(healthData?.map(h => [h.config_id, h]) || []);
+      
+      const scoredConfigs = configs.map(config => {
+        const health = healthMap.get(config.id);
+        const isHealthy = health?.is_healthy ?? true;
+        const failures = health?.consecutive_failures ?? 0;
+        const isCurrentlyActive = config.id === account.active_config_id;
         
-        if (configIds.length === 0) {
-          throw new Error('Keine Configs für diesen Mullvad-Account gefunden');
-        }
+        // Score: healthy=100, each failure=-10, currently active=-50 (prefer switching)
+        let score = isHealthy ? 100 : 0;
+        score -= failures * 10;
+        if (isCurrentlyActive) score -= 50;
+        
+        return { ...config, score, isHealthy, failures };
+      });
 
-        // Count only ACTIVE connections (active_config_id, not backup/tertiary)
-        const { count: activeConnections } = await supabase
-          .from('whatsapp_accounts')
-          .select('id', { count: 'exact', head: true })
-          .in('active_config_id', configIds)
-          .neq('id', accountId);
+      // Sort by score (highest first)
+      scoredConfigs.sort((a, b) => b.score - a.score);
+      const bestConfig = scoredConfigs[0];
 
-        if ((activeConnections || 0) >= 5) {
-          const mullvadName = (config as any).mullvad_accounts?.account_name || 'Unknown';
-          throw new Error(`Mullvad-Account "${mullvadName}" hat bereits 5 aktive Verbindungen (max. Limit). Bitte verwende einen anderen Mullvad-Account oder warte bis eine Verbindung frei wird.`);
-        }
+      if (!bestConfig) {
+        throw new Error('Keine verfügbare Config gefunden');
       }
 
-      // Smart assignment: Primary → Backup → Tertiary
-      let updateFields: any = {
-        proxy_country: config.server_location
-      };
-
-      if (!account.wireguard_config_id) {
-        // First config = Primary
-        updateFields.wireguard_config_id = config.id;
-        updateFields.active_config_id = config.id;
-        console.log(`✅ Assigned as PRIMARY config for account ${accountId}`);
-      } else if (!account.wireguard_backup_config_id) {
-        // Second config = Backup
-        updateFields.wireguard_backup_config_id = config.id;
-        console.log(`✅ Assigned as BACKUP config for account ${accountId}`);
-      } else {
-        // Third config = Tertiary
-        updateFields.wireguard_tertiary_config_id = config.id;
-        console.log(`✅ Assigned as TERTIARY config for account ${accountId}`);
-      }
-
-      // Assign config to account
+      // Update account with best config
       const { error: updateError } = await supabase
         .from('whatsapp_accounts')
-        .update(updateFields)
+        .update({
+          active_config_id: bestConfig.id,
+          proxy_country: bestConfig.server_location
+        })
         .eq('id', accountId);
 
       if (updateError) throw updateError;
 
-      // Initialize health status
-      await supabase.rpc('mark_wireguard_healthy', { p_config_id: config.id });
+      // Initialize/update health status
+      await supabase.rpc('mark_wireguard_healthy', { p_config_id: bestConfig.id });
+
+      console.log(`✅ Selected config ${bestConfig.config_name} for account ${accountId} (score: ${bestConfig.score})`);
 
       return new Response(
         JSON.stringify({
           success: true,
-          config_name: config.config_name,
-          server_location: config.server_location,
-          public_key: config.public_key,
-          role: !account.wireguard_config_id ? 'primary' : 
-                !account.wireguard_backup_config_id ? 'backup' : 'tertiary'
+          config: {
+            id: bestConfig.id,
+            name: bestConfig.config_name,
+            location: bestConfig.server_location,
+            isHealthy: bestConfig.isHealthy,
+            score: bestConfig.score
+          },
+          availableConfigs: scoredConfigs.length,
+          message: `Beste Config ausgewählt: ${bestConfig.config_name} (${bestConfig.server_location})`
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (action === 'get-config') {
+    if (action === 'get-active-config') {
       const { data: account } = await supabase
         .from('whatsapp_accounts')
-        .select('wireguard_config_id, wireguard_configs(*)')
+        .select('active_config_id, wireguard_configs(*)')
         .eq('id', accountId)
         .single();
 
-      if (!account || !account.wireguard_config_id) {
+      if (!account || !account.active_config_id) {
         return new Response(
-          JSON.stringify({ success: false, message: 'No WireGuard config assigned' }),
+          JSON.stringify({ success: false, message: 'No active config' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

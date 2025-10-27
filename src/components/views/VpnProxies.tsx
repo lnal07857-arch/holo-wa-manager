@@ -2,10 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit, MoreHorizontal, Zap } from "lucide-react";
+import { Shield, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Zap, RefreshCw } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
@@ -53,25 +52,25 @@ const ConfigHealthBadge = ({ configId, getConfigHealth }: { configId: string | n
   );
 };
 
-const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, onAutoAssignConfigs, assignPending, getConfigHealth, getMullvadAccountName, onRefetch }: { 
+const AccountCard = ({ 
+  account, 
+  activeConfig, 
+  onSelectBestConfig, 
+  selectPending, 
+  getConfigHealth,
+  availableConfigsCount 
+}: { 
   account: any; 
-  primaryConfig: any | null;
-  backupConfig: any | null;
-  tertiaryConfig: any | null;
   activeConfig: any | null;
-  onAssignConfig: (configId: string) => Promise<any>;
-  onAutoAssignConfigs: () => Promise<void>;
-  assignPending: boolean;
+  onSelectBestConfig: () => Promise<void>;
+  selectPending: boolean;
   getConfigHealth: (id: string) => any;
-  getMullvadAccountName: (configId: string) => string;
-  onRefetch: () => Promise<void>;
+  availableConfigsCount: number;
 })  => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
 
-  // Check if all 3 configs are assigned
-  const missingConfigs = !primaryConfig || !backupConfig || !tertiaryConfig;
-  const missingCount = [!primaryConfig, !backupConfig, !tertiaryConfig].filter(Boolean).length;
+  const hasMullvadAccount = Boolean((account as any).mullvad_account_id);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -93,7 +92,7 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
             {/* Failover Stats */}
             {account.failover_count > 0 && (
               <div className="text-right">
-                <p className="text-xs text-muted-foreground">Failover</p>
+                <p className="text-xs text-muted-foreground">Auto-Switches</p>
                 <p className="text-sm font-medium">{account.failover_count}x</p>
               </div>
             )}
@@ -131,146 +130,66 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
 
         <CollapsibleContent>
           <div className="border-t p-4 bg-muted/20 space-y-4">
-            {/* Config Overview */}
+            {/* VPN Auto-Selection */}
             <div className="space-y-2">
               <h4 className="font-semibold text-sm flex items-center gap-2">
                 <Shield className="w-4 h-4 text-primary" />
-                WireGuard Konfigurationen
+                Automatische VPN-Auswahl
               </h4>
-              <div className="grid grid-cols-3 gap-3">
-                {/* Primary */}
-                <div className="bg-background p-3 rounded border">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-blue-600">PRIMARY</p>
-                    {account.active_config_id === account.wireguard_config_id && (
-                      <Badge variant="default" className="text-xs">Aktiv</Badge>
-                    )}
-                  </div>
-                  {primaryConfig ? (
-                    <>
-                      <p className="font-mono text-sm">{primaryConfig.config_name}</p>
-                      <p className="text-xs text-muted-foreground">{primaryConfig.server_location}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Mullvad: {getMullvadAccountName(primaryConfig.id)}
-                      </p>
-                      <div className="mt-2">
-                        <ConfigHealthBadge configId={primaryConfig.id} getConfigHealth={getConfigHealth} />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
-                  )}
-                </div>
-
-                {/* Backup */}
-                <div className="bg-background p-3 rounded border">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-orange-600">BACKUP</p>
-                    {account.active_config_id === account.wireguard_backup_config_id && (
-                      <Badge variant="default" className="text-xs">Aktiv</Badge>
-                    )}
-                  </div>
-                  {backupConfig ? (
-                    <>
-                      <p className="font-mono text-sm">{backupConfig.config_name}</p>
-                      <p className="text-xs text-muted-foreground">{backupConfig.server_location}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Mullvad: {getMullvadAccountName(backupConfig.id)}
-                      </p>
-                      <div className="mt-2">
-                        <ConfigHealthBadge configId={backupConfig.id} getConfigHealth={getConfigHealth} />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
-                  )}
-                </div>
-
-                {/* Tertiary */}
-                <div className="bg-background p-3 rounded border">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-purple-600">TERTIARY</p>
-                    {account.active_config_id === account.wireguard_tertiary_config_id && (
-                      <Badge variant="default" className="text-xs">Aktiv</Badge>
-                    )}
-                  </div>
-                  {tertiaryConfig ? (
-                    <>
-                      <p className="font-mono text-sm">{tertiaryConfig.config_name}</p>
-                      <p className="text-xs text-muted-foreground">{tertiaryConfig.server_location}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Mullvad: {getMullvadAccountName(tertiaryConfig.id)}
-                      </p>
-                      <div className="mt-2">
-                        <ConfigHealthBadge configId={tertiaryConfig.id} getConfigHealth={getConfigHealth} />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Failover History */}
-              {account.last_failover_at && (
-                <div className="bg-orange-50 dark:bg-orange-950 p-2 rounded border border-orange-200 dark:border-orange-800 mt-2">
-                  <p className="text-xs text-orange-700 dark:text-orange-300">
-                    <AlertTriangle className="w-3 h-3 inline mr-1" />
-                    Letzter Failover: {format(new Date(account.last_failover_at), "dd.MM.yyyy HH:mm", { locale: de })}
+              
+              {!hasMullvadAccount ? (
+                <div className="bg-orange-50 dark:bg-orange-950 p-3 rounded border border-orange-200 dark:border-orange-800">
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    <AlertTriangle className="w-4 h-4 inline mr-1" />
+                    Kein Mullvad Account zugewiesen. Bitte erst in der Account-Verwaltung einen zuweisen.
                   </p>
                 </div>
-              )}
-
-              {/* Auto-Assign Button */}
-              {missingConfigs && (
-                <div className="mt-3">
+              ) : availableConfigsCount === 0 ? (
+                <div className="bg-orange-50 dark:bg-orange-950 p-3 rounded border border-orange-200 dark:border-orange-800">
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    <AlertTriangle className="w-4 h-4 inline mr-1" />
+                    Keine Configs für diesen Mullvad Account verfügbar. Bitte erst Configs generieren.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeConfig && (
+                    <div className="bg-background p-3 rounded border">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Aktuell aktiv:</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-mono text-sm">{activeConfig.config_name}</p>
+                          <p className="text-xs text-muted-foreground">{activeConfig.server_location}</p>
+                        </div>
+                        <ConfigHealthBadge configId={activeConfig.id} getConfigHealth={getConfigHealth} />
+                      </div>
+                    </div>
+                  )}
+                  
                   <Button
-                    onClick={onAutoAssignConfigs}
-                    disabled={assignPending}
+                    onClick={onSelectBestConfig}
+                    disabled={selectPending}
                     variant="default"
                     size="sm"
                     className="w-full gap-2"
                   >
-                    <Zap className="w-4 h-4" />
-                    {assignPending ? "Weise zu..." : `${missingCount} Config${missingCount > 1 ? 's' : ''} automatisch zuweisen`}
+                    <RefreshCw className="w-4 h-4" />
+                    {selectPending ? "Wähle beste Config..." : activeConfig ? "Neue Config auswählen" : "Config automatisch auswählen"}
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-1 text-center">
-                    Weist automatisch die nächsten {missingCount} verfügbare{missingCount > 1 ? 'n' : ''} Config{missingCount > 1 ? 's' : ''} zu
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    {availableConfigsCount} verfügbare Config{availableConfigsCount !== 1 ? 's' : ''} • System wählt automatisch die gesündeste aus
                   </p>
                 </div>
               )}
 
-              {/* Reset All Configs Button */}
-              {(primaryConfig || backupConfig || tertiaryConfig) && (
-                <div className="mt-2">
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await supabase
-                          .from('whatsapp_accounts')
-                          .update({
-                            wireguard_config_id: null,
-                            wireguard_backup_config_id: null,
-                            wireguard_tertiary_config_id: null,
-                            active_config_id: null,
-                            proxy_server: null,
-                            failover_count: 0
-                          })
-                          .eq('id', account.id);
-                        
-                        toast.success("Alle Configs wurden entfernt");
-                        await onRefetch();
-                      } catch (error: any) {
-                        toast.error(`Fehler: ${error.message}`);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Alle Configs zurücksetzen
-                  </Button>
+              {/* Failover History */}
+              {account.last_failover_at && (
+                <div className="bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800 mt-2">
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    <Zap className="w-3 h-3 inline mr-1" />
+                    Letzter Auto-Switch: {format(new Date(account.last_failover_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                  </p>
                 </div>
               )}
             </div>
@@ -291,7 +210,7 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                       Auflösung
                     </p>
                     <p className="font-mono text-sm">
-                      {fingerprintData.fingerprint.resolution.width} x {fingerprintData.fingerprint.resolution.height}
+                      {fingerprintData.fingerprint.resolution.width}x{fingerprintData.fingerprint.resolution.height}
                     </p>
                   </div>
                   <div className="bg-background p-2 rounded border">
@@ -327,7 +246,7 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
 export const VpnProxies = () => {
   const { accounts, refetch: refetchAccounts } = useWhatsAppAccounts();
   const { configs, uploadConfig, deleteConfig, refetch: refetchConfigs } = useWireGuardConfigs();
-  const { assignConfig } = useWireGuardManager();
+  const { selectBestConfig } = useWireGuardManager();
   const { healthStatus, getConfigHealth } = useWireGuardHealth();
   const { locations, locationsLoading, generateConfigs, isGenerating } = useMullvadConfigGenerator();
   const { accounts: mullvadAccounts, addAccount: addMullvadAccount, updateAccount: updateMullvadAccount, deleteAccount: deleteMullvadAccount } = useMullvadAccounts();
@@ -343,13 +262,11 @@ export const VpnProxies = () => {
   const [uploadMullvadAccountId, setUploadMullvadAccountId] = useState<string>("");
   const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
   const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
-  const [configFiles, setConfigFiles] = useState<FileList | null>(null);
   const [editMullvadAccountNumber, setEditMullvadAccountNumber] = useState("");
   const [editMullvadAccountName, setEditMullvadAccountName] = useState("");
   const [generateCount, setGenerateCount] = useState(5);
   const [generateLocation, setGenerateLocation] = useState("de");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const multiFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,11 +274,10 @@ export const VpnProxies = () => {
       const filesArray = Array.from(e.target.files);
       setSelectedFiles(filesArray);
       
-      // Auto-fill config name from first file if empty
       if (!configName && filesArray.length === 1) {
         setConfigName(filesArray[0].name.replace('.conf', ''));
       } else if (filesArray.length > 1) {
-        setConfigName(""); // Clear for batch upload
+        setConfigName("");
       }
     }
   };
@@ -379,7 +295,6 @@ export const VpnProxies = () => {
 
     try {
       let successCount = 0;
-      let failCount = 0;
 
       for (const file of selectedFiles) {
         try {
@@ -396,160 +311,45 @@ export const VpnProxies = () => {
 
           successCount++;
 
-          // Update device count for selected Mullvad account
           if (uploadMullvadAccountId) {
-            const selectedAccount = mullvadAccounts.find(acc => acc.id === uploadMullvadAccountId);
-            if (selectedAccount) {
+            const mullvadAccount = mullvadAccounts.find(ma => ma.id === uploadMullvadAccountId);
+            if (mullvadAccount) {
               await updateMullvadAccount.mutateAsync({
                 id: uploadMullvadAccountId,
-                devicesUsed: (selectedAccount.devices_used || 0) + 1
+                devicesUsed: (mullvadAccount.devices_used || 0) + 1
               });
             }
           }
-        } catch (error) {
-          console.error(`Upload error for ${file.name}:`, error);
-          failCount++;
+        } catch (error: any) {
+          console.error(`Failed to upload ${file.name}:`, error);
         }
       }
 
       if (successCount > 0) {
-        toast.success(`✅ ${successCount} Config(s) erfolgreich hochgeladen${failCount > 0 ? ` (${failCount} fehlgeschlagen)` : ''}`);
+        toast.success(`${successCount} Config${successCount > 1 ? 's' : ''} erfolgreich hochgeladen!`);
       }
 
-      // Close dialog (reset handled by onOpenChange)
       setOpen(false);
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Fehler beim Hochladen");
+      setSelectedFiles([]);
+      setConfigName("");
+      setUploadMullvadAccountId("");
+      await refetchConfigs();
+    } catch (error: any) {
+      console.error('Error uploading configs:', error);
+      toast.error(error.message || 'Fehler beim Hochladen');
     }
-  };
-
-  const handleAssignAllConfigs = async () => {
-    if (configs.length === 0) {
-      toast.error("Bitte lade zuerst WireGuard-Konfigurationen hoch");
-      return;
-    }
-
-    if (configs.length < 3) {
-      toast.warning("Empfehlung: Lade mindestens 3 Configs pro Account hoch (Primary + Backup + Tertiary)");
-    }
-
-    toast.info("Weise WireGuard-Konfigurationen zu...");
-    
-    // Group configs by Mullvad account for smart distribution
-    const configsByMullvad = new Map<string, typeof configs>();
-    configs.forEach(config => {
-      const mullvadId = (config as any).mullvad_account_id || 'unknown';
-      if (!configsByMullvad.has(mullvadId)) {
-        configsByMullvad.set(mullvadId, []);
-      }
-      configsByMullvad.get(mullvadId)!.push(config);
-    });
-
-    let assignmentErrors = 0;
-    
-    // Assign configs in order: Primary → Backup → Tertiary
-    for (const account of accounts) {
-      const acc = account as any;
-      const needsPrimary = !acc.wireguard_config_id;
-      const needsBackup = acc.wireguard_config_id && !acc.wireguard_backup_config_id;
-      const needsTertiary = acc.wireguard_backup_config_id && !acc.wireguard_tertiary_config_id;
-
-      if (needsPrimary || needsBackup || needsTertiary) {
-        // Find a Mullvad account with available capacity
-        let selectedConfig = null;
-        
-        for (const [mullvadId, mullvadConfigs] of configsByMullvad.entries()) {
-          const activeConnections = getActiveConnectionsForMullvad(mullvadId);
-          
-          if (activeConnections < 5 && mullvadConfigs.length > 0) {
-            // Round-robin within this Mullvad account's configs
-            const configIndex = activeConnections % mullvadConfigs.length;
-            selectedConfig = mullvadConfigs[configIndex];
-            break;
-          }
-        }
-
-        if (!selectedConfig) {
-          console.warn(`❌ No available config for account ${account.account_name}`);
-          assignmentErrors++;
-          continue;
-        }
-
-        try {
-          await assignConfig.mutateAsync({ 
-            accountId: account.id,
-            configId: selectedConfig.id 
-          });
-        } catch (error) {
-          console.error(`Failed to assign config to ${account.account_name}:`, error);
-          assignmentErrors++;
-        }
-      }
-    }
-    
-    await refetchAccounts();
-    
-    if (assignmentErrors > 0) {
-      toast.warning(`${assignmentErrors} Zuweisungen fehlgeschlagen. Prüfe Mullvad-Kapazitäten.`);
-    } else {
-      toast.success("WireGuard-Konfigurationen zugewiesen!");
-    }
-  };
-
-  const handleRemoveAllConfigs = async () => {
-    // Bestätigungsdialog
-    if (!confirm('⚠️ Möchtest du wirklich ALLE VPN-Zuweisungen von allen WhatsApp Accounts entfernen?\n\nDie Configs selbst bleiben erhalten, nur die Zuweisungen werden entfernt.')) {
-      return;
-    }
-
-    toast.info("Entferne alle VPN-Zuweisungen...");
-    
-    for (const account of accounts) {
-      const { error } = await supabase
-        .from('whatsapp_accounts')
-        .update({ 
-          wireguard_config_id: null,
-          wireguard_backup_config_id: null,
-          wireguard_tertiary_config_id: null,
-          active_config_id: null,
-          proxy_country: null,
-          proxy_server: null,
-          failover_count: 0
-        })
-        .eq('id', account.id);
-      
-      if (error) {
-        console.error('Error removing VPN:', error);
-      }
-    }
-    
-    await refetchAccounts();
-    toast.success("Alle VPN-Zuweisungen entfernt!");
   };
 
   const handleDeleteAllConfigs = async () => {
-    // Bestätigungsdialog
-    if (!confirm(`⚠️ ACHTUNG: Möchtest du wirklich ALLE ${configs.length} WireGuard-Konfigurationen DAUERHAFT LÖSCHEN?\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!\n\n• Alle ${configs.length} Configs werden aus der Datenbank gelöscht\n• Alle Zuweisungen zu WhatsApp Accounts werden entfernt\n• Die Health-Einträge werden gelöscht`)) {
+    if (!confirm(`Möchtest du wirklich alle ${configs.length} WireGuard-Konfigurationen löschen?`)) {
       return;
     }
 
-    // Zweite Sicherheitsabfrage
-    if (!confirm('Bist du dir WIRKLICH sicher? Letzte Warnung!')) {
-      return;
-    }
-
-    toast.info(`Lösche alle ${configs.length} WireGuard-Konfigurationen...`);
-    
     try {
-      // Erst alle Zuweisungen entfernen
       for (const account of accounts) {
         await supabase
           .from('whatsapp_accounts')
           .update({ 
-            wireguard_config_id: null,
-            wireguard_backup_config_id: null,
-            wireguard_tertiary_config_id: null,
             active_config_id: null,
             proxy_country: null,
             proxy_server: null,
@@ -558,13 +358,11 @@ export const VpnProxies = () => {
           .eq('id', account.id);
       }
 
-      // Dann alle Health-Einträge löschen
       await supabase
         .from('wireguard_health')
         .delete()
         .in('config_id', configs.map(c => c.id));
 
-      // Dann alle Configs löschen
       const { error } = await supabase
         .from('wireguard_configs')
         .delete()
@@ -582,107 +380,142 @@ export const VpnProxies = () => {
     }
   };
 
-  // Get configs for account
-  const getAccountConfigs = (account: any) => {
-    const primary = configs.find(c => c.id === account.wireguard_config_id) || null;
-    const backup = configs.find(c => c.id === account.wireguard_backup_config_id) || null;
-    const tertiary = configs.find(c => c.id === account.wireguard_tertiary_config_id) || null;
-    const active = configs.find(c => c.id === account.active_config_id) || null;
-    return { primary, backup, tertiary, active };
+  const getActiveConfig = (account: any) => {
+    return configs.find(c => c.id === account.active_config_id) || null;
   };
 
-  // Calculate health statistics
+  const getAvailableConfigsForAccount = (account: any) => {
+    const mullvadAccountId = (account as any).mullvad_account_id;
+    if (!mullvadAccountId) return [];
+    return configs.filter((c: any) => c.mullvad_account_id === mullvadAccountId);
+  };
+
   const healthyConfigs = healthStatus.filter(h => h.is_healthy).length;
   const totalConfigs = configs.length;
-  const healthPercentage = totalConfigs > 0 ? Math.round((healthyConfigs / totalConfigs) * 100) : 0;
+  const healthPercentage = totalConfigs > 0 ? (healthyConfigs / totalConfigs) * 100 : 0;
 
-  // Calculate active connections per Mullvad account
-  const getActiveConnectionsForMullvad = (mullvadAccountId: string): number => {
-    const configsFromAccount = configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId);
-    const configIds = configsFromAccount.map(c => c.id);
-    
-    let activeCount = 0;
-    for (const account of accounts) {
-      const acc = account as any;
-      const activeConfigId = acc.active_config_id;
-      if (activeConfigId && configIds.includes(activeConfigId)) {
-        activeCount++;
-      }
-    }
-    return activeCount;
+  const getTotalConfigsForMullvad = (mullvadAccountId: string) => {
+    return configs.filter((c: any) => c.mullvad_account_id === mullvadAccountId).length;
   };
 
-  // Calculate total configs per Mullvad account
-  const getTotalConfigsForMullvad = (mullvadAccountId: string): number => {
-    return configs.filter(c => (c as any).mullvad_account_id === mullvadAccountId).length;
+  const getActiveConnectionsForMullvad = (mullvadAccountId: string) => {
+    const configIdsFromMullvad = configs
+      .filter((c: any) => c.mullvad_account_id === mullvadAccountId)
+      .map(c => c.id);
+    
+    return accounts.filter((acc: any) => 
+      acc.active_config_id && configIdsFromMullvad.includes(acc.active_config_id)
+    ).length;
   };
 
-  // Calculate actual assigned configs
-  const accountsWithPrimary = accounts.filter(acc => (acc as any).wireguard_config_id).length;
-  const accountsWithBackup = accounts.filter(acc => (acc as any).wireguard_backup_config_id).length;
-  const accountsWithTertiary = accounts.filter(acc => (acc as any).wireguard_tertiary_config_id).length;
-  const totalAssignedSlots = accountsWithPrimary + accountsWithBackup + accountsWithTertiary;
-  
-  // Calculate active connections (accounts that have an active_config_id set)
-  const accountsWithActiveConfig = accounts.filter(acc => (acc as any).active_config_id).length;
-  
-  const totalMullvadCapacity = mullvadAccounts.reduce((sum, acc) => sum + acc.max_devices, 0);
-
-  // Get Mullvad account name for a config
-  const getMullvadAccountName = (configId: string): string => {
-    const config = configs.find(c => c.id === configId);
-    if (!config || !(config as any).mullvad_account_id) return 'Unbekannt';
+  const getMullvadAccountName = (configId: string) => {
+    const config = configs.find(c => c.id === configId) as any;
+    if (!config?.mullvad_account_id) return 'Kein Mullvad Account';
     
-    const mullvadAccount = mullvadAccounts.find(m => m.id === (config as any).mullvad_account_id);
+    const mullvadAccount = mullvadAccounts.find(ma => ma.id === config.mullvad_account_id);
     return mullvadAccount?.account_name || 'Unbekannt';
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">VPN & WireGuard</h1>
-          <p className="text-muted-foreground mt-2">
-            Multi-Config Failover-System mit automatischem Health-Monitoring
+          <h2 className="text-3xl font-bold tracking-tight">VPN & Proxies</h2>
+          <p className="text-muted-foreground">
+            WireGuard VPN-Konfigurationen verwalten - Automatische Auswahl der besten Config
           </p>
         </div>
       </div>
 
-      {/* Health Overview */}
-      {configs.length > 0 && (
-        <Card className="border-2 border-primary/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" />
-                <CardTitle>System Health</CardTitle>
-              </div>
-              <Badge variant={healthPercentage >= 80 ? "default" : healthPercentage >= 50 ? "secondary" : "destructive"} className="text-lg px-3 py-1">
-                {healthPercentage}%
-              </Badge>
-            </div>
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Accounts</CardTitle>
+            <Wifi className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <Progress value={healthPercentage} className="h-3" />
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{healthyConfigs}</p>
-                  <p className="text-xs text-muted-foreground">Gesund</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{totalConfigs}</p>
-                  <p className="text-xs text-muted-foreground">Gesamt</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-red-600">{totalConfigs - healthyConfigs}</p>
-                  <p className="text-xs text-muted-foreground">Ausgefallen</p>
-                </div>
-              </div>
-            </div>
+            <div className="text-2xl font-bold">{accounts.length}</div>
+            <p className="text-xs text-muted-foreground">WhatsApp Accounts</p>
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Configs</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalConfigs}</div>
+            <p className="text-xs text-muted-foreground">WireGuard Konfigurationen</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Health</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{healthyConfigs}/{totalConfigs}</div>
+            <Progress value={healthPercentage} className="mt-2" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Mullvad Accounts</CardTitle>
+            <Server className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{mullvadAccounts.length}</div>
+            <p className="text-xs text-muted-foreground">Verfügbare Accounts</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* WhatsApp Accounts Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            WhatsApp Accounts mit VPN
+          </CardTitle>
+          <CardDescription>
+            System wählt automatisch die beste gesunde Config vom zugewiesenen Mullvad Account
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {accounts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Server className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Keine WhatsApp-Accounts vorhanden</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {accounts.map((account) => {
+                const active = getActiveConfig(account);
+                const availableConfigs = getAvailableConfigsForAccount(account);
+                
+                return (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    activeConfig={active}
+                    onSelectBestConfig={async () => {
+                      await selectBestConfig.mutateAsync(account.id);
+                      await refetchAccounts();
+                    }}
+                    selectPending={selectBestConfig.isPending}
+                    getConfigHealth={getConfigHealth}
+                    availableConfigsCount={availableConfigs.length}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Mullvad Accounts Management */}
       <Card>
@@ -858,7 +691,7 @@ export const VpnProxies = () => {
                           setEditMullvadDialogOpen(true);
                         }}
                       >
-                        <Edit className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="destructive"
@@ -873,547 +706,6 @@ export const VpnProxies = () => {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Edit Mullvad Account Dialog */}
-      <Dialog open={editMullvadDialogOpen} onOpenChange={setEditMullvadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mullvad Account bearbeiten</DialogTitle>
-            <DialogDescription>
-              Aktualisiere die Account-Details
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-mullvad-name">Account-Name</Label>
-              <Input
-                id="edit-mullvad-name"
-                placeholder="z.B. Mullvad Account 1"
-                value={editMullvadAccountName}
-                onChange={(e) => setEditMullvadAccountName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-mullvad-number">Account Number</Label>
-              <Input
-                id="edit-mullvad-number"
-                placeholder="1234567890123456"
-                value={editMullvadAccountNumber}
-                onChange={(e) => setEditMullvadAccountNumber(e.target.value)}
-                maxLength={16}
-              />
-              <p className="text-xs text-muted-foreground">
-                16-stellige Mullvad Account Number
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditMullvadDialogOpen(false);
-                setEditingMullvadAccount(null);
-                setEditMullvadAccountName("");
-                setEditMullvadAccountNumber("");
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!editMullvadAccountName || !editMullvadAccountNumber) {
-                  toast.error("Bitte fülle alle Felder aus");
-                  return;
-                }
-                if (editMullvadAccountNumber.length !== 16) {
-                  toast.error("Account Number muss 16 Zeichen lang sein");
-                  return;
-                }
-                await updateMullvadAccount.mutateAsync({
-                  id: editingMullvadAccount.id,
-                  accountNumber: editMullvadAccountNumber,
-                  accountName: editMullvadAccountName
-                });
-                setEditMullvadDialogOpen(false);
-                setEditingMullvadAccount(null);
-                setEditMullvadAccountName("");
-                setEditMullvadAccountNumber("");
-              }}
-              disabled={updateMullvadAccount.isPending}
-            >
-              {updateMullvadAccount.isPending ? "Speichern..." : "Speichern"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Generate Configs Dialog */}
-      <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>WireGuard Configs generieren</DialogTitle>
-            <DialogDescription>
-              Generiere automatisch WireGuard-Konfigurationen für {selectedMullvadForGeneration?.account_name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Mullvad Account</Label>
-              <Input
-                value={selectedMullvadForGeneration?.account_name || ""}
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">
-                Account: {selectedMullvadForGeneration?.account_number}
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="generate-location">Server-Standort</Label>
-              <select
-                id="generate-location"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                value={generateLocation}
-                onChange={(e) => setGenerateLocation(e.target.value)}
-                disabled={locationsLoading}
-              >
-                {locations.map((loc) => (
-                  <option key={loc.code} value={loc.code}>
-                    {loc.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="generate-count">Anzahl Configs</Label>
-              <Input
-                id="generate-count"
-                type="number"
-                min="1"
-                max="15"
-                value={generateCount}
-                onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Empfohlen: 15 Configs für 5 WhatsApp Accounts (je 3 pro Account)
-              </p>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">🚀 Automatische Zuweisung</p>
-              <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
-                Die Configs werden automatisch den WhatsApp-Accounts zugewiesen, die diesem Mullvad-Account zugeordnet sind und noch Configs benötigen (Primary → Backup → Tertiary).
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setGenerateDialogOpen(false);
-                setSelectedMullvadForGeneration(null);
-                setGenerateCount(5);
-                setGenerateLocation("de");
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!selectedMullvadForGeneration) return;
-                
-                try {
-                  await generateConfigs.mutateAsync({
-                    count: generateCount,
-                    selectedLocations: [generateLocation],
-                    mullvadAccountId: selectedMullvadForGeneration.id
-                  });
-                  
-                  await refetchConfigs();
-                  
-                  // Update device count
-                  await updateMullvadAccount.mutateAsync({
-                    id: selectedMullvadForGeneration.id,
-                    devicesUsed: (selectedMullvadForGeneration.devices_used || 0) + generateCount
-                  });
-                  
-                  setGenerateDialogOpen(false);
-                  setSelectedMullvadForGeneration(null);
-                  setGenerateCount(5);
-                  setGenerateLocation("de");
-                  
-                  toast.success(`${generateCount} Configs generiert!`);
-                  
-                  // Auto-assign configs to all accounts that need them
-                  toast.info("Weise Configs automatisch zu...");
-                  
-                  // Wait a bit for configs to be fully available
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  
-                  // Refresh to get latest configs
-                  await refetchConfigs();
-                  await refetchAccounts();
-                  
-                  // Get updated data
-                  const latestConfigs = configs;
-                  const latestAccounts = accounts;
-                  
-                  let totalAssigned = 0;
-                  
-                  for (const account of latestAccounts) {
-                    const acc = account as any;
-                    
-                    // Skip if no mullvad account assigned
-                    if (!acc.mullvad_account_id) {
-                      console.log(`Skipping ${acc.account_name}: No Mullvad account assigned`);
-                      continue;
-                    }
-                    
-                    const primary = acc.wireguard_config_id ? latestConfigs.find(c => c.id === acc.wireguard_config_id) : null;
-                    const backup = acc.wireguard_backup_config_id ? latestConfigs.find(c => c.id === acc.wireguard_backup_config_id) : null;
-                    const tertiary = acc.wireguard_tertiary_config_id ? latestConfigs.find(c => c.id === acc.wireguard_tertiary_config_id) : null;
-                    
-                    const missingCount = [!primary, !backup, !tertiary].filter(Boolean).length;
-                    
-                    if (missingCount === 0) continue;
-                    
-                    // Get available configs from the assigned Mullvad account
-                    const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
-                    const availableConfigs = latestConfigs.filter((c: any) => 
-                      c.mullvad_account_id === acc.mullvad_account_id && 
-                      !assignedIds.includes(c.id)
-                    );
-                    
-                    if (availableConfigs.length < missingCount) {
-                      console.log(`Not enough configs for ${acc.account_name}: need ${missingCount}, have ${availableConfigs.length}`);
-                      continue;
-                    }
-                    
-                    // Assign configs
-                    for (let i = 0; i < missingCount; i++) {
-                      try {
-                        await assignConfig.mutateAsync({
-                          accountId: acc.id,
-                          configId: availableConfigs[i].id
-                        });
-                        totalAssigned++;
-                      } catch (error: any) {
-                        console.error(`Failed to assign config to ${acc.account_name}:`, error);
-                      }
-                    }
-                  }
-                  
-                  await refetchAccounts();
-                  
-                  if (totalAssigned > 0) {
-                    toast.success(`${totalAssigned} Config${totalAssigned > 1 ? 's' : ''} automatisch zugewiesen!`);
-                  } else {
-                    toast.info("Alle Accounts haben bereits ausreichend Configs");
-                  }
-                } catch (error: any) {
-                  toast.error(`Fehler: ${error.message}`);
-                }
-              }}
-              disabled={isGenerating || generateCount < 1 || generateCount > 15}
-            >
-              {isGenerating ? "Generiere..." : `${generateCount} Configs generieren & zuweisen`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* WireGuard VPN Settings */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            <CardTitle>WireGuard VPN Konfiguration</CardTitle>
-          </div>
-          <CardDescription>
-            Triple-Config Failover: Jeder Account erhält Primary + Backup + Tertiary Config
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Globe className="w-4 h-4" />
-              Config Nutzung
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Zugewiesene Configs und aktive Verbindungen pro Mullvad Account
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-              <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">WhatsApp Accounts</p>
-                <p className="text-2xl font-bold">{accounts.length}</p>
-              </div>
-              <div className={`bg-background p-3 rounded border ${totalAssignedSlots === 0 ? 'border-orange-500 border-2' : 'border-green-500'}`}>
-                <p className="text-sm text-muted-foreground">Zugewiesene Slots</p>
-                <p className="text-2xl font-bold">{totalAssignedSlots} / {configs.length}</p>
-              </div>
-              <div className={`bg-background p-3 rounded border ${accountsWithActiveConfig > 0 ? 'border-green-500' : 'border-orange-500 border-2'}`}>
-                <p className="text-sm text-muted-foreground">Aktive Verbindungen</p>
-                <p className="text-2xl font-bold">{accountsWithActiveConfig}</p>
-              </div>
-              <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Mullvad Kapazität</p>
-                <p className="text-2xl font-bold">{configs.length} / {totalMullvadCapacity}</p>
-              </div>
-            </div>
-
-            {totalAssignedSlots < accounts.length && (
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg mt-4">
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  ℹ️ Config-Zuweisung
-                </p>
-                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
-                  {accountsWithPrimary} Accounts mit Primary • {accountsWithBackup} mit Backup • {accountsWithTertiary} mit Tertiary Config
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <Button 
-              onClick={handleAssignAllConfigs}
-              disabled={configs.length === 0 || assignConfig.isPending}
-              className="gap-2"
-            >
-              <Wifi className="w-4 h-4" />
-              {assignConfig.isPending ? "Zuweisen..." : "Configs zuweisen"}
-            </Button>
-            
-            <Button 
-              onClick={handleRemoveAllConfigs}
-              variant="destructive"
-              className="gap-2"
-              disabled={accounts.length === 0}
-            >
-              <Shield className="w-4 h-4" />
-              Alle VPN-Zuweisungen entfernen
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold">Hochgeladene WireGuard-Konfigurationen</h3>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="gap-2">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleDeleteAllConfigs}
-                    disabled={configs.length === 0}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Alle löschen ({configs.length})
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            
-            
-            {configs.length === 0 ? (
-              <div className="border rounded-lg p-4 bg-muted/20">
-                <p className="text-sm text-muted-foreground text-center">
-                  Noch keine WireGuard-Konfigurationen hochgeladen.
-                  <br />
-                  Laden Sie .conf Dateien von Mullvad hoch.
-                </p>
-              </div>
-            ) : (
-              <Collapsible>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-primary" />
-                    <span className="font-medium">
-                      Hochgeladene Konfigurationen ({configs.length})
-                    </span>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <span className="text-sm">Ein-/Ausklappen</span>
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-                <CollapsibleContent>
-                  <div className="space-y-2">
-                    {configs.map((config) => {
-                      const health = getConfigHealth(config.id);
-                      return (
-                        <div
-                          key={config.id}
-                          className="flex items-center justify-between p-3 border rounded-lg bg-background"
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                              <Shield className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium">{config.config_name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {config.server_location} • {config.public_key?.substring(0, 20)}...
-                              </p>
-                            </div>
-                            <ConfigHealthBadge configId={config.id} getConfigHealth={getConfigHealth} />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteConfig.mutate(config.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Account-to-Config Mapping */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-primary" />
-            <CardTitle>WhatsApp Account Zuordnung</CardTitle>
-          </div>
-          <CardDescription>
-            Live-Status: Primary (blau) • Backup (orange) • Tertiary (lila) • Aktiv (grün Badge)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {accounts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Server className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Keine WhatsApp-Accounts vorhanden</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {accounts.map((account) => {
-                const { primary, backup, tertiary, active } = getAccountConfigs(account);
-                
-                return (
-                  <AccountCard
-                    key={account.id}
-                    account={account}
-                    primaryConfig={primary}
-                    backupConfig={backup}
-                    tertiaryConfig={tertiary}
-                    activeConfig={active}
-                    onAssignConfig={async (configId) => {
-                      await assignConfig.mutateAsync({ 
-                        accountId: account.id,
-                        configId 
-                      });
-                      await refetchAccounts();
-                    }}
-                    onAutoAssignConfigs={async () => {
-                      // Find how many configs are missing
-                      const missingCount = [!primary, !backup, !tertiary].filter(Boolean).length;
-                      
-                      if (missingCount === 0) {
-                        toast.info("Alle Configs sind bereits zugewiesen!");
-                        return;
-                      }
-
-                      const mullvadAccountId = (account as any).mullvad_account_id;
-                      
-                      if (!mullvadAccountId) {
-                        toast.error("Bitte erst einen Mullvad Account zuweisen!");
-                        return;
-                      }
-
-                      // Check if existing configs are from the same Mullvad account
-                      const existingConfigs = [primary, backup, tertiary].filter(Boolean);
-                      const wrongMullvadConfigs = existingConfigs.filter((c: any) => 
-                        c.mullvad_account_id && c.mullvad_account_id !== mullvadAccountId
-                      );
-
-                      if (wrongMullvadConfigs.length > 0) {
-                        toast.error("⚠️ Bestehende Configs gehören zu einem anderen Mullvad Account! Bitte erst alle Configs entfernen.");
-                        return;
-                      }
-
-                      // Get available configs from the assigned Mullvad account
-                      const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
-                      const availableConfigs = configs.filter((c: any) => 
-                        c.mullvad_account_id === mullvadAccountId && 
-                        !assignedIds.includes(c.id)
-                      );
-                      
-                      if (availableConfigs.length < missingCount) {
-                        toast.error(`Nicht genug verfügbare Configs vom zugewiesenen Mullvad Account! Benötigt: ${missingCount}, Verfügbar: ${availableConfigs.length}`);
-                        return;
-                      }
-
-                      // Assign the next configs in order
-                      toast.info(`Weise ${missingCount} Config${missingCount > 1 ? 's' : ''} zu...`);
-                      
-                      for (let i = 0; i < missingCount; i++) {
-                        try {
-                          await assignConfig.mutateAsync({
-                            accountId: account.id,
-                            configId: availableConfigs[i].id
-                          });
-                        } catch (error: any) {
-                          toast.error(`Fehler beim Zuweisen: ${error.message}`);
-                          break;
-                        }
-                      }
-                      
-                      await refetchAccounts();
-                      toast.success(`${missingCount} Config${missingCount > 1 ? 's' : ''} erfolgreich zugewiesen!`);
-                    }}
-                    assignPending={assignConfig.isPending}
-                    getConfigHealth={getConfigHealth}
-                    getMullvadAccountName={getMullvadAccountName}
-                    onRefetch={async () => {
-                      await refetchAccounts();
-                    }}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Info Box */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="text-lg">🚀 Automatisches Failover-System</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            • <strong>Triple-Redundanz:</strong> Jeder Account hat Primary + Backup + Tertiary Config
-          </p>
-          <p>
-            • <strong>Health-Monitoring:</strong> Alle 30 Sekunden automatische Prüfung aller Configs
-          </p>
-          <p>
-            • <strong>Auto-Failover:</strong> Bei 3 Fehlern → Automatischer Wechsel zur Backup-Config (~30 Sek)
-          </p>
-          <p>
-            • <strong>Unlimited Scale:</strong> 1 Mullvad = 5 simultane Verbindungen (20 Accounts = 4 Mullvad à 5€)
-          </p>
-          <p>
-            • <strong>Geo-Diverse IPs:</strong> Verschiedene Länder (DE, NL, SE, CH) für beste Reputation
-          </p>
-          <p>
-            • <strong>Zero-Downtime:</strong> Transparentes Failover ohne Connection-Loss
-          </p>
         </CardContent>
       </Card>
     </div>

@@ -3,10 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const useWireGuardManager = () => {
-  const assignConfig = useMutation({
-    mutationFn: async ({ accountId, configId }: { accountId: string; configId: string }) => {
+  const selectBestConfig = useMutation({
+    mutationFn: async (accountId: string) => {
       const { data, error } = await supabase.functions.invoke('wireguard-manager', {
-        body: { action: 'assign-config', accountId, configId }
+        body: { action: 'select-best-config', accountId }
       });
 
       if (error) throw error;
@@ -14,18 +14,18 @@ export const useWireGuardManager = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast.success(`WireGuard VPN zugewiesen: ${data.server_location}`);
+        toast.success(data.message || `Config ausgewählt: ${data.config.name}`);
       }
     },
     onError: (error: Error) => {
-      toast.error(`Fehler beim Zuweisen des VPN: ${error.message}`);
+      toast.error(`Fehler: ${error.message}`);
     },
   });
 
-  const getConfig = useMutation({
+  const getActiveConfig = useMutation({
     mutationFn: async (accountId: string) => {
       const { data, error } = await supabase.functions.invoke('wireguard-manager', {
-        body: { action: 'get-config', accountId }
+        body: { action: 'get-active-config', accountId }
       });
 
       if (error) throw error;
@@ -34,7 +34,7 @@ export const useWireGuardManager = () => {
   });
 
   return {
-    assignConfig,
-    getConfig,
+    selectBestConfig,
+    getActiveConfig,
   };
 };
