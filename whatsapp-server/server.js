@@ -517,6 +517,16 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   });
 
   // Fetch proxy configuration for this account
+  // Ensure no system proxy is used by Chromium
+  try {
+    delete process.env.HTTP_PROXY;
+    delete process.env.HTTPS_PROXY;
+    delete process.env.ALL_PROXY;
+    process.env.NO_PROXY = '*';
+  } catch (e) {
+    console.warn('[Proxy] Could not clear proxy env vars:', e?.message || e);
+  }
+
   let puppeteerConfig = {
     headless: true,
     executablePath: puppeteer.executablePath(),
@@ -532,6 +542,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       '--no-zygote',
       '--disable-gpu',
       '--proxy-bypass-list=<-loopback>',
+      '--no-proxy-server',
       `--window-size=${fingerprint.resolution.width},${fingerprint.resolution.height}`,
       `--user-agent=${fingerprint.userAgent}`,
       '--disable-blink-features=AutomationControlled',
