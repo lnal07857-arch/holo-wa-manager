@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import { useMullvadProxy } from "@/hooks/useMullvadProxy";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -37,7 +36,6 @@ const Accounts = () => {
     deleteAccount,
     refetch
   } = useWhatsAppAccounts();
-  const { assignProxy } = useMullvadProxy();
   const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
 
   const sensors = useSensors(
@@ -664,7 +662,6 @@ const Accounts = () => {
                 setQrCode={setQrCode}
                 setInitializingAccount={setInitializingAccount}
                 setOpen={setOpen}
-                assignProxy={assignProxy}
               />
             ))}
           </div>
@@ -693,7 +690,6 @@ interface SortableAccountCardProps {
   setQrCode: (qrCode: string | null) => void;
   setInitializingAccount: (accountId: string | null) => void;
   setOpen: (open: boolean) => void;
-  assignProxy: any;
 }
 
 const SortableAccountCard = ({
@@ -705,7 +701,6 @@ const SortableAccountCard = ({
   setQrCode,
   setInitializingAccount,
   setOpen,
-  assignProxy,
 }: SortableAccountCardProps) => {
   const {
     attributes,
@@ -768,27 +763,6 @@ const SortableAccountCard = ({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-            {/* VPN Zuweisung nur wenn kein VPN aktiv */}
-            {!account.proxy_server && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full gap-2 text-blue-600 border-blue-600 hover:bg-blue-50"
-                onClick={async () => {
-                  try {
-                    toast.loading('VPN wird zugewiesen...', { id: `vpn-${account.id}` });
-                    await assignProxy.mutateAsync(account.id);
-                    toast.success('VPN erfolgreich zugewiesen!', { id: `vpn-${account.id}` });
-                  } catch (error: any) {
-                    toast.error(error.message || 'VPN-Zuweisung fehlgeschlagen', { id: `vpn-${account.id}` });
-                  }
-                }}
-              >
-                <Shield className="w-4 h-4" />
-                VPN zuweisen
-              </Button>
-            )}
-            
             <div className="flex gap-2">
               <Button 
                 variant="outline" 

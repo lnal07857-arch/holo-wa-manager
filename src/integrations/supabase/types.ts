@@ -318,33 +318,6 @@ export type Database = {
           },
         ]
       }
-      mullvad_accounts: {
-        Row: {
-          account_number: string
-          created_at: string
-          id: string
-          server_region: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          account_number: string
-          created_at?: string
-          id?: string
-          server_region?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          account_number?: string
-          created_at?: string
-          id?: string
-          server_region?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           created_at: string
@@ -572,6 +545,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          wireguard_config_id: string | null
         }
         Insert: {
           account_name: string
@@ -587,6 +561,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          wireguard_config_id?: string | null
         }
         Update: {
           account_name?: string
@@ -600,6 +575,48 @@ export type Database = {
           qr_code?: string | null
           session_data?: Json | null
           status?: string
+          updated_at?: string
+          user_id?: string
+          wireguard_config_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_accounts_wireguard_config_id_fkey"
+            columns: ["wireguard_config_id"]
+            isOneToOne: false
+            referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wireguard_configs: {
+        Row: {
+          config_content: string
+          config_name: string
+          created_at: string
+          id: string
+          public_key: string | null
+          server_location: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config_content: string
+          config_name: string
+          created_at?: string
+          id?: string
+          public_key?: string | null
+          server_location?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config_content?: string
+          config_name?: string
+          created_at?: string
+          id?: string
+          public_key?: string | null
+          server_location?: string
           updated_at?: string
           user_id?: string
         }

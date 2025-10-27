@@ -4,27 +4,24 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
-import { useMullvadProxy } from "@/hooks/useMullvadProxy";
+import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
+import { useWireGuardManager } from "@/hooks/useWireGuardManager";
 import { useFingerprint } from "@/hooks/useFingerprint";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy, assignPending }: { 
+const AccountCard = ({ account, assignedConfig, onAssignConfig, assignPending }: { 
   account: any; 
-  mullvadAccountIndex: number; 
-  serverNumber: number;
-  onAssignProxy: () => Promise<any>;
+  assignedConfig: any | null;
+  onAssignConfig: (configId: string) => Promise<any>;
   assignPending: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
-
-  const proxyInfo = account.proxy_server ? JSON.parse(account.proxy_server) : null;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -44,34 +41,26 @@ const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy
           
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <p className="text-sm font-medium">
-                Mullvad Account #{mullvadAccountIndex + 1}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                DE Server #{serverNumber}
-              </p>
-              {account.proxy_server && (
-                <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                  <Shield className="w-3 h-3" />
-                  <span>VPN aktiv</span>
-                </div>
+              {assignedConfig ? (
+                <>
+                  <p className="text-sm font-medium text-green-600">
+                    {assignedConfig.config_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {assignedConfig.server_location}
+                  </p>
+                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                    <Shield className="w-3 h-3" />
+                    <span>WireGuard aktiv</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Kein VPN</p>
               )}
             </div>
             <Badge variant={account.status === "connected" ? "default" : "secondary"}>
               {account.status === "connected" ? "Verbunden" : "Getrennt"}
             </Badge>
-            {!account.proxy_server && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={onAssignProxy}
-                disabled={assignPending}
-              >
-                <Wifi className="w-4 h-4" />
-                {assignPending ? 'Zuweisen...' : 'VPN zuweisen'}
-              </Button>
-            )}
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
                 <Fingerprint className="w-4 h-4" />
@@ -87,20 +76,20 @@ const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy
               <p className="text-sm text-muted-foreground text-center">Lade Fingerprint-Daten...</p>
             ) : fingerprintData ? (
               <>
-                {/* Proxy/IP Information */}
+                {/* VPN Information */}
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
                     <Globe className="w-4 h-4 text-primary" />
-                    VPN & IP-Adresse
+                    VPN-Konfiguration
                   </h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs">Proxy Server</p>
-                      <p className="font-mono">{(fingerprintData.proxy?.host || (account.proxy_server ? JSON.parse(account.proxy_server).host : null)) || 'Nicht konfiguriert'}</p>
+                      <p className="text-muted-foreground text-xs">Status</p>
+                      <p className="font-mono">{assignedConfig ? 'WireGuard aktiv' : 'Nicht konfiguriert'}</p>
                     </div>
                     <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs">Port</p>
-                      <p className="font-mono">{(fingerprintData.proxy?.port || (account.proxy_server ? JSON.parse(account.proxy_server).port : null)) || '-'}</p>
+                      <p className="text-muted-foreground text-xs">Server-Standort</p>
+                      <p className="font-mono">{assignedConfig?.server_location || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -153,67 +142,116 @@ const AccountCard = ({ account, mullvadAccountIndex, serverNumber, onAssignProxy
 };
 
 export const VpnProxies = () => {
-  const { accounts } = useWhatsAppAccounts();
-  const { accounts: mullvadAccounts, createAccount, deleteAccount } = useMullvadAccounts();
-  const { assignProxy } = useMullvadProxy();
+  const { accounts, refetch: refetchAccounts } = useWhatsAppAccounts();
+  const { configs, uploadConfig, deleteConfig } = useWireGuardConfigs();
+  const { assignConfig } = useWireGuardManager();
   const [open, setOpen] = useState(false);
-  const [accountNumber, setAccountNumber] = useState("");
+  const [configName, setConfigName] = useState("");
+  const [serverLocation, setServerLocation] = useState("DE");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleAssignAllProxies = async () => {
-    if (mullvadAccounts.length === 0) {
-      toast.error("Bitte füge zuerst Mullvad-Accounts hinzu");
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      if (!configName) {
+        setConfigName(e.target.files[0].name.replace('.conf', ''));
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast.error("Bitte wähle eine WireGuard-Konfigurationsdatei");
       return;
     }
 
-    toast.info("Weise Mullvad VPN-Server zu...");
-    for (const account of accounts) {
-      await assignProxy.mutateAsync(account.id);
+    try {
+      const configContent = await selectedFile.text();
+      await uploadConfig.mutateAsync({
+        configName,
+        configContent,
+        serverLocation
+      });
+      setSelectedFile(null);
+      setConfigName("");
+      setServerLocation("DE");
+      setOpen(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
     }
-    toast.success("Alle Proxies zugewiesen!");
   };
 
-  const handleRemoveAllProxies = async () => {
+  const handleAssignAllConfigs = async () => {
+    if (configs.length === 0) {
+      toast.error("Bitte lade zuerst WireGuard-Konfigurationen hoch");
+      return;
+    }
+
+    toast.info("Weise WireGuard-Konfigurationen zu...");
+    for (let i = 0; i < accounts.length; i++) {
+      const account = accounts[i];
+      const config = configs[i % configs.length]; // Round-robin distribution
+      await assignConfig.mutateAsync({ 
+        accountId: account.id,
+        configId: config.id 
+      });
+    }
+    await refetchAccounts();
+    toast.success("Alle WireGuard-Konfigurationen zugewiesen!");
+  };
+
+  const handleRemoveAllConfigs = async () => {
     toast.info("Entferne alle VPN-Zuweisungen...");
     
     for (const account of accounts) {
       const { error } = await supabase
         .from('whatsapp_accounts')
         .update({ 
-          proxy_server: null,
-          proxy_country: null 
+          wireguard_config_id: null,
+          proxy_country: null,
+          proxy_server: null
         })
         .eq('id', account.id);
       
       if (error) {
-        console.error('Error removing proxy:', error);
+        console.error('Error removing VPN:', error);
       }
     }
     
+    await refetchAccounts();
     toast.success("Alle VPN-Zuweisungen entfernt!");
-    window.location.reload();
+  };
+
+  // Get assigned config for each account
+  const getAssignedConfig = (account: any) => {
+    if (!account.wireguard_config_id) return null;
+    return configs.find(c => c.id === account.wireguard_config_id) || null;
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">VPN & Proxies</h1>
+          <h1 className="text-3xl font-bold">VPN & WireGuard</h1>
           <p className="text-muted-foreground mt-2">
-            Verwalten Sie VPN-Verbindungen und Proxy-Server für Ihre WhatsApp-Accounts
+            Verwalten Sie WireGuard VPN-Verbindungen für Ihre WhatsApp-Accounts
           </p>
         </div>
       </div>
 
-
-      {/* Mullvad VPN Settings */}
+      {/* WireGuard VPN Settings */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            <CardTitle>Mullvad VPN Konfiguration</CardTitle>
+            <CardTitle>WireGuard VPN Konfiguration</CardTitle>
           </div>
           <CardDescription>
-            Konfigurieren Sie Ihre Mullvad VPN-Accounts für sicheren WhatsApp-Zugriff
+            Laden Sie Ihre WireGuard-Konfigurationsdateien (.conf) hoch und weisen Sie sie Ihren WhatsApp-Accounts zu
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -223,104 +261,120 @@ export const VpnProxies = () => {
               Account Verteilung
             </h3>
             <p className="text-sm text-muted-foreground">
-              Pro Mullvad-Account können maximal 5 WhatsApp-Accounts verbunden werden.
+              Jede WireGuard-Konfiguration kann beliebig vielen WhatsApp-Accounts zugewiesen werden. 
+              Die Configs werden gleichmäßig auf alle Accounts verteilt.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Gesamt Accounts</p>
+                <p className="text-sm text-muted-foreground">WhatsApp Accounts</p>
                 <p className="text-2xl font-bold">{accounts.length}</p>
               </div>
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Benötigte Mullvad Accounts</p>
-                <p className="text-2xl font-bold">{Math.ceil(accounts.length / 5)}</p>
+                <p className="text-sm text-muted-foreground">WireGuard Configs</p>
+                <p className="text-2xl font-bold">{configs.length}</p>
               </div>
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Server Region</p>
-                <p className="text-2xl font-bold">DE 🇩🇪</p>
+                <p className="text-sm text-muted-foreground">Zugewiesene Accounts</p>
+                <p className="text-2xl font-bold">
+                  {accounts.filter((a: any) => a.wireguard_config_id).length}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="flex gap-3">
             <Button 
-              onClick={handleAssignAllProxies}
-              disabled={mullvadAccounts.length === 0 || assignProxy.isPending}
+              onClick={handleAssignAllConfigs}
+              disabled={configs.length === 0 || assignConfig.isPending}
               className="gap-2"
             >
               <Wifi className="w-4 h-4" />
-              {assignProxy.isPending ? "Zuweisen..." : "VPN für alle Accounts aktivieren"}
+              {assignConfig.isPending ? "Zuweisen..." : "VPN für alle Accounts aktivieren"}
             </Button>
             
             <Button 
-              onClick={handleRemoveAllProxies}
+              onClick={handleRemoveAllConfigs}
               variant="destructive"
               className="gap-2"
             >
               <Shield className="w-4 h-4" />
-              Alle VPN für alle Accounts deaktivieren
+              Alle VPN-Zuweisungen entfernen
             </Button>
           </div>
 
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <h3 className="font-semibold">Konfigurierte Mullvad Accounts</h3>
+              <h3 className="font-semibold">Hochgeladene WireGuard-Konfigurationen</h3>
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Account hinzufügen
+                    <Upload className="w-4 h-4" />
+                    Config hochladen
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Mullvad Account hinzufügen</DialogTitle>
+                    <DialogTitle>WireGuard-Konfiguration hochladen</DialogTitle>
                     <DialogDescription>
-                      Geben Sie Ihre Mullvad Account-Nummer ein (16-stellig)
+                      Laden Sie eine .conf Datei von Ihrem VPN-Anbieter (z.B. Mullvad) hoch
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="account-number">Account-Nummer</Label>
+                      <Label htmlFor="config-file">Konfigurationsdatei</Label>
                       <Input
-                        id="account-number"
-                        placeholder="1234567890123456"
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
-                        maxLength={16}
+                        id="config-file"
+                        type="file"
+                        accept=".conf"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="config-name">Config-Name</Label>
+                      <Input
+                        id="config-name"
+                        placeholder="z.B. Mullvad DE Frankfurt"
+                        value={configName}
+                        onChange={(e) => setConfigName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="server-location">Server-Standort</Label>
+                      <Input
+                        id="server-location"
+                        placeholder="z.B. DE, NL, SE"
+                        value={serverLocation}
+                        onChange={(e) => setServerLocation(e.target.value.toUpperCase())}
+                        maxLength={2}
                       />
                     </div>
                   </div>
                   <DialogFooter>
                     <Button
-                      onClick={() => {
-                        if (accountNumber.length === 16) {
-                          createAccount.mutate({ account_number: accountNumber });
-                          setAccountNumber("");
-                          setOpen(false);
-                        }
-                      }}
-                      disabled={accountNumber.length !== 16}
+                      onClick={handleUpload}
+                      disabled={!selectedFile || !configName || uploadConfig.isPending}
                     >
-                      Hinzufügen
+                      {uploadConfig.isPending ? "Hochladen..." : "Hochladen"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
             
-            {mullvadAccounts.length === 0 ? (
+            {configs.length === 0 ? (
               <div className="border rounded-lg p-4 bg-muted/20">
                 <p className="text-sm text-muted-foreground text-center">
-                  Noch keine Mullvad Accounts konfiguriert. 
+                  Noch keine WireGuard-Konfigurationen hochgeladen.
                   <br />
-                  Fügen Sie Ihre Account-Nummern hinzu, um fortzufahren.
+                  Laden Sie .conf Dateien von Ihrem VPN-Anbieter hoch.
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                {mullvadAccounts.map((account, index) => (
+                {configs.map((config) => (
                   <div
-                    key={account.id}
+                    key={config.id}
                     className="flex items-center justify-between p-3 border rounded-lg bg-background"
                   >
                     <div className="flex items-center gap-3">
@@ -328,16 +382,16 @@ export const VpnProxies = () => {
                         <Shield className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">Mullvad Account #{index + 1}</p>
+                        <p className="font-medium">{config.config_name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {account.account_number}
+                          {config.server_location} • {config.public_key?.substring(0, 20)}...
                         </p>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => deleteAccount.mutate(account.id)}
+                      onClick={() => deleteConfig.mutate(config.id)}
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
@@ -349,7 +403,7 @@ export const VpnProxies = () => {
         </CardContent>
       </Card>
 
-      {/* Account-to-Proxy Mapping */}
+      {/* Account-to-Config Mapping */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -357,7 +411,7 @@ export const VpnProxies = () => {
             <CardTitle>WhatsApp Account Zuordnung</CardTitle>
           </div>
           <CardDescription>
-            Übersicht über die Zuordnung von WhatsApp-Accounts zu VPN-Servern
+            Übersicht über die Zuordnung von WhatsApp-Accounts zu WireGuard-Konfigurationen
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -368,18 +422,22 @@ export const VpnProxies = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {accounts.map((account, index) => {
-                const mullvadAccountIndex = Math.floor(index / 5);
-                const serverNumber = (index % 5) + 1;
+              {accounts.map((account) => {
+                const assignedConfig = getAssignedConfig(account);
                 
                 return (
                   <AccountCard
                     key={account.id}
                     account={account}
-                    mullvadAccountIndex={mullvadAccountIndex}
-                    serverNumber={serverNumber}
-                    onAssignProxy={() => assignProxy.mutateAsync(account.id)}
-                    assignPending={assignProxy.isPending}
+                    assignedConfig={assignedConfig}
+                    onAssignConfig={async (configId) => {
+                      await assignConfig.mutateAsync({ 
+                        accountId: account.id,
+                        configId 
+                      });
+                      await refetchAccounts();
+                    }}
+                    assignPending={assignConfig.isPending}
                   />
                 );
               })}
@@ -391,26 +449,26 @@ export const VpnProxies = () => {
       {/* Info Box */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-lg">Automatisches Failover-System</CardTitle>
+          <CardTitle className="text-lg">WireGuard VPN System</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            • <strong>Automatische Health-Checks:</strong> Alle VPN-Server werden regelmäßig auf Erreichbarkeit geprüft
+            • <strong>Dedizierte IPs:</strong> Jede WireGuard-Config nutzt eine eigene IP-Adresse
           </p>
           <p>
-            • <strong>Intelligente Server-Auswahl:</strong> Nur gesunde Server werden für neue Verbindungen verwendet
+            • <strong>Flexible Verteilung:</strong> Configs werden gleichmäßig auf Accounts verteilt
           </p>
           <p>
-            • <strong>Automatische Neuzuweisung:</strong> Bei Server-Ausfall werden Accounts automatisch auf funktionierende Server umgeleitet
+            • <strong>Mullvad Support:</strong> Optimiert für Mullvad VPN WireGuard-Konfigurationen
           </p>
           <p>
-            • <strong>Echtzeit-Monitoring:</strong> Server-Status wird alle 30 Sekunden aktualisiert
+            • <strong>Geo-Diverse IPs:</strong> Nutzen Sie verschiedene Länder-Server für bessere Reputation
           </p>
           <p>
-            • <strong>SOCKS5 Proxy:</strong> Optimale Kompatibilität mit WhatsApp Web
+            • <strong>Einfaches Management:</strong> Hochladen, Zuweisen, Fertig!
           </p>
           <p>
-            • <strong>Load Balancing:</strong> Server mit bester Response-Zeit werden priorisiert
+            • <strong>Privacy-First:</strong> WireGuard bietet moderne Verschlüsselung und minimale Angriffsfläche
           </p>
         </CardContent>
       </Card>
