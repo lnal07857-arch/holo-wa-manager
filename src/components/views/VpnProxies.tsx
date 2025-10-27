@@ -968,9 +968,9 @@ export const VpnProxies = () => {
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">ℹ️ Info</p>
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">🚀 Automatische Zuweisung</p>
               <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
-                Die generierten Configs werden automatisch diesem Mullvad Account zugeordnet und können dann den WhatsApp Accounts zugewiesen werden.
+                Die Configs werden nach der Generierung automatisch allen WhatsApp-Accounts zugewiesen, die noch Configs benötigen (Primary → Backup → Tertiary).
               </p>
             </div>
           </div>
@@ -1010,14 +1010,68 @@ export const VpnProxies = () => {
                   setGenerateCount(5);
                   setGenerateLocation("de");
                   
-                  toast.success(`${generateCount} WireGuard-Konfigurationen erfolgreich generiert!`);
+                  toast.success(`${generateCount} Configs generiert!`);
+                  
+                  // Auto-assign configs to all accounts that need them
+                  toast.info("Weise Configs automatisch zu...");
+                  
+                  // Wait a bit for configs to be fully available
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  
+                  // Refresh to get latest configs
+                  await refetchConfigs();
+                  await refetchAccounts();
+                  
+                  // Get updated data
+                  const latestConfigs = configs;
+                  const latestAccounts = accounts;
+                  
+                  let totalAssigned = 0;
+                  
+                  for (const account of latestAccounts) {
+                    const acc = account as any;
+                    const primary = acc.wireguard_config_id ? latestConfigs.find(c => c.id === acc.wireguard_config_id) : null;
+                    const backup = acc.wireguard_backup_config_id ? latestConfigs.find(c => c.id === acc.wireguard_backup_config_id) : null;
+                    const tertiary = acc.wireguard_tertiary_config_id ? latestConfigs.find(c => c.id === acc.wireguard_tertiary_config_id) : null;
+                    
+                    const missingCount = [!primary, !backup, !tertiary].filter(Boolean).length;
+                    
+                    if (missingCount === 0) continue;
+                    
+                    // Get available configs (not yet assigned to this account)
+                    const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
+                    const availableConfigs = latestConfigs.filter(c => !assignedIds.includes(c.id));
+                    
+                    if (availableConfigs.length < missingCount) continue;
+                    
+                    // Assign configs
+                    for (let i = 0; i < missingCount; i++) {
+                      try {
+                        await assignConfig.mutateAsync({
+                          accountId: acc.id,
+                          configId: availableConfigs[i].id
+                        });
+                        totalAssigned++;
+                      } catch (error: any) {
+                        console.error(`Failed to assign config to ${acc.account_name}:`, error);
+                      }
+                    }
+                  }
+                  
+                  await refetchAccounts();
+                  
+                  if (totalAssigned > 0) {
+                    toast.success(`${totalAssigned} Config${totalAssigned > 1 ? 's' : ''} automatisch zugewiesen!`);
+                  } else {
+                    toast.info("Alle Accounts haben bereits ausreichend Configs");
+                  }
                 } catch (error: any) {
                   toast.error(`Fehler: ${error.message}`);
                 }
               }}
               disabled={isGenerating || generateCount < 1 || generateCount > 15}
             >
-              {isGenerating ? "Generiere..." : `${generateCount} Configs generieren`}
+              {isGenerating ? "Generiere..." : `${generateCount} Configs generieren & zuweisen`}
             </Button>
           </DialogFooter>
         </DialogContent>
