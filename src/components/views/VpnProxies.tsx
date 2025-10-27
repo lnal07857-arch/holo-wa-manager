@@ -548,16 +548,16 @@ export const VpnProxies = () => {
     return activeCount;
   };
 
-  // Calculate capacity
-  const requiredConfigs = accounts.length * 3; // Each account needs 3 configs
+  // Calculate actual assigned configs
+  const accountsWithPrimary = accounts.filter(acc => (acc as any).wireguard_config_id).length;
+  const accountsWithBackup = accounts.filter(acc => (acc as any).wireguard_backup_config_id).length;
+  const accountsWithTertiary = accounts.filter(acc => (acc as any).wireguard_tertiary_config_id).length;
+  const totalAssignedSlots = accountsWithPrimary + accountsWithBackup + accountsWithTertiary;
+  
+  // Calculate active connections (accounts that have an active_config_id set)
+  const accountsWithActiveConfig = accounts.filter(acc => (acc as any).active_config_id).length;
+  
   const totalMullvadCapacity = mullvadAccounts.reduce((sum, acc) => sum + acc.max_devices, 0);
-  
-  // Calculate actual active connections (not devices_used from DB)
-  const totalActiveConnections = mullvadAccounts.reduce((sum, mullvadAcc) => {
-    return sum + getActiveConnectionsForMullvad(mullvadAcc.id);
-  }, 0);
-  
-  const availableCapacity = totalMullvadCapacity - totalActiveConnections;
 
   // Get Mullvad account name for a config
   const getMullvadAccountName = (configId: string): string => {
@@ -869,43 +869,37 @@ export const VpnProxies = () => {
           <div className="bg-muted/50 p-4 rounded-lg space-y-2">
             <h3 className="font-semibold flex items-center gap-2">
               <Globe className="w-4 h-4" />
-              Account Verteilung
+              Config Nutzung
             </h3>
             <p className="text-sm text-muted-foreground">
-              Jeder Account benötigt 3 Configs für optimales Failover. 
-              Für 20 Accounts = 60 Configs empfohlen (4 Mullvad-Accounts à 5€).
+              Zugewiesene Configs und aktive Verbindungen pro Mullvad Account
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
               <div className="bg-background p-3 rounded border">
                 <p className="text-sm text-muted-foreground">WhatsApp Accounts</p>
                 <p className="text-2xl font-bold">{accounts.length}</p>
               </div>
-              <div className={`bg-background p-3 rounded border ${configs.length < requiredConfigs ? 'border-orange-500 border-2' : 'border-green-500'}`}>
-                <p className="text-sm text-muted-foreground">Benötigt / Vorhanden</p>
-                <p className="text-2xl font-bold">{requiredConfigs} / {configs.length}</p>
+              <div className={`bg-background p-3 rounded border ${totalAssignedSlots === 0 ? 'border-orange-500 border-2' : 'border-green-500'}`}>
+                <p className="text-sm text-muted-foreground">Zugewiesene Slots</p>
+                <p className="text-2xl font-bold">{totalAssignedSlots} / {configs.length}</p>
               </div>
-              <div className={`bg-background p-3 rounded border ${totalActiveConnections >= totalMullvadCapacity ? 'border-red-500 border-2' : 'border-green-500'}`}>
+              <div className={`bg-background p-3 rounded border ${accountsWithActiveConfig > 0 ? 'border-green-500' : 'border-orange-500 border-2'}`}>
                 <p className="text-sm text-muted-foreground">Aktive Verbindungen</p>
-                <p className="text-2xl font-bold">{totalActiveConnections} / {totalMullvadCapacity}</p>
+                <p className="text-2xl font-bold">{accountsWithActiveConfig}</p>
               </div>
-              <div className={`bg-background p-3 rounded border ${availableCapacity < 5 ? 'border-orange-500 border-2' : 'border-green-500'}`}>
-                <p className="text-sm text-muted-foreground">Freie Slots</p>
-                <p className="text-2xl font-bold">{availableCapacity}</p>
+              <div className="bg-background p-3 rounded border">
+                <p className="text-sm text-muted-foreground">Mullvad Kapazität</p>
+                <p className="text-2xl font-bold">{configs.length} / {totalMullvadCapacity}</p>
               </div>
             </div>
 
-            {configs.length < requiredConfigs && (
-              <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 p-3 rounded-lg mt-4">
-                <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                  ⚠️ Nicht genug Configs vorhanden
+            {totalAssignedSlots < accounts.length && (
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg mt-4">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  ℹ️ Config-Zuweisung
                 </p>
-                <p className="text-xs text-orange-800 dark:text-orange-200 mt-1">
-                  Du brauchst noch <strong>{requiredConfigs - configs.length} weitere Configs</strong> für optimale Abdeckung (3 pro WhatsApp Account).
-                  {availableCapacity < (requiredConfigs - configs.length) && (
-                    <span className="block mt-1 text-red-600 dark:text-red-400 font-medium">
-                      ❌ Deine Mullvad Accounts haben nicht genug Kapazität! Füge weitere Accounts hinzu oder erhöhe max_devices.
-                    </span>
-                  )}
+                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                  {accountsWithPrimary} Accounts mit Primary • {accountsWithBackup} mit Backup • {accountsWithTertiary} mit Tertiary Config
                 </p>
               </div>
             )}
