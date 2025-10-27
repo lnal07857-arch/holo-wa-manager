@@ -2,9 +2,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle, Edit, MoreHorizontal } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
@@ -1067,121 +1068,25 @@ export const VpnProxies = () => {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">Hochgeladene WireGuard-Konfigurationen</h3>
-              <div className="flex gap-2">
-                {/* Delete All Configs Button */}
-                <Button 
-                  size="sm" 
-                  variant="destructive"
-                  className="gap-2"
-                  onClick={handleDeleteAllConfigs}
-                  disabled={configs.length === 0}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Alle löschen ({configs.length})
-                </Button>
-
-                {/* Manual Upload Dialog */}
-                <Dialog open={open} onOpenChange={(isOpen) => {
-                  setOpen(isOpen);
-                  if (!isOpen) {
-                    // Reset state when dialog closes
-                    setSelectedFiles([]);
-                    setConfigName("");
-                    setServerLocation("DE");
-                    setUploadMullvadAccountId("");
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = "";
-                    }
-                  }
-                }}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-2" variant="outline">
-                      <Upload className="w-4 h-4" />
-                      Manuell hochladen
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>WireGuard-Konfiguration hochladen</DialogTitle>
-                      <DialogDescription>
-                        Laden Sie eine .conf Datei von Mullvad hoch
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="upload-mullvad-account">Mullvad Account (optional)</Label>
-                        <select
-                          id="upload-mullvad-account"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                          value={uploadMullvadAccountId}
-                          onChange={(e) => setUploadMullvadAccountId(e.target.value)}
-                        >
-                          <option value="">Keinen Account zuordnen</option>
-                          {mullvadAccounts.map((acc) => (
-                            <option key={acc.id} value={acc.id}>
-                              {acc.account_name} ({acc.devices_used}/{acc.max_devices} Devices)
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground">
-                          Wähle den Mullvad Account aus, zu dem dieser Key gehört
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="config-file">Konfigurationsdatei(en)</Label>
-                        <Input
-                          id="config-file"
-                          type="file"
-                          accept=".conf"
-                          multiple
-                          ref={fileInputRef}
-                          onChange={handleFileSelect}
-                        />
-                        {selectedFiles.length > 0 && (
-                          <div className="text-sm text-muted-foreground">
-                            {selectedFiles.length} Datei(en) ausgewählt
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="config-name">Config-Name {selectedFiles.length > 1 && "(optional - verwendet Dateinamen)"}</Label>
-                        <Input
-                          id="config-name"
-                          placeholder="z.B. Mullvad DE Frankfurt"
-                          value={configName}
-                          onChange={(e) => setConfigName(e.target.value)}
-                          disabled={selectedFiles.length > 1}
-                        />
-                        {selectedFiles.length > 1 && (
-                          <p className="text-xs text-muted-foreground">
-                            Bei mehreren Dateien werden die Dateinamen als Config-Namen verwendet
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="server-location">Server-Standort</Label>
-                        <Input
-                          id="server-location"
-                          placeholder="z.B. DE, NL, SE"
-                          value={serverLocation}
-                          onChange={(e) => setServerLocation(e.target.value.toUpperCase())}
-                          maxLength={2}
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        onClick={handleUpload}
-                        disabled={selectedFiles.length === 0 || (selectedFiles.length === 1 && !configName) || uploadConfig.isPending}
-                      >
-                        {uploadConfig.isPending ? "Hochladen..." : selectedFiles.length > 1 ? `${selectedFiles.length} Configs hochladen` : "Hochladen"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-2">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleDeleteAllConfigs}
+                    disabled={configs.length === 0}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Alle löschen ({configs.length})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+            
             
             {configs.length === 0 ? (
               <div className="border rounded-lg p-4 bg-muted/20">
