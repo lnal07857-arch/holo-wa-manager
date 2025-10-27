@@ -10,6 +10,7 @@ import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
 import { useWireGuardHealth } from "@/hooks/useWireGuardHealth";
 import { useFingerprint } from "@/hooks/useFingerprint";
+import { useMullvadConfigGenerator } from "@/hooks/useMullvadConfigGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
@@ -257,9 +258,13 @@ export const VpnProxies = () => {
   const { configs, uploadConfig, deleteConfig } = useWireGuardConfigs();
   const { assignConfig } = useWireGuardManager();
   const { healthStatus, getConfigHealth } = useWireGuardHealth();
+  const { locations, locationsLoading, generateConfigs, isGenerating } = useMullvadConfigGenerator();
   const [open, setOpen] = useState(false);
+  const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
+  const [configCount, setConfigCount] = useState(15);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -493,61 +498,156 @@ export const VpnProxies = () => {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">Hochgeladene WireGuard-Konfigurationen</h3>
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2">
-                    <Upload className="w-4 h-4" />
-                    Config hochladen
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>WireGuard-Konfiguration hochladen</DialogTitle>
-                    <DialogDescription>
-                      Laden Sie eine .conf Datei von Mullvad hoch
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="config-file">Konfigurationsdatei</Label>
-                      <Input
-                        id="config-file"
-                        type="file"
-                        accept=".conf"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="config-name">Config-Name</Label>
-                      <Input
-                        id="config-name"
-                        placeholder="z.B. Mullvad DE Frankfurt"
-                        value={configName}
-                        onChange={(e) => setConfigName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="server-location">Server-Standort</Label>
-                      <Input
-                        id="server-location"
-                        placeholder="z.B. DE, NL, SE"
-                        value={serverLocation}
-                        onChange={(e) => setServerLocation(e.target.value.toUpperCase())}
-                        maxLength={2}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      onClick={handleUpload}
-                      disabled={!selectedFile || !configName || uploadConfig.isPending}
-                    >
-                      {uploadConfig.isPending ? "Hochladen..." : "Hochladen"}
+              <div className="flex gap-2">
+                {/* Auto-Generate Dialog */}
+                <Dialog open={autoGenOpen} onOpenChange={setAutoGenOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2" variant="default">
+                      <Plus className="w-4 h-4" />
+                      Automatisch generieren
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>WireGuard-Configs automatisch generieren</DialogTitle>
+                      <DialogDescription>
+                        Generiert automatisch WireGuard-Konfigurationen über die Mullvad API
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="config-count">Anzahl der Configs</Label>
+                        <Input
+                          id="config-count"
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={configCount}
+                          onChange={(e) => setConfigCount(parseInt(e.target.value) || 1)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Empfohlen: {accounts.length * 3} Configs für {accounts.length} Accounts (3 pro Account)
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Server-Standorte (optional)</Label>
+                        <div className="border rounded-md p-4 max-h-60 overflow-y-auto">
+                          {locationsLoading ? (
+                            <p className="text-sm text-muted-foreground">Lade verfügbare Standorte...</p>
+                          ) : locations.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              {locations.map((location: string) => (
+                                <label key={location} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedLocations.includes(location)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedLocations([...selectedLocations, location]);
+                                      } else {
+                                        setSelectedLocations(selectedLocations.filter(l => l !== location));
+                                      }
+                                    }}
+                                    className="rounded"
+                                  />
+                                  <span className="text-sm">{location}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Keine Standorte verfügbar</p>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Leer lassen für automatische Server-Auswahl
+                        </p>
+                      </div>
+
+                      <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                        <p className="text-sm font-medium">ℹ️ Info</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          <li>• Verwendet deine Mullvad Account Number aus den Secrets</li>
+                          <li>• Generiert automatisch neue WireGuard Keys</li>
+                          <li>• Erstellt .conf Dateien und lädt sie in die Datenbank</li>
+                          <li>• Rate-Limiting: 1 Config alle 500ms (~2 pro Sekunde)</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        onClick={async () => {
+                          await generateConfigs.mutateAsync({
+                            count: configCount,
+                            selectedLocations: selectedLocations
+                          });
+                          setAutoGenOpen(false);
+                        }}
+                        disabled={isGenerating}
+                      >
+                        {isGenerating ? "Generiere..." : `${configCount} Configs generieren`}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Manual Upload Dialog */}
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2" variant="outline">
+                      <Upload className="w-4 h-4" />
+                      Manuell hochladen
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>WireGuard-Konfiguration hochladen</DialogTitle>
+                      <DialogDescription>
+                        Laden Sie eine .conf Datei von Mullvad hoch
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="config-file">Konfigurationsdatei</Label>
+                        <Input
+                          id="config-file"
+                          type="file"
+                          accept=".conf"
+                          ref={fileInputRef}
+                          onChange={handleFileSelect}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="config-name">Config-Name</Label>
+                        <Input
+                          id="config-name"
+                          placeholder="z.B. Mullvad DE Frankfurt"
+                          value={configName}
+                          onChange={(e) => setConfigName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="server-location">Server-Standort</Label>
+                        <Input
+                          id="server-location"
+                          placeholder="z.B. DE, NL, SE"
+                          value={serverLocation}
+                          onChange={(e) => setServerLocation(e.target.value.toUpperCase())}
+                          maxLength={2}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        onClick={handleUpload}
+                        disabled={!selectedFile || !configName || uploadConfig.isPending}
+                      >
+                        {uploadConfig.isPending ? "Hochladen..." : "Hochladen"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
             
             {configs.length === 0 ? (
