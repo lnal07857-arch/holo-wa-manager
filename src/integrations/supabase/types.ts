@@ -449,6 +449,27 @@ export type Database = {
           },
         ]
       }
+      warmup_phone_numbers: {
+        Row: {
+          created_at: string
+          id: string
+          phone_number: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          phone_number: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          phone_number?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       warmup_settings: {
         Row: {
           active_end_hour: number | null

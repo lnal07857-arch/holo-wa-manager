@@ -101,6 +101,17 @@ export const useMessages = () => {
           (userAccounts || []).map(acc => acc.phone_number.replace(/\D/g, ''))
         );
         
+        // Fetch warmup phone numbers to filter them out
+        const { data: warmupData } = await supabase
+          .from("warmup_phone_numbers")
+          .select("phone_number");
+        
+        const warmupPhoneNumbers = new Set(
+          (warmupData || []).map(item => item.phone_number.replace(/\D/g, ''))
+        );
+        
+        console.log(`[Filter] Loaded ${ownPhoneNumbers.size} own numbers and ${warmupPhoneNumbers.size} warmup numbers to filter`);
+        
         // Fetch all messages with account info
         const { data: messagesData, error: messagesError } = await supabase
           .from("messages")
@@ -160,9 +171,14 @@ export const useMessages = () => {
             return;
           }
           
-          // CRITICAL: Skip chats between own accounts (second priority filter)
-          // Normalize phone numbers for comparison (remove all non-digits)
+          // CRITICAL: Skip chats from warmup phone numbers (system-wide blacklist)
           const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
+          if (warmupPhoneNumbers.has(cleanContactPhone)) {
+            console.log(`[Filter] Skipping warmup contact: ${msg.contact_phone}`);
+            return;
+          }
+          
+          // CRITICAL: Skip chats between own accounts (second priority filter)
           if (ownPhoneNumbers.has(cleanContactPhone)) {
             return;
           }
