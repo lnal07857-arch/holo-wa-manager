@@ -4,21 +4,61 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload } from "lucide-react";
+import { Shield, Globe, Server, Plus, Trash2, Wifi, Fingerprint, Monitor, Cpu, Clock, Upload, Activity, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useWireGuardConfigs } from "@/hooks/useWireGuardConfigs";
 import { useWireGuardManager } from "@/hooks/useWireGuardManager";
+import { useWireGuardHealth } from "@/hooks/useWireGuardHealth";
 import { useFingerprint } from "@/hooks/useFingerprint";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Progress } from "@/components/ui/progress";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
-const AccountCard = ({ account, assignedConfig, onAssignConfig, assignPending }: { 
+const ConfigHealthBadge = ({ configId, getConfigHealth }: { configId: string | null; getConfigHealth: (id: string) => any }) => {
+  if (!configId) return <Badge variant="secondary">Nicht zugewiesen</Badge>;
+  
+  const health = getConfigHealth(configId);
+  if (!health) return <Badge variant="secondary">Unbekannt</Badge>;
+
+  if (health.is_healthy) {
+    return (
+      <Badge variant="default" className="bg-green-600 gap-1">
+        <CheckCircle2 className="w-3 h-3" />
+        Gesund
+      </Badge>
+    );
+  }
+
+  if (health.consecutive_failures >= 3) {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <XCircle className="w-3 h-3" />
+        Ausgefallen ({health.consecutive_failures})
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="secondary" className="bg-orange-500 text-white gap-1">
+      <AlertTriangle className="w-3 h-3" />
+      Warnung ({health.consecutive_failures})
+    </Badge>
+  );
+};
+
+const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, assignPending, getConfigHealth }: { 
   account: any; 
-  assignedConfig: any | null;
+  primaryConfig: any | null;
+  backupConfig: any | null;
+  tertiaryConfig: any | null;
+  activeConfig: any | null;
   onAssignConfig: (configId: string) => Promise<any>;
   assignPending: boolean;
+  getConfigHealth: (id: string) => any;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
@@ -26,7 +66,7 @@ const AccountCard = ({ account, assignedConfig, onAssignConfig, assignPending }:
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="border rounded-lg hover:bg-muted/50 transition-colors">
-        <div className="flex items-center justify-between p-3">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <Shield className="w-5 h-5 text-primary" />
@@ -40,27 +80,36 @@ const AccountCard = ({ account, assignedConfig, onAssignConfig, assignPending }:
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Failover Stats */}
+            {account.failover_count > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Failover</p>
+                <p className="text-sm font-medium">{account.failover_count}x</p>
+              </div>
+            )}
+
+            {/* Active Config */}
             <div className="text-right">
-              {assignedConfig ? (
+              {activeConfig ? (
                 <>
-                  <p className="text-sm font-medium text-green-600">
-                    {assignedConfig.config_name}
+                  <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                    <Activity className="w-3 h-3" />
+                    {activeConfig.config_name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {assignedConfig.server_location}
+                    {activeConfig.server_location}
                   </p>
-                  <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                    <Shield className="w-3 h-3" />
-                    <span>WireGuard aktiv</span>
-                  </div>
+                  <ConfigHealthBadge configId={activeConfig.id} getConfigHealth={getConfigHealth} />
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">Kein VPN</p>
               )}
             </div>
+
             <Badge variant={account.status === "connected" ? "default" : "secondary"}>
               {account.status === "connected" ? "Verbunden" : "Getrennt"}
             </Badge>
+
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
                 <Fingerprint className="w-4 h-4" />
@@ -72,65 +121,127 @@ const AccountCard = ({ account, assignedConfig, onAssignConfig, assignPending }:
 
         <CollapsibleContent>
           <div className="border-t p-4 bg-muted/20 space-y-4">
+            {/* Config Overview */}
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
+                WireGuard Konfigurationen
+              </h4>
+              <div className="grid grid-cols-3 gap-3">
+                {/* Primary */}
+                <div className="bg-background p-3 rounded border">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-blue-600">PRIMARY</p>
+                    {account.active_config_id === account.wireguard_config_id && (
+                      <Badge variant="default" className="text-xs">Aktiv</Badge>
+                    )}
+                  </div>
+                  {primaryConfig ? (
+                    <>
+                      <p className="font-mono text-sm">{primaryConfig.config_name}</p>
+                      <p className="text-xs text-muted-foreground">{primaryConfig.server_location}</p>
+                      <div className="mt-2">
+                        <ConfigHealthBadge configId={primaryConfig.id} getConfigHealth={getConfigHealth} />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
+                  )}
+                </div>
+
+                {/* Backup */}
+                <div className="bg-background p-3 rounded border">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-orange-600">BACKUP</p>
+                    {account.active_config_id === account.wireguard_backup_config_id && (
+                      <Badge variant="default" className="text-xs">Aktiv</Badge>
+                    )}
+                  </div>
+                  {backupConfig ? (
+                    <>
+                      <p className="font-mono text-sm">{backupConfig.config_name}</p>
+                      <p className="text-xs text-muted-foreground">{backupConfig.server_location}</p>
+                      <div className="mt-2">
+                        <ConfigHealthBadge configId={backupConfig.id} getConfigHealth={getConfigHealth} />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
+                  )}
+                </div>
+
+                {/* Tertiary */}
+                <div className="bg-background p-3 rounded border">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-purple-600">TERTIARY</p>
+                    {account.active_config_id === account.wireguard_tertiary_config_id && (
+                      <Badge variant="default" className="text-xs">Aktiv</Badge>
+                    )}
+                  </div>
+                  {tertiaryConfig ? (
+                    <>
+                      <p className="font-mono text-sm">{tertiaryConfig.config_name}</p>
+                      <p className="text-xs text-muted-foreground">{tertiaryConfig.server_location}</p>
+                      <div className="mt-2">
+                        <ConfigHealthBadge configId={tertiaryConfig.id} getConfigHealth={getConfigHealth} />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nicht konfiguriert</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Failover History */}
+              {account.last_failover_at && (
+                <div className="bg-orange-50 dark:bg-orange-950 p-2 rounded border border-orange-200 dark:border-orange-800 mt-2">
+                  <p className="text-xs text-orange-700 dark:text-orange-300">
+                    <AlertTriangle className="w-3 h-3 inline mr-1" />
+                    Letzter Failover: {format(new Date(account.last_failover_at), "dd.MM.yyyy HH:mm", { locale: de })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Fingerprint Information */}
             {isLoading ? (
               <p className="text-sm text-muted-foreground text-center">Lade Fingerprint-Daten...</p>
             ) : fingerprintData ? (
-              <>
-                {/* VPN Information */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary" />
-                    VPN-Konfiguration
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs">Status</p>
-                      <p className="font-mono">{assignedConfig ? 'WireGuard aktiv' : 'Nicht konfiguriert'}</p>
-                    </div>
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs">Server-Standort</p>
-                      <p className="font-mono">{assignedConfig?.server_location || '-'}</p>
-                    </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Fingerprint className="w-4 h-4 text-primary" />
+                  Browser Fingerprint
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-background p-2 rounded border">
+                    <p className="text-muted-foreground text-xs flex items-center gap-1">
+                      <Monitor className="w-3 h-3" />
+                      Auflösung
+                    </p>
+                    <p className="font-mono text-sm">
+                      {fingerprintData.fingerprint.resolution.width} x {fingerprintData.fingerprint.resolution.height}
+                    </p>
+                  </div>
+                  <div className="bg-background p-2 rounded border">
+                    <p className="text-muted-foreground text-xs flex items-center gap-1">
+                      <Cpu className="w-3 h-3" />
+                      CPU Kerne
+                    </p>
+                    <p className="font-mono text-sm">{fingerprintData.fingerprint.cores}</p>
+                  </div>
+                  <div className="bg-background p-2 rounded border">
+                    <p className="text-muted-foreground text-xs flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Zeitzone
+                    </p>
+                    <p className="font-mono text-sm">{fingerprintData.fingerprint.timezone}</p>
+                  </div>
+                  <div className="bg-background p-2 rounded border col-span-2">
+                    <p className="text-muted-foreground text-xs">User-Agent</p>
+                    <p className="font-mono text-xs break-all">{fingerprintData.fingerprint.userAgent}</p>
                   </div>
                 </div>
-
-                {/* Fingerprint Information */}
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Fingerprint className="w-4 h-4 text-primary" />
-                    Browser Fingerprint
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs flex items-center gap-1">
-                        <Monitor className="w-3 h-3" />
-                        Bildschirmauflösung
-                      </p>
-                      <p className="font-mono text-sm">
-                        {fingerprintData.fingerprint.resolution.width} x {fingerprintData.fingerprint.resolution.height}
-                      </p>
-                    </div>
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs flex items-center gap-1">
-                        <Cpu className="w-3 h-3" />
-                        CPU Kerne
-                      </p>
-                      <p className="font-mono text-sm">{fingerprintData.fingerprint.cores}</p>
-                    </div>
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Zeitzone
-                      </p>
-                      <p className="font-mono text-sm">{fingerprintData.fingerprint.timezone}</p>
-                    </div>
-                    <div className="bg-background p-2 rounded border">
-                      <p className="text-muted-foreground text-xs">User-Agent</p>
-                      <p className="font-mono text-xs break-all">{fingerprintData.fingerprint.userAgent}</p>
-                    </div>
-                  </div>
-                </div>
-              </>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center">Keine Fingerprint-Daten verfügbar</p>
             )}
@@ -145,6 +256,7 @@ export const VpnProxies = () => {
   const { accounts, refetch: refetchAccounts } = useWhatsAppAccounts();
   const { configs, uploadConfig, deleteConfig } = useWireGuardConfigs();
   const { assignConfig } = useWireGuardManager();
+  const { healthStatus, getConfigHealth } = useWireGuardHealth();
   const [open, setOpen] = useState(false);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
@@ -191,17 +303,43 @@ export const VpnProxies = () => {
       return;
     }
 
-    toast.info("Weise WireGuard-Konfigurationen zu...");
-    for (let i = 0; i < accounts.length; i++) {
-      const account = accounts[i];
-      const config = configs[i % configs.length]; // Round-robin distribution
-      await assignConfig.mutateAsync({ 
-        accountId: account.id,
-        configId: config.id 
-      });
+    if (configs.length < 3) {
+      toast.warning("Empfehlung: Lade mindestens 3 Configs pro Account hoch (Primary + Backup + Tertiary)");
     }
+
+    toast.info("Weise WireGuard-Konfigurationen zu...");
+    
+    // Assign configs in order: Primary → Backup → Tertiary
+    for (const account of accounts) {
+      // Determine which slot to fill (cast to any for new fields)
+      const acc = account as any;
+      const needsPrimary = !acc.wireguard_config_id;
+      const needsBackup = acc.wireguard_config_id && !acc.wireguard_backup_config_id;
+      const needsTertiary = acc.wireguard_backup_config_id && !acc.wireguard_tertiary_config_id;
+
+      if (needsPrimary || needsBackup || needsTertiary) {
+        // Round-robin config selection
+        const accountIndex = accounts.indexOf(account);
+        let configIndex;
+        
+        if (needsPrimary) {
+          configIndex = accountIndex % configs.length;
+        } else if (needsBackup) {
+          configIndex = (accountIndex + 1) % configs.length;
+        } else {
+          configIndex = (accountIndex + 2) % configs.length;
+        }
+        
+        const config = configs[configIndex];
+        await assignConfig.mutateAsync({ 
+          accountId: account.id,
+          configId: config.id 
+        });
+      }
+    }
+    
     await refetchAccounts();
-    toast.success("Alle WireGuard-Konfigurationen zugewiesen!");
+    toast.success("WireGuard-Konfigurationen zugewiesen!");
   };
 
   const handleRemoveAllConfigs = async () => {
@@ -212,8 +350,12 @@ export const VpnProxies = () => {
         .from('whatsapp_accounts')
         .update({ 
           wireguard_config_id: null,
+          wireguard_backup_config_id: null,
+          wireguard_tertiary_config_id: null,
+          active_config_id: null,
           proxy_country: null,
-          proxy_server: null
+          proxy_server: null,
+          failover_count: 0
         })
         .eq('id', account.id);
       
@@ -226,11 +368,19 @@ export const VpnProxies = () => {
     toast.success("Alle VPN-Zuweisungen entfernt!");
   };
 
-  // Get assigned config for each account
-  const getAssignedConfig = (account: any) => {
-    if (!account.wireguard_config_id) return null;
-    return configs.find(c => c.id === account.wireguard_config_id) || null;
+  // Get configs for account
+  const getAccountConfigs = (account: any) => {
+    const primary = configs.find(c => c.id === account.wireguard_config_id) || null;
+    const backup = configs.find(c => c.id === account.wireguard_backup_config_id) || null;
+    const tertiary = configs.find(c => c.id === account.wireguard_tertiary_config_id) || null;
+    const active = configs.find(c => c.id === account.active_config_id) || null;
+    return { primary, backup, tertiary, active };
   };
+
+  // Calculate health statistics
+  const healthyConfigs = healthStatus.filter(h => h.is_healthy).length;
+  const totalConfigs = configs.length;
+  const healthPercentage = totalConfigs > 0 ? Math.round((healthyConfigs / totalConfigs) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -238,10 +388,46 @@ export const VpnProxies = () => {
         <div>
           <h1 className="text-3xl font-bold">VPN & WireGuard</h1>
           <p className="text-muted-foreground mt-2">
-            Verwalten Sie WireGuard VPN-Verbindungen für Ihre WhatsApp-Accounts
+            Multi-Config Failover-System mit automatischem Health-Monitoring
           </p>
         </div>
       </div>
+
+      {/* Health Overview */}
+      {configs.length > 0 && (
+        <Card className="border-2 border-primary/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <CardTitle>System Health</CardTitle>
+              </div>
+              <Badge variant={healthPercentage >= 80 ? "default" : healthPercentage >= 50 ? "secondary" : "destructive"} className="text-lg px-3 py-1">
+                {healthPercentage}%
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Progress value={healthPercentage} className="h-3" />
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold text-green-600">{healthyConfigs}</p>
+                  <p className="text-xs text-muted-foreground">Gesund</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{totalConfigs}</p>
+                  <p className="text-xs text-muted-foreground">Gesamt</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-red-600">{totalConfigs - healthyConfigs}</p>
+                  <p className="text-xs text-muted-foreground">Ausgefallen</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* WireGuard VPN Settings */}
       <Card>
@@ -251,7 +437,7 @@ export const VpnProxies = () => {
             <CardTitle>WireGuard VPN Konfiguration</CardTitle>
           </div>
           <CardDescription>
-            Laden Sie Ihre WireGuard-Konfigurationsdateien (.conf) hoch und weisen Sie sie Ihren WhatsApp-Accounts zu
+            Triple-Config Failover: Jeder Account erhält Primary + Backup + Tertiary Config
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -261,23 +447,25 @@ export const VpnProxies = () => {
               Account Verteilung
             </h3>
             <p className="text-sm text-muted-foreground">
-              Jede WireGuard-Konfiguration kann beliebig vielen WhatsApp-Accounts zugewiesen werden. 
-              Die Configs werden gleichmäßig auf alle Accounts verteilt.
+              Jeder Account benötigt 3 Configs für optimales Failover. 
+              Für 20 Accounts = 60 Configs empfohlen (4 Mullvad-Accounts à 5€).
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
               <div className="bg-background p-3 rounded border">
                 <p className="text-sm text-muted-foreground">WhatsApp Accounts</p>
                 <p className="text-2xl font-bold">{accounts.length}</p>
               </div>
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">WireGuard Configs</p>
+                <p className="text-sm text-muted-foreground">Hochgeladene Configs</p>
                 <p className="text-2xl font-bold">{configs.length}</p>
               </div>
               <div className="bg-background p-3 rounded border">
-                <p className="text-sm text-muted-foreground">Zugewiesene Accounts</p>
-                <p className="text-2xl font-bold">
-                  {accounts.filter((a: any) => a.wireguard_config_id).length}
-                </p>
+                <p className="text-sm text-muted-foreground">Empfohlene Configs</p>
+                <p className="text-2xl font-bold">{accounts.length * 3}</p>
+              </div>
+              <div className="bg-background p-3 rounded border">
+                <p className="text-sm text-muted-foreground">Mullvad Accounts</p>
+                <p className="text-2xl font-bold">{Math.ceil(accounts.length / 5)}</p>
               </div>
             </div>
           </div>
@@ -289,7 +477,7 @@ export const VpnProxies = () => {
               className="gap-2"
             >
               <Wifi className="w-4 h-4" />
-              {assignConfig.isPending ? "Zuweisen..." : "VPN für alle Accounts aktivieren"}
+              {assignConfig.isPending ? "Zuweisen..." : "Configs zuweisen"}
             </Button>
             
             <Button 
@@ -316,7 +504,7 @@ export const VpnProxies = () => {
                   <DialogHeader>
                     <DialogTitle>WireGuard-Konfiguration hochladen</DialogTitle>
                     <DialogDescription>
-                      Laden Sie eine .conf Datei von Ihrem VPN-Anbieter (z.B. Mullvad) hoch
+                      Laden Sie eine .conf Datei von Mullvad hoch
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -367,36 +555,40 @@ export const VpnProxies = () => {
                 <p className="text-sm text-muted-foreground text-center">
                   Noch keine WireGuard-Konfigurationen hochgeladen.
                   <br />
-                  Laden Sie .conf Dateien von Ihrem VPN-Anbieter hoch.
+                  Laden Sie .conf Dateien von Mullvad hoch.
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                {configs.map((config) => (
-                  <div
-                    key={config.id}
-                    className="flex items-center justify-between p-3 border rounded-lg bg-background"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{config.config_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {config.server_location} • {config.public_key?.substring(0, 20)}...
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteConfig.mutate(config.id)}
+                {configs.map((config) => {
+                  const health = getConfigHealth(config.id);
+                  return (
+                    <div
+                      key={config.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-background"
                     >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Shield className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{config.config_name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {config.server_location} • {config.public_key?.substring(0, 20)}...
+                          </p>
+                        </div>
+                        <ConfigHealthBadge configId={config.id} getConfigHealth={getConfigHealth} />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteConfig.mutate(config.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -411,7 +603,7 @@ export const VpnProxies = () => {
             <CardTitle>WhatsApp Account Zuordnung</CardTitle>
           </div>
           <CardDescription>
-            Übersicht über die Zuordnung von WhatsApp-Accounts zu WireGuard-Konfigurationen
+            Live-Status: Primary (blau) • Backup (orange) • Tertiary (lila) • Aktiv (grün Badge)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -423,13 +615,16 @@ export const VpnProxies = () => {
           ) : (
             <div className="space-y-3">
               {accounts.map((account) => {
-                const assignedConfig = getAssignedConfig(account);
+                const { primary, backup, tertiary, active } = getAccountConfigs(account);
                 
                 return (
                   <AccountCard
                     key={account.id}
                     account={account}
-                    assignedConfig={assignedConfig}
+                    primaryConfig={primary}
+                    backupConfig={backup}
+                    tertiaryConfig={tertiary}
+                    activeConfig={active}
                     onAssignConfig={async (configId) => {
                       await assignConfig.mutateAsync({ 
                         accountId: account.id,
@@ -438,6 +633,7 @@ export const VpnProxies = () => {
                       await refetchAccounts();
                     }}
                     assignPending={assignConfig.isPending}
+                    getConfigHealth={getConfigHealth}
                   />
                 );
               })}
@@ -449,26 +645,26 @@ export const VpnProxies = () => {
       {/* Info Box */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
-          <CardTitle className="text-lg">WireGuard VPN System</CardTitle>
+          <CardTitle className="text-lg">🚀 Automatisches Failover-System</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            • <strong>Dedizierte IPs:</strong> Jede WireGuard-Config nutzt eine eigene IP-Adresse
+            • <strong>Triple-Redundanz:</strong> Jeder Account hat Primary + Backup + Tertiary Config
           </p>
           <p>
-            • <strong>Flexible Verteilung:</strong> Configs werden gleichmäßig auf Accounts verteilt
+            • <strong>Health-Monitoring:</strong> Alle 30 Sekunden automatische Prüfung aller Configs
           </p>
           <p>
-            • <strong>Mullvad Support:</strong> Optimiert für Mullvad VPN WireGuard-Konfigurationen
+            • <strong>Auto-Failover:</strong> Bei 3 Fehlern → Automatischer Wechsel zur Backup-Config (~30 Sek)
           </p>
           <p>
-            • <strong>Geo-Diverse IPs:</strong> Nutzen Sie verschiedene Länder-Server für bessere Reputation
+            • <strong>Unlimited Scale:</strong> 1 Mullvad = 5 simultane Verbindungen (20 Accounts = 4 Mullvad à 5€)
           </p>
           <p>
-            • <strong>Einfaches Management:</strong> Hochladen, Zuweisen, Fertig!
+            • <strong>Geo-Diverse IPs:</strong> Verschiedene Länder (DE, NL, SE, CH) für beste Reputation
           </p>
           <p>
-            • <strong>Privacy-First:</strong> WireGuard bietet moderne Verschlüsselung und minimale Angriffsfläche
+            • <strong>Zero-Downtime:</strong> Transparentes Failover ohne Connection-Loss
           </p>
         </CardContent>
       </Card>
