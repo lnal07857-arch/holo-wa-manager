@@ -233,8 +233,10 @@ const Chats = () => {
     }
   };
 
-  // Calculate unread counts for badges
-  const unreadChatsCount = chatGroups.filter(chat => chat.unread_count > 0).length;
+  // Calculate unread counts for badges (per chat with any unread incoming messages)
+  const unreadChatsCount = chatGroups.filter(chat =>
+    chat.messages.some(m => m.direction === "incoming" && !m.is_read)
+  ).length;
 
   // Filter chats based on selected filter and search query
   const filteredChats = chatGroups.filter(chat => {
@@ -492,7 +494,8 @@ const Chats = () => {
                 ) : (
                   filteredChats.map((chat) => {
                     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
-                    const hasUnread = chat.unread_count > 0;
+                    const unreadCount = chat.messages.filter(m => m.direction === "incoming" && !m.is_read).length;
+                    const hasUnread = unreadCount > 0;
                     return (
                       <div
                         key={chatKey}
@@ -517,7 +520,7 @@ const Chats = () => {
                                 <span className={cn("text-xs", hasUnread ? "text-primary font-semibold" : "text-muted-foreground")}>{formatTime(chat.last_message_time)}</span>
                                 {hasUnread && (
                                   <Badge variant="destructive" className="rounded-full h-5 min-w-5 flex items-center justify-center px-1.5">
-                                    {chat.unread_count}
+                                    {unreadCount}
                                   </Badge>
                                 )}
                               </div>
