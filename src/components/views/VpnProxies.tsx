@@ -53,7 +53,7 @@ const ConfigHealthBadge = ({ configId, getConfigHealth }: { configId: string | n
   );
 };
 
-const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, onAutoAssignConfigs, assignPending, getConfigHealth, getMullvadAccountName }: { 
+const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, activeConfig, onAssignConfig, onAutoAssignConfigs, assignPending, getConfigHealth, getMullvadAccountName, onRefetch }: { 
   account: any; 
   primaryConfig: any | null;
   backupConfig: any | null;
@@ -64,7 +64,8 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
   assignPending: boolean;
   getConfigHealth: (id: string) => any;
   getMullvadAccountName: (configId: string) => string;
-}) => {
+  onRefetch: () => Promise<void>;
+})  => {
   const [isOpen, setIsOpen] = useState(false);
   const { data: fingerprintData, isLoading } = useFingerprint(account.id, isOpen);
 
@@ -236,6 +237,40 @@ const AccountCard = ({ account, primaryConfig, backupConfig, tertiaryConfig, act
                   <p className="text-xs text-muted-foreground mt-1 text-center">
                     Weist automatisch die nächsten {missingCount} verfügbare{missingCount > 1 ? 'n' : ''} Config{missingCount > 1 ? 's' : ''} zu
                   </p>
+                </div>
+              )}
+
+              {/* Reset All Configs Button */}
+              {(primaryConfig || backupConfig || tertiaryConfig) && (
+                <div className="mt-2">
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await supabase
+                          .from('whatsapp_accounts')
+                          .update({
+                            wireguard_config_id: null,
+                            wireguard_backup_config_id: null,
+                            wireguard_tertiary_config_id: null,
+                            active_config_id: null,
+                            proxy_server: null,
+                            failover_count: 0
+                          })
+                          .eq('id', account.id);
+                        
+                        toast.success("Alle Configs wurden entfernt");
+                        await onRefetch();
+                      } catch (error: any) {
+                        toast.error(`Fehler: ${error.message}`);
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Alle Configs zurücksetzen
+                  </Button>
                 </div>
               )}
             </div>
@@ -1300,6 +1335,17 @@ export const VpnProxies = () => {
                         return;
                       }
 
+                      // Check if existing configs are from the same Mullvad account
+                      const existingConfigs = [primary, backup, tertiary].filter(Boolean);
+                      const wrongMullvadConfigs = existingConfigs.filter((c: any) => 
+                        c.mullvad_account_id && c.mullvad_account_id !== mullvadAccountId
+                      );
+
+                      if (wrongMullvadConfigs.length > 0) {
+                        toast.error("⚠️ Bestehende Configs gehören zu einem anderen Mullvad Account! Bitte erst alle Configs entfernen.");
+                        return;
+                      }
+
                       // Get available configs from the assigned Mullvad account
                       const assignedIds = [primary?.id, backup?.id, tertiary?.id].filter(Boolean);
                       const availableConfigs = configs.filter((c: any) => 
@@ -1308,7 +1354,7 @@ export const VpnProxies = () => {
                       );
                       
                       if (availableConfigs.length < missingCount) {
-                        toast.error(`Nicht genug verfügbare Configs! Benötigt: ${missingCount}, Verfügbar: ${availableConfigs.length}`);
+                        toast.error(`Nicht genug verfügbare Configs vom zugewiesenen Mullvad Account! Benötigt: ${missingCount}, Verfügbar: ${availableConfigs.length}`);
                         return;
                       }
 
@@ -1333,6 +1379,9 @@ export const VpnProxies = () => {
                     assignPending={assignConfig.isPending}
                     getConfigHealth={getConfigHealth}
                     getMullvadAccountName={getMullvadAccountName}
+                    onRefetch={async () => {
+                      await refetchAccounts();
+                    }}
                   />
                 );
               })}
