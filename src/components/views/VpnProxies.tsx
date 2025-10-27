@@ -754,6 +754,21 @@ export const VpnProxies = () => {
                     </div>
                     <div className="flex gap-2">
                       <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          // Open config generator for this specific Mullvad account
+                          setUploadMullvadAccountId(acc.id);
+                          // Trigger config generation modal/action
+                          toast.info(`Configs generieren für ${acc.account_name}`);
+                        }}
+                        disabled={isGenerating}
+                        className="gap-2"
+                      >
+                        <Shield className="w-4 h-4" />
+                        Configs generieren
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
