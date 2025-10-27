@@ -275,7 +275,9 @@ export const VpnProxies = () => {
   const [open, setOpen] = useState(false);
   const [mullvadDialogOpen, setMullvadDialogOpen] = useState(false);
   const [editMullvadDialogOpen, setEditMullvadDialogOpen] = useState(false);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [editingMullvadAccount, setEditingMullvadAccount] = useState<any>(null);
+  const [selectedMullvadForGeneration, setSelectedMullvadForGeneration] = useState<any>(null);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
   const [uploadMullvadAccountId, setUploadMullvadAccountId] = useState<string>("");
@@ -284,6 +286,8 @@ export const VpnProxies = () => {
   const [configFiles, setConfigFiles] = useState<FileList | null>(null);
   const [editMullvadAccountNumber, setEditMullvadAccountNumber] = useState("");
   const [editMullvadAccountName, setEditMullvadAccountName] = useState("");
+  const [generateCount, setGenerateCount] = useState(5);
+  const [generateLocation, setGenerateLocation] = useState("de");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -757,10 +761,8 @@ export const VpnProxies = () => {
                         variant="default"
                         size="sm"
                         onClick={() => {
-                          // Open config generator for this specific Mullvad account
-                          setUploadMullvadAccountId(acc.id);
-                          // Trigger config generation modal/action
-                          toast.info(`Configs generieren für ${acc.account_name}`);
+                          setSelectedMullvadForGeneration(acc);
+                          setGenerateDialogOpen(true);
                         }}
                         disabled={isGenerating}
                         className="gap-2"
@@ -864,6 +866,115 @@ export const VpnProxies = () => {
               disabled={updateMullvadAccount.isPending}
             >
               {updateMullvadAccount.isPending ? "Speichern..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Configs Dialog */}
+      <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>WireGuard Configs generieren</DialogTitle>
+            <DialogDescription>
+              Generiere automatisch WireGuard-Konfigurationen für {selectedMullvadForGeneration?.account_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Mullvad Account</Label>
+              <Input
+                value={selectedMullvadForGeneration?.account_name || ""}
+                disabled
+              />
+              <p className="text-xs text-muted-foreground">
+                Account: {selectedMullvadForGeneration?.account_number}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="generate-location">Server-Standort</Label>
+              <select
+                id="generate-location"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                value={generateLocation}
+                onChange={(e) => setGenerateLocation(e.target.value)}
+                disabled={locationsLoading}
+              >
+                {locations.map((loc) => (
+                  <option key={loc.code} value={loc.code}>
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generate-count">Anzahl Configs</Label>
+              <Input
+                id="generate-count"
+                type="number"
+                min="1"
+                max="5"
+                value={generateCount}
+                onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Maximal 5 Configs pro Mullvad Account
+              </p>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">ℹ️ Info</p>
+              <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                Die generierten Configs werden automatisch diesem Mullvad Account zugeordnet und können dann den WhatsApp Accounts zugewiesen werden.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setGenerateDialogOpen(false);
+                setSelectedMullvadForGeneration(null);
+                setGenerateCount(5);
+                setGenerateLocation("de");
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedMullvadForGeneration) return;
+                
+                try {
+                  await generateConfigs.mutateAsync({
+                    count: generateCount,
+                    selectedLocations: [generateLocation],
+                    mullvadAccountId: selectedMullvadForGeneration.id
+                  });
+                  
+                  await refetchConfigs();
+                  
+                  // Update device count
+                  await updateMullvadAccount.mutateAsync({
+                    id: selectedMullvadForGeneration.id,
+                    devicesUsed: (selectedMullvadForGeneration.devices_used || 0) + generateCount
+                  });
+                  
+                  setGenerateDialogOpen(false);
+                  setSelectedMullvadForGeneration(null);
+                  setGenerateCount(5);
+                  setGenerateLocation("de");
+                  
+                  toast.success(`${generateCount} WireGuard-Konfigurationen erfolgreich generiert!`);
+                } catch (error: any) {
+                  toast.error(`Fehler: ${error.message}`);
+                }
+              }}
+              disabled={isGenerating || generateCount < 1 || generateCount > 5}
+            >
+              {isGenerating ? "Generiere..." : `${generateCount} Configs generieren`}
             </Button>
           </DialogFooter>
         </DialogContent>
