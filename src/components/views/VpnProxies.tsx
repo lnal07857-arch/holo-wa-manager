@@ -11,6 +11,7 @@ import { useWireGuardManager } from "@/hooks/useWireGuardManager";
 import { useWireGuardHealth } from "@/hooks/useWireGuardHealth";
 import { useFingerprint } from "@/hooks/useFingerprint";
 import { useMullvadConfigGenerator } from "@/hooks/useMullvadConfigGenerator";
+import { useMullvadAccounts } from "@/hooks/useMullvadAccounts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
@@ -259,12 +260,18 @@ export const VpnProxies = () => {
   const { assignConfig } = useWireGuardManager();
   const { healthStatus, getConfigHealth } = useWireGuardHealth();
   const { locations, locationsLoading, generateConfigs, isGenerating } = useMullvadConfigGenerator();
+  const { accounts: mullvadAccounts, addAccount: addMullvadAccount, deleteAccount: deleteMullvadAccount } = useMullvadAccounts();
+  
   const [open, setOpen] = useState(false);
   const [autoGenOpen, setAutoGenOpen] = useState(false);
+  const [mullvadDialogOpen, setMullvadDialogOpen] = useState(false);
   const [configName, setConfigName] = useState("");
   const [serverLocation, setServerLocation] = useState("DE");
   const [configCount, setConfigCount] = useState(15);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedMullvadAccountId, setSelectedMullvadAccountId] = useState<string>("");
+  const [newMullvadAccountNumber, setNewMullvadAccountNumber] = useState("");
+  const [newMullvadAccountName, setNewMullvadAccountName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -434,6 +441,124 @@ export const VpnProxies = () => {
         </Card>
       )}
 
+      {/* Mullvad Accounts Management */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Server className="w-5 h-5 text-primary" />
+              <CardTitle>Mullvad Accounts</CardTitle>
+            </div>
+            <Dialog open={mullvadDialogOpen} onOpenChange={setMullvadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Account hinzufügen
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Mullvad Account hinzufügen</DialogTitle>
+                  <DialogDescription>
+                    Füge eine Mullvad Account Number hinzu (16-stellig)
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="mullvad-name">Account-Name</Label>
+                    <Input
+                      id="mullvad-name"
+                      placeholder="z.B. Mullvad Account 1"
+                      value={newMullvadAccountName}
+                      onChange={(e) => setNewMullvadAccountName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mullvad-number">Account Number</Label>
+                    <Input
+                      id="mullvad-number"
+                      placeholder="1234567890123456"
+                      value={newMullvadAccountNumber}
+                      onChange={(e) => setNewMullvadAccountNumber(e.target.value)}
+                      maxLength={16}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      16-stellige Mullvad Account Number (findest du unter mullvad.net/account)
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={async () => {
+                      if (!newMullvadAccountName || !newMullvadAccountNumber) {
+                        toast.error("Bitte fülle alle Felder aus");
+                        return;
+                      }
+                      if (newMullvadAccountNumber.length !== 16) {
+                        toast.error("Account Number muss 16 Zeichen lang sein");
+                        return;
+                      }
+                      await addMullvadAccount.mutateAsync({
+                        accountNumber: newMullvadAccountNumber,
+                        accountName: newMullvadAccountName
+                      });
+                      setNewMullvadAccountName("");
+                      setNewMullvadAccountNumber("");
+                      setMullvadDialogOpen(false);
+                    }}
+                    disabled={addMullvadAccount.isPending}
+                  >
+                    {addMullvadAccount.isPending ? "Hinzufügen..." : "Hinzufügen"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <CardDescription>
+            Verwalte deine Mullvad VPN Account Numbers (je Account = 5 WireGuard Devices)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {mullvadAccounts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Server className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Noch keine Mullvad Accounts hinzugefügt</p>
+              <p className="text-sm mt-1">
+                Füge deine Mullvad Account Numbers hinzu, um automatisch WireGuard Configs zu generieren
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mullvadAccounts.map((acc) => (
+                <div key={acc.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{acc.account_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Account: {acc.account_number.substring(0, 4)}...{acc.account_number.substring(12)}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant="secondary">
+                        {acc.devices_used}/{acc.max_devices} Devices
+                      </Badge>
+                      {acc.devices_used >= acc.max_devices && (
+                        <Badge variant="destructive">Limit erreicht</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteMullvadAccount.mutate(acc.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* WireGuard VPN Settings */}
       <Card>
         <CardHeader>
@@ -516,6 +641,28 @@ export const VpnProxies = () => {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
+                        <Label htmlFor="mullvad-account">Mullvad Account</Label>
+                        <select
+                          id="mullvad-account"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          value={selectedMullvadAccountId}
+                          onChange={(e) => setSelectedMullvadAccountId(e.target.value)}
+                        >
+                          <option value="">Account auswählen...</option>
+                          {mullvadAccounts.map((acc) => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.account_name} ({acc.devices_used}/{acc.max_devices} Devices)
+                            </option>
+                          ))}
+                        </select>
+                        {mullvadAccounts.length === 0 && (
+                          <p className="text-xs text-orange-500">
+                            ⚠️ Keine Mullvad Accounts vorhanden. Füge zuerst einen Account hinzu.
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
                         <Label htmlFor="config-count">Anzahl der Configs</Label>
                         <Input
                           id="config-count"
@@ -567,23 +714,29 @@ export const VpnProxies = () => {
                       <div className="bg-muted/50 p-4 rounded-lg space-y-2">
                         <p className="text-sm font-medium">ℹ️ Info</p>
                         <ul className="text-xs text-muted-foreground space-y-1">
-                          <li>• Verwendet deine Mullvad Account Number aus den Secrets</li>
+                          <li>• Verwendet deinen ausgewählten Mullvad Account</li>
                           <li>• Generiert automatisch neue WireGuard Keys</li>
                           <li>• Erstellt .conf Dateien und lädt sie in die Datenbank</li>
                           <li>• Rate-Limiting: 1 Config alle 500ms (~2 pro Sekunde)</li>
+                          <li>• Device-Counter wird automatisch erhöht</li>
                         </ul>
                       </div>
                     </div>
                     <DialogFooter>
                       <Button
                         onClick={async () => {
+                          if (!selectedMullvadAccountId) {
+                            toast.error("Bitte wähle einen Mullvad Account aus");
+                            return;
+                          }
                           await generateConfigs.mutateAsync({
                             count: configCount,
-                            selectedLocations: selectedLocations
+                            selectedLocations: selectedLocations,
+                            mullvadAccountId: selectedMullvadAccountId
                           });
                           setAutoGenOpen(false);
                         }}
-                        disabled={isGenerating}
+                        disabled={isGenerating || !selectedMullvadAccountId}
                       >
                         {isGenerating ? "Generiere..." : `${configCount} Configs generieren`}
                       </Button>

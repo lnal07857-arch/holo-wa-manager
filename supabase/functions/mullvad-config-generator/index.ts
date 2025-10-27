@@ -24,15 +24,27 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const accountNumber = Deno.env.get('MULLVAD_ACCOUNT_NUMBER');
-    if (!accountNumber) {
-      throw new Error('MULLVAD_ACCOUNT_NUMBER not configured');
-    }
-
-    const { action, count, locations, userId } = await req.json();
+    const { action, count, locations, userId, mullvadAccountId } = await req.json();
 
     if (action === 'generate-configs') {
-      console.log(`🔧 Generating ${count} WireGuard configs for user ${userId}`);
+      if (!mullvadAccountId) {
+        throw new Error('mullvadAccountId is required');
+      }
+
+      // Get Mullvad account from database
+      const { data: mullvadAccount, error: accountError } = await supabase
+        .from('mullvad_accounts')
+        .select('*')
+        .eq('id', mullvadAccountId)
+        .eq('user_id', userId)
+        .single();
+
+      if (accountError || !mullvadAccount) {
+        throw new Error('Mullvad account not found');
+      }
+
+      const accountNumber = mullvadAccount.account_number;
+      console.log(`🔧 Generating ${count} WireGuard configs for user ${userId} using Mullvad account ${mullvadAccount.account_name}`);
 
       // Get available Mullvad servers
       const serversResponse = await fetch('https://api.mullvad.net/public/relays/wireguard/v2/', {
@@ -130,6 +142,14 @@ PersistentKeepalive = 25`;
       }
 
       console.log(`🎉 Successfully generated ${generatedConfigs.length}/${count} configs`);
+
+      // Update devices_used count for Mullvad account
+      await supabase
+        .from('mullvad_accounts')
+        .update({ 
+          devices_used: (mullvadAccount.devices_used || 0) + generatedConfigs.length 
+        })
+        .eq('id', mullvadAccountId);
 
       return new Response(
         JSON.stringify({

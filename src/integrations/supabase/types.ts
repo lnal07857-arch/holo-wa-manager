@@ -318,6 +318,39 @@ export type Database = {
           },
         ]
       }
+      mullvad_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          created_at: string
+          devices_used: number
+          id: string
+          max_devices: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          created_at?: string
+          devices_used?: number
+          id?: string
+          max_devices?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          created_at?: string
+          devices_used?: number
+          id?: string
+          max_devices?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

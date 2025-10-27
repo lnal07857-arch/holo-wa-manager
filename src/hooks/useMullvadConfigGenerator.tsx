@@ -20,10 +20,12 @@ export const useMullvadConfigGenerator = () => {
   const generateConfigs = useMutation({
     mutationFn: async ({ 
       count, 
-      selectedLocations 
+      selectedLocations,
+      mullvadAccountId
     }: { 
       count: number; 
       selectedLocations: string[];
+      mullvadAccountId: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -33,7 +35,8 @@ export const useMullvadConfigGenerator = () => {
           action: 'generate-configs', 
           count,
           locations: selectedLocations,
-          userId: user.id
+          userId: user.id,
+          mullvadAccountId
         }
       });
 
