@@ -36,13 +36,7 @@ const BulkSender = () => {
   const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Automatisch nur verbundene Accounts auswählen
-  useEffect(() => {
-    const connectedAccounts = accounts.filter(acc => acc.status === 'connected');
-    if (connectedAccounts.length > 0) {
-      setSelectedAccounts(connectedAccounts.map(acc => acc.id));
-    }
-  }, [accounts]);
+  // Keine automatische Auswahl - User muss manuell Accounts wählen
 
   const sanitizePhone = (phone: string) => {
     // Entfernt führende Apostrophe, Leerzeichen und gängige Trenner, behält '+' und Ziffern
@@ -188,7 +182,7 @@ const BulkSender = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>WhatsApp-Accounts (Nur verbundene werden automatisch verwendet)</Label>
+              <Label>WhatsApp-Accounts (Wähle manuell aus)</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
