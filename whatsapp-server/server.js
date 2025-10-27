@@ -800,7 +800,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }
 
     console.log('[Anti-Detection] All evasion scripts injected successfully');
-  }, storedFingerprint);
+  }, fingerprint);
 
   // Close the initialization page
   await page.close();
@@ -815,9 +815,6 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
     }
   });
-
-  // Store fingerprint for later use after initialization
-  const storedFingerprint = fingerprint;
 
   // QR Code event
   client.on('qr', async (qr) => {
