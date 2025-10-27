@@ -40,20 +40,49 @@ serve(async (req) => {
         console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
-        // Optional: Check if VPN is assigned (nicht erzwungen)
+        // Get WireGuard config from active_config_id
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
-          .select('proxy_server, user_id')
+          .select('active_config_id, user_id, proxy_server')
           .eq('id', accountId)
           .maybeSingle();
 
+        // Clean up old proxy_server field if we're using active_config_id system
+        if (accountData && accountData.proxy_server && !accountData.active_config_id) {
+          console.log('🧹 [Initialize] Cleaning up old proxy_server field');
+          await supa
+            .from('whatsapp_accounts')
+            .update({ proxy_server: null })
+            .eq('id', accountId);
+        }
+
         let proxyConfig = null;
-        if (accountData?.proxy_server) {
-          try {
-            proxyConfig = JSON.parse(accountData.proxy_server);
-            console.log('✅ [Initialize] VPN/Proxy configured, using:', proxyConfig.host);
-          } catch (e) {
-            console.warn('⚠️ [Initialize] Invalid proxy config, proceeding without proxy');
+        if (accountData?.active_config_id) {
+          // Fetch the actual WireGuard config
+          const { data: configData } = await supa
+            .from('wireguard_configs')
+            .select('config_content, server_location')
+            .eq('id', accountData.active_config_id)
+            .maybeSingle();
+
+          if (configData?.config_content) {
+            // Parse WireGuard config to extract proxy details
+            const lines = configData.config_content.split('\n');
+            const addressLine = lines.find((l: string) => l.startsWith('Address'));
+            const endpointLine = lines.find((l: string) => l.startsWith('Endpoint'));
+            
+            if (endpointLine) {
+              const [host, port] = endpointLine.split('=')[1].trim().split(':');
+              proxyConfig = {
+                host: host.trim(),
+                port: parseInt(port) || 51820,
+                protocol: 'wireguard',
+                config_content: configData.config_content
+              };
+              console.log('✅ [Initialize] WireGuard VPN configured:', proxyConfig.host);
+            }
+          } else {
+            console.warn('⚠️ [Initialize] Config ID exists but no content found');
           }
         } else {
           console.log('ℹ️ [Initialize] No VPN configured, using direct connection (Railway mode)');
@@ -97,41 +126,45 @@ serve(async (req) => {
             retryCount++;
             console.warn(`⚠️ [Initialize] Proxy failed (attempt ${retryCount}/${MAX_RETRIES}). Reassigning VPN...`);
             
-            // Mark current VPN as unhealthy
-            const currentProxy = accountData?.proxy_server ? JSON.parse(accountData.proxy_server) : null;
-            if (currentProxy?.host) {
-              console.log(`📊 [Initialize] Marking ${currentProxy.host} as unhealthy`);
-              await supa.rpc('mark_vpn_server_unhealthy', {
-                p_server_host: currentProxy.host,
-                p_error_message: 'Proxy connection failed during initialization'
+            // Mark current config as unhealthy
+            if (accountData?.active_config_id) {
+              console.log(`📊 [Initialize] Marking config ${accountData.active_config_id} as unhealthy`);
+              await supa.rpc('mark_wireguard_unhealthy', {
+                p_config_id: accountData.active_config_id,
+                p_error_message: 'VPN connection failed during initialization'
               });
             }
 
-            // Try to get a different healthy VPN from a different region
+            // Try to get a different healthy config
             console.log(`🔄 [Initialize] Attempting VPN reassignment ${retryCount}/${MAX_RETRIES}...`);
             
-            const { error: reassignError } = await supa.functions.invoke('mullvad-proxy-manager', {
-              body: { action: 'assign-proxy', accountId }
+            const { data: newConfigData, error: reassignError } = await supa.functions.invoke('wireguard-manager', {
+              body: { action: 'select-best-config', accountId }
             });
 
-            if (reassignError) {
-              console.error(`❌ [Initialize] VPN reassignment ${retryCount} failed:`, reassignError);
+            if (reassignError || !newConfigData?.success) {
+              console.error(`❌ [Initialize] VPN reassignment ${retryCount} failed:`, reassignError || 'No healthy config available');
               if (retryCount >= MAX_RETRIES) {
                 throw new Error('Alle VPN-Server sind nicht erreichbar. Bitte versuchen Sie es später erneut oder kontaktieren Sie den Support.');
               }
               continue;
             }
 
-            // Refresh account data to get new proxy
+            // Refresh account data to get new config
             const { data: refreshedData } = await supa
               .from('whatsapp_accounts')
-              .select('proxy_server')
+              .select('active_config_id')
               .eq('id', accountId)
               .single();
 
-            if (refreshedData?.proxy_server) {
-              const newProxy = JSON.parse(refreshedData.proxy_server);
-              console.log(`✅ [Initialize] New VPN assigned: ${newProxy.host} (${newProxy.country || 'Unknown'})`);
+            if (refreshedData?.active_config_id) {
+              const { data: newConfig } = await supa
+                .from('wireguard_configs')
+                .select('config_name, server_location')
+                .eq('id', refreshedData.active_config_id)
+                .single();
+              
+              console.log(`✅ [Initialize] New VPN assigned: ${newConfig?.config_name} (${newConfig?.server_location || 'Unknown'})`);
             }
 
             // Retry with new VPN
