@@ -1,1 +1,11 @@
 project_id = "umizkegxybjhqucbhgth"
+
+# Edge Functions Configuration
+[functions.wireguard-health-check]
+verify_jwt = false
+
+# Cron Jobs - Automated Health Monitoring
+[[edge_runtime.cron]]
+# Run WireGuard health checks every 5 minutes
+function = "wireguard-health-check"
+schedule = "*/5 * * * *"
