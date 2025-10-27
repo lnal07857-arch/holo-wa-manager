@@ -554,10 +554,13 @@ export type Database = {
       whatsapp_accounts: {
         Row: {
           account_name: string
+          active_config_id: string | null
           created_at: string
           display_order: number | null
+          failover_count: number | null
           id: string
           last_connected_at: string | null
+          last_failover_at: string | null
           phone_number: string
           proxy_country: string | null
           proxy_server: string | null
@@ -566,14 +569,19 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          wireguard_backup_config_id: string | null
           wireguard_config_id: string | null
+          wireguard_tertiary_config_id: string | null
         }
         Insert: {
           account_name: string
+          active_config_id?: string | null
           created_at?: string
           display_order?: number | null
+          failover_count?: number | null
           id?: string
           last_connected_at?: string | null
+          last_failover_at?: string | null
           phone_number: string
           proxy_country?: string | null
           proxy_server?: string | null
@@ -582,14 +590,19 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          wireguard_backup_config_id?: string | null
           wireguard_config_id?: string | null
+          wireguard_tertiary_config_id?: string | null
         }
         Update: {
           account_name?: string
+          active_config_id?: string | null
           created_at?: string
           display_order?: number | null
+          failover_count?: number | null
           id?: string
           last_connected_at?: string | null
+          last_failover_at?: string | null
           phone_number?: string
           proxy_country?: string | null
           proxy_server?: string | null
@@ -598,12 +611,35 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          wireguard_backup_config_id?: string | null
           wireguard_config_id?: string | null
+          wireguard_tertiary_config_id?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "whatsapp_accounts_active_config_id_fkey"
+            columns: ["active_config_id"]
+            isOneToOne: false
+            referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_accounts_wireguard_backup_config_id_fkey"
+            columns: ["wireguard_backup_config_id"]
+            isOneToOne: false
+            referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "whatsapp_accounts_wireguard_config_id_fkey"
             columns: ["wireguard_config_id"]
+            isOneToOne: false
+            referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_accounts_wireguard_tertiary_config_id_fkey"
+            columns: ["wireguard_tertiary_config_id"]
             isOneToOne: false
             referencedRelation: "wireguard_configs"
             referencedColumns: ["id"]
@@ -643,6 +679,56 @@ export type Database = {
         }
         Relationships: []
       }
+      wireguard_health: {
+        Row: {
+          config_id: string
+          consecutive_failures: number
+          created_at: string
+          error_message: string | null
+          failure_count: number
+          id: string
+          is_healthy: boolean
+          last_check_at: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          config_id: string
+          consecutive_failures?: number
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          is_healthy?: boolean
+          last_check_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config_id?: string
+          consecutive_failures?: number
+          created_at?: string
+          error_message?: string | null
+          failure_count?: number
+          id?: string
+          is_healthy?: boolean
+          last_check_at?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wireguard_health_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: true
+            referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -658,6 +744,14 @@ export type Database = {
       }
       mark_vpn_server_unhealthy: {
         Args: { p_error_message?: string; p_server_host: string }
+        Returns: undefined
+      }
+      mark_wireguard_healthy: {
+        Args: { p_config_id: string }
+        Returns: undefined
+      }
+      mark_wireguard_unhealthy: {
+        Args: { p_config_id: string; p_error_message?: string }
         Returns: undefined
       }
     }

@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
       // Get account info
       const { data: account } = await supabase
         .from('whatsapp_accounts')
-        .select('user_id, id')
+        .select('user_id, id, wireguard_config_id, wireguard_backup_config_id')
         .eq('id', accountId)
         .single();
 
@@ -42,25 +42,45 @@ Deno.serve(async (req) => {
         throw new Error('WireGuard config not found or access denied');
       }
 
+      // Smart assignment: Primary → Backup → Tertiary
+      let updateFields: any = {
+        proxy_country: config.server_location
+      };
+
+      if (!account.wireguard_config_id) {
+        // First config = Primary
+        updateFields.wireguard_config_id = config.id;
+        updateFields.active_config_id = config.id;
+        console.log(`✅ Assigned as PRIMARY config for account ${accountId}`);
+      } else if (!account.wireguard_backup_config_id) {
+        // Second config = Backup
+        updateFields.wireguard_backup_config_id = config.id;
+        console.log(`✅ Assigned as BACKUP config for account ${accountId}`);
+      } else {
+        // Third config = Tertiary
+        updateFields.wireguard_tertiary_config_id = config.id;
+        console.log(`✅ Assigned as TERTIARY config for account ${accountId}`);
+      }
+
       // Assign config to account
       const { error: updateError } = await supabase
         .from('whatsapp_accounts')
-        .update({
-          wireguard_config_id: config.id,
-          proxy_country: config.server_location
-        })
+        .update(updateFields)
         .eq('id', accountId);
 
       if (updateError) throw updateError;
 
-      console.log(`✅ Assigned WireGuard config "${config.config_name}" to account ${accountId}`);
+      // Initialize health status
+      await supabase.rpc('mark_wireguard_healthy', { p_config_id: config.id });
 
       return new Response(
         JSON.stringify({
           success: true,
           config_name: config.config_name,
           server_location: config.server_location,
-          public_key: config.public_key
+          public_key: config.public_key,
+          role: !account.wireguard_config_id ? 'primary' : 
+                !account.wireguard_backup_config_id ? 'backup' : 'tertiary'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
