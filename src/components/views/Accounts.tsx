@@ -780,7 +780,7 @@ const SortableAccountCard = ({
                 </Badge>
               )}
               {/* VPN Status Badge */}
-              {account.proxy_server ? (
+              {account.active_config_id ? (
                 <Badge variant="outline" className="gap-1 text-green-700 border-green-700 bg-green-50">
                   <Shield className="w-3 h-3" />
                   VPN aktiv
