@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import * as nacl from 'https://esm.sh/tweetnacl@1.0.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +13,11 @@ interface MullvadServer {
   public_key: string;
   ipv4_addr_in: string;
 }
+
+function toBase64(u8: Uint8Array): string {
+  return btoa(String.fromCharCode(...u8));
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -80,22 +86,11 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < count; i++) {
         try {
-          // Generate WireGuard key pair locally using Web Crypto API
-          const keyPair = await crypto.subtle.generateKey(
-            {
-              name: 'X25519',
-              namedCurve: 'X25519'
-            },
-            true,
-            ['deriveKey', 'deriveBits']
-          );
+          // Generate WireGuard key pair using tweetnacl (Curve25519)
+          const keyPair = nacl.box.keyPair();
 
-          // Export keys to base64
-          const privateKeyRaw = await crypto.subtle.exportKey('raw', keyPair.privateKey);
-          const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
-          
-          const privateKey = btoa(String.fromCharCode(...new Uint8Array(privateKeyRaw)));
-          const publicKey = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)));
+          const privateKey = toBase64(keyPair.secretKey);
+          const publicKey = toBase64(keyPair.publicKey);
 
           // Register public key with Mullvad using the old API endpoint (more reliable)
           const registerResponse = await fetch('https://api.mullvad.net/wg/', {
