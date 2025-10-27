@@ -280,44 +280,73 @@ export const VpnProxies = () => {
   const [editMullvadAccountName, setEditMullvadAccountName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      if (!configName) {
-        setConfigName(e.target.files[0].name.replace('.conf', ''));
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedFiles(filesArray);
+      
+      // Auto-fill config name from first file if empty
+      if (!configName && filesArray.length === 1) {
+        setConfigName(filesArray[0].name.replace('.conf', ''));
+      } else if (filesArray.length > 1) {
+        setConfigName(""); // Clear for batch upload
       }
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error("Bitte wähle eine WireGuard-Konfigurationsdatei");
+    if (selectedFiles.length === 0) {
+      toast.error("Bitte wähle mindestens eine WireGuard-Konfigurationsdatei");
+      return;
+    }
+
+    if (selectedFiles.length === 1 && !configName) {
+      toast.error("Bitte gib einen Config-Namen ein");
       return;
     }
 
     try {
-      const configContent = await selectedFile.text();
-      await uploadConfig.mutateAsync({
-        configName,
-        configContent,
-        serverLocation,
-        mullvadAccountId: uploadMullvadAccountId || undefined
-      });
+      let successCount = 0;
+      let failCount = 0;
 
-      // Update device count for selected Mullvad account
-      if (uploadMullvadAccountId) {
-        const selectedAccount = mullvadAccounts.find(acc => acc.id === uploadMullvadAccountId);
-        if (selectedAccount) {
-          await updateMullvadAccount.mutateAsync({
-            id: uploadMullvadAccountId,
-            devicesUsed: (selectedAccount.devices_used || 0) + 1
+      for (const file of selectedFiles) {
+        try {
+          const configContent = await file.text();
+          const fileName = file.name.replace('.conf', '');
+          const finalConfigName = selectedFiles.length === 1 ? configName : fileName;
+          
+          await uploadConfig.mutateAsync({
+            configName: finalConfigName,
+            configContent,
+            serverLocation,
+            mullvadAccountId: uploadMullvadAccountId || undefined
           });
+
+          successCount++;
+
+          // Update device count for selected Mullvad account
+          if (uploadMullvadAccountId) {
+            const selectedAccount = mullvadAccounts.find(acc => acc.id === uploadMullvadAccountId);
+            if (selectedAccount) {
+              await updateMullvadAccount.mutateAsync({
+                id: uploadMullvadAccountId,
+                devicesUsed: (selectedAccount.devices_used || 0) + 1
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Upload error for ${file.name}:`, error);
+          failCount++;
         }
       }
 
-      setSelectedFile(null);
+      if (successCount > 0) {
+        toast.success(`✅ ${successCount} Config(s) erfolgreich hochgeladen${failCount > 0 ? ` (${failCount} fehlgeschlagen)` : ''}`);
+      }
+
+      setSelectedFiles([]);
       setConfigName("");
       setServerLocation("DE");
       setUploadMullvadAccountId("");
@@ -327,6 +356,7 @@ export const VpnProxies = () => {
       }
     } catch (error) {
       console.error("Upload error:", error);
+      toast.error("Fehler beim Hochladen");
     }
   };
 
@@ -939,23 +969,35 @@ export const VpnProxies = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="config-file">Konfigurationsdatei</Label>
+                        <Label htmlFor="config-file">Konfigurationsdatei(en)</Label>
                         <Input
                           id="config-file"
                           type="file"
                           accept=".conf"
+                          multiple
                           ref={fileInputRef}
                           onChange={handleFileSelect}
                         />
+                        {selectedFiles.length > 0 && (
+                          <div className="text-sm text-muted-foreground">
+                            {selectedFiles.length} Datei(en) ausgewählt
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="config-name">Config-Name</Label>
+                        <Label htmlFor="config-name">Config-Name {selectedFiles.length > 1 && "(optional - verwendet Dateinamen)"}</Label>
                         <Input
                           id="config-name"
                           placeholder="z.B. Mullvad DE Frankfurt"
                           value={configName}
                           onChange={(e) => setConfigName(e.target.value)}
+                          disabled={selectedFiles.length > 1}
                         />
+                        {selectedFiles.length > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            Bei mehreren Dateien werden die Dateinamen als Config-Namen verwendet
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="server-location">Server-Standort</Label>
@@ -971,9 +1013,9 @@ export const VpnProxies = () => {
                     <DialogFooter>
                       <Button
                         onClick={handleUpload}
-                        disabled={!selectedFile || !configName || uploadConfig.isPending}
+                        disabled={selectedFiles.length === 0 || (selectedFiles.length === 1 && !configName) || uploadConfig.isPending}
                       >
-                        {uploadConfig.isPending ? "Hochladen..." : "Hochladen"}
+                        {uploadConfig.isPending ? "Hochladen..." : selectedFiles.length > 1 ? `${selectedFiles.length} Configs hochladen` : "Hochladen"}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
