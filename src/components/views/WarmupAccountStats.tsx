@@ -214,34 +214,16 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
             <PlayCircle className="w-8 h-8 text-gray-400" />
           </div>
           
-          <CardDescription className="font-medium mb-3">
+          <CardDescription>
             Noch keine Warm-up Aktivität
           </CardDescription>
-          
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-gray-400">0</div>
-              <div className="text-xs text-muted-foreground mt-1">Nachrichten</div>
-            </div>
-            <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-gray-400">0</div>
-              <div className="text-xs text-muted-foreground mt-1">Kontakte</div>
-            </div>
-            <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-gray-400">0%</div>
-              <div className="text-xs text-muted-foreground mt-1">Bereitschaft</div>
-            </div>
-          </div>
         </CardHeader>
         
-        <CardContent className="pt-6">
-          <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
-            <PlayCircle className="w-10 h-10 mx-auto mb-2 text-blue-600" />
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
-              Starte den Auto-Chat
-            </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              Dieser Account benötigt Warm-up bevor er für Bulk-Kampagnen verwendet werden kann.
+        <CardContent className="pt-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
+            <PlayCircle className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Starte den Auto-Chat um Warm-up zu beginnen
             </p>
           </div>
         </CardContent>
@@ -308,115 +290,59 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
           />
         </div>
         
-        <CardDescription className="font-medium mb-3">{phaseLabel}</CardDescription>
-        
-        {/* Nachrichtenanzahl und Bereitschaft prominent */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-3 bg-background rounded-lg border">
-            <div className="text-2xl font-bold">{stat.sent_messages}</div>
-            <div className="text-xs text-muted-foreground mt-1">Nachrichten</div>
-          </div>
-          <div className="text-center p-3 bg-background rounded-lg border">
-            <div className="text-2xl font-bold">{uniqueContactsCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">Kontakte</div>
-          </div>
-          <div className="text-center p-3 bg-background rounded-lg border">
-            <div className={`text-2xl font-bold ${
-              bulkReady ? 'text-green-600' :
-              readinessScore >= 66 ? 'text-yellow-600' :
-              readinessScore >= 33 ? 'text-blue-600' :
-              'text-red-600'
-            }`}>{readinessScore}%</div>
-            <div className="text-xs text-muted-foreground mt-1">Bereitschaft</div>
-          </div>
-        </div>
+        <CardDescription className="font-medium">{phaseLabel}</CardDescription>
       </CardHeader>
       
-      <CardContent className="space-y-6">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Messages Sent */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <MessageCircle className="w-3 h-3" />
-                Nachrichten
-              </span>
-              <span className="text-xs font-medium">
-                {stat.sent_messages} / 500
-              </span>
-            </div>
-            <Progress value={messagesProgress} className="h-2" />
+      <CardContent className="pt-4 space-y-3">
+        {/* Main Stats with Progress */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <MessageCircle className="w-4 h-4" />
+              Nachrichten
+            </span>
+            <span className="font-semibold">{stat.sent_messages} / 500</span>
           </div>
-
-          {/* Unique Contacts */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                Kontakte
-              </span>
-              <span className="text-xs font-medium">
-                {uniqueContactsCount} / 15
-              </span>
-            </div>
-            <Progress value={contactsProgress} className="h-2" />
-          </div>
-
-          {/* Account Age - Info only */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Alter (Tage)
-              </span>
-              <span className="text-xs font-medium">
-                {accountAge}
-              </span>
-            </div>
-          </div>
+          <Progress value={messagesProgress} className="h-2" />
         </div>
 
-        {/* Bulk Ready Checklist */}
-        {!bulkReady && (
-          <div className="p-3 bg-muted rounded-lg space-y-2">
-            <p className="text-xs font-medium mb-2">Bulk-Ready Anforderungen:</p>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center gap-2">
-                {stat.sent_messages >= 500 ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                ) : (
-                  <div className="w-3 h-3 rounded-full border-2 border-orange-500" />
-                )}
-                <span className={stat.sent_messages >= 500 ? "text-green-600" : ""}>
-                  500+ Nachrichten ({stat.sent_messages}/500)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {uniqueContactsCount >= 15 ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                ) : (
-                  <div className="w-3 h-3 rounded-full border-2 border-orange-500" />
-                )}
-                <span className={uniqueContactsCount >= 15 ? "text-green-600" : ""}>
-                  15+ Kontakte ({uniqueContactsCount}/15)
-                </span>
-              </div>
-            </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <Users className="w-4 h-4" />
+              Kontakte
+            </span>
+            <span className="font-semibold">{uniqueContactsCount} / 15</span>
           </div>
-        )}
+          <Progress value={contactsProgress} className="h-2" />
+        </div>
 
-        {/* Success Message */}
+        <div className="flex items-center justify-between text-sm pt-1 border-t">
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            <Clock className="w-4 h-4" />
+            Alter
+          </span>
+          <span className="font-semibold">{accountAge} Tage</span>
+        </div>
+
+        <div className="flex items-center justify-between text-sm border-t pt-2">
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4" />
+            Bereitschaft
+          </span>
+          <span className={`font-bold text-lg ${
+            bulkReady ? 'text-green-600' :
+            readinessScore >= 66 ? 'text-yellow-600' :
+            readinessScore >= 33 ? 'text-blue-600' :
+            'text-red-600'
+          }`}>{readinessScore}%</span>
+        </div>
+
         {bulkReady && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-green-900">Bereit für Bulk-Kampagnen!</p>
-                <p className="text-xs text-green-700 mt-1">
-                  Dieser Account hat alle Anforderungen erfüllt und kann für größere Kampagnen verwendet werden.
-                </p>
-              </div>
+          <div className="p-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <p className="text-sm font-medium text-green-900 dark:text-green-100">Bereit für Bulk-Kampagnen!</p>
             </div>
           </div>
         )}
