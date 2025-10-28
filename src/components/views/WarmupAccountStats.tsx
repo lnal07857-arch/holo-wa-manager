@@ -281,7 +281,7 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
           )}
         </div>
         
-        <div className="mb-3">
+        <div className="mb-2">
           <PhaseSelector
             accountId={account.id}
             accountName={account.account_name}
@@ -289,8 +289,6 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
             onPhaseChange={onPhaseChange}
           />
         </div>
-        
-        <CardDescription className="font-medium">{phaseLabel}</CardDescription>
       </CardHeader>
       
       <CardContent className="pt-4 space-y-3">
