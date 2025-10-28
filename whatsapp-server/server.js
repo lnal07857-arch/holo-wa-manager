@@ -1050,6 +1050,13 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     try {
       await syncAllMessages(client, accountId, supa);
       console.log('[Init] Message sync completed for account:', accountId);
+      
+      // Trigger a database update to notify frontend via realtime
+      await supa
+        .from('whatsapp_accounts')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', accountId);
+      console.log('[Init] Notified frontend about sync completion');
     } catch (error) {
       console.error('[Init] Error syncing messages for account:', accountId, error);
     }
