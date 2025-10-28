@@ -3,8 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useWarmupStats, useWarmupDailyHistory, computeAvgDaily, computeAccountAge, getPhaseFromAge, isBulkReady } from "@/hooks/useWarmupStats";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
-import { PhaseSelector } from "@/components/PhaseSelector";
-import { 
+import {
   CheckCircle, 
   TrendingUp, 
   Users, 
@@ -145,7 +144,7 @@ export const WarmupAccountStats = () => {
         >
           <div className="grid gap-6 md:grid-cols-2">
             {sortedAccounts.map((account) => (
-              <SortableAccountCard key={account.id} account={account} onPhaseChange={refetchWarmupStats} />
+              <SortableAccountCard key={account.id} account={account} />
             ))}
           </div>
         </SortableContext>
@@ -156,10 +155,9 @@ export const WarmupAccountStats = () => {
 
 interface AccountStatCardProps {
   account: any;
-  onPhaseChange: () => void;
 }
 
-const SortableAccountCard = ({ account, onPhaseChange }: AccountStatCardProps) => {
+const SortableAccountCard = ({ account }: AccountStatCardProps) => {
   const {
     attributes,
     listeners,
@@ -179,7 +177,6 @@ const SortableAccountCard = ({ account, onPhaseChange }: AccountStatCardProps) =
     <div ref={setNodeRef} style={style}>
       <AccountStatCard 
         account={account} 
-        onPhaseChange={onPhaseChange}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
@@ -188,11 +185,10 @@ const SortableAccountCard = ({ account, onPhaseChange }: AccountStatCardProps) =
 
 interface AccountStatCardProps {
   account: any;
-  onPhaseChange: () => void;
   dragHandleProps?: any;
 }
 
-const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountStatCardProps) => {
+const AccountStatCard = ({ account, dragHandleProps }: AccountStatCardProps) => {
   const stat = account.warmup_stats;
   const { data: dailyHistory } = useWarmupDailyHistory(stat?.account_id || '');
   
@@ -279,15 +275,6 @@ const AccountStatCard = ({ account, onPhaseChange, dragHandleProps }: AccountSta
           {bulkReady && (
             <CheckCircle className="w-8 h-8 text-green-600" />
           )}
-        </div>
-        
-        <div className="mb-2">
-          <PhaseSelector
-            accountId={account.id}
-            accountName={account.account_name}
-            currentPhase={currentPhase}
-            onPhaseChange={onPhaseChange}
-          />
         </div>
       </CardHeader>
       
