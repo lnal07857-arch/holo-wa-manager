@@ -16,7 +16,7 @@ USER root
 COPY package*.json ./
 
 # Step 2: Install dependencies
-RUN npm ci --omit=dev --verbose
+RUN npm install --omit=dev --no-audit --no-fund --verbose
 
 # Step 3: Install Puppeteer Chrome
 RUN npx puppeteer browsers install chrome
