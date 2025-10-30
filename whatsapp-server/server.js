@@ -17,6 +17,106 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Supabase credentials helper
+function getSupabaseCreds() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  return { url, key };
+}
+
+// Startup self-check for Supabase access
+async function verifySupabaseAccess() {
+  const { url, key } = getSupabaseCreds();
+  if (!url || !key) {
+    console.log('[SB check] Missing credentials, skipping verification');
+    return false;
+  }
+  
+  try {
+    const response = await fetch(`${url}/rest/v1/whatsapp_accounts?select=id&limit=1`, {
+      headers: { 
+        'apikey': key, 
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    const text = await response.text();
+    console.log(`[SB check] REST access test: status=${response.status}, body=${text.slice(0, 200)}`);
+    return response.ok;
+  } catch (error) {
+    console.error('[SB check] Connection error:', error.message);
+    return false;
+  }
+}
+
+// Reset all connected accounts to disconnected on startup
+async function resetAccountStatuses() {
+  try {
+    const { url, key } = getSupabaseCreds();
+    if (!url || !key) {
+      console.log('Skipping account status reset: Supabase credentials not configured');
+      return;
+    }
+
+    const supabase = createClient(url, key);
+    const { data, error, count } = await supabase
+      .from('whatsapp_accounts')
+      .update({
+        status: 'disconnected',
+        qr_code: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('status', 'connected')
+      .select('id', { count: 'exact', head: true });
+
+    if (error) {
+      console.error('Failed to reset account statuses via SDK:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+    } else {
+      console.log(`✅ Reset all connected accounts to disconnected status (updated ${count ?? 0} rows)`);
+    }
+  } catch (error) {
+    console.error('Error resetting account statuses (SDK):', error);
+  }
+}
+
+// Periodic status check for disconnected clients
+async function checkClientStatuses() {
+  const { url, key } = getSupabaseCreds();
+  if (!url || !key) return;
+
+  const supabase = createClient(url, key);
+
+  for (const [accountId, client] of clients.entries()) {
+    try {
+      const state = await client.getState();
+      
+      if (state !== 'CONNECTED') {
+        console.log(`Account ${accountId} is not connected (state: ${state}), updating DB...`);
+        
+        const { error } = await supabase
+          .from('whatsapp_accounts')
+          .update({
+            status: 'disconnected',
+            qr_code: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', accountId);
+
+        if (error) {
+          console.error(`Failed to update status for ${accountId}:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.error(`Error checking status for ${accountId}:`, error.message);
+    }
+  }
+}
+
 // Store active WhatsApp clients
 const clients = new Map();
 // Local HTTP proxy bridges per account (proxy-chain)
@@ -1820,94 +1920,16 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // Check every 5 minutes
 
-// Reset all accounts to disconnected on server start
-async function resetAccountStatuses() {
-  try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.log('Skipping account status reset: Supabase credentials not configured');
-      return;
-    }
-
-    const response = await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?status=eq.connected`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        status: 'disconnected',
-        qr_code: null,
-        updated_at: new Date().toISOString()
-      })
-    });
-
-    if (response.ok) {
-      console.log('Reset all connected accounts to disconnected status');
-    } else {
-      console.error('Failed to reset account statuses:', response.status);
-    }
-  } catch (error) {
-    console.error('Error resetting account statuses:', error);
-  }
-}
-
-// Check all client statuses periodically
-async function checkClientStatuses() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    return;
-  }
-
-  console.log(`Checking status of ${clients.size} active clients...`);
-  
-  for (const [accountId, client] of clients.entries()) {
-    try {
-      const state = await client.getState();
-      console.log(`Account ${accountId}: ${state}`);
-      
-      // If client is not connected, update database and remove from map
-      if (state !== 'CONNECTED') {
-        console.log(`Account ${accountId} is disconnected, updating database...`);
-        
-        await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          },
-          body: JSON.stringify({
-            status: 'disconnected',
-            qr_code: null,
-            updated_at: new Date().toISOString()
-          })
-        });
-        
-        clients.delete(accountId);
-        messageQueues.delete(accountId);
-        console.log(`Removed disconnected client ${accountId}`);
-      }
-    } catch (error) {
-      console.error(`Error checking status for ${accountId}:`, error);
-      // If there's an error getting state, assume disconnected
-      clients.delete(accountId);
-      messageQueues.delete(accountId);
-    }
-  }
-}
-
 app.listen(PORT, async () => {
   console.log(`WhatsApp server running on port ${PORT}`);
+  
+  // Verify Supabase access on startup
+  await verifySupabaseAccess();
+  
+  // Reset all connected accounts to disconnected
   await resetAccountStatuses();
   
-  // Check client statuses every 2 minutes
-  setInterval(checkClientStatuses, 2 * 60 * 1000);
+  // Schedule periodic status checks every 2 minutes
+  setInterval(checkClientStatuses, 120000);
   console.log('Status check scheduled every 2 minutes');
 });
