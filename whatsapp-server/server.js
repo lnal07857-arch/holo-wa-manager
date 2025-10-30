@@ -1,12 +1,13 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const express = require('express');
-const cors = require('cors');
-const qrcode = require('qrcode-terminal');
-const { createClient } = require('@supabase/supabase-js');
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const ProxyChain = require('proxy-chain');
-require('dotenv').config();
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
+import express from 'express';
+import cors from 'cors';
+import qrcode from 'qrcode-terminal';
+import { createClient } from '@supabase/supabase-js';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import ProxyChain from 'proxy-chain';
+import 'dotenv/config';
 
 // Configure stealth plugin with all evasions
 puppeteer.use(StealthPlugin());
