@@ -1357,7 +1357,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     
     // Apply to all existing pages
     for (const page of pages) {
-      await applyFingerprintOverrides(page, storedFingerprint, accountId);
+      await applyFingerprintOverrides(page, fingerprint, accountId);
     }
     
     // Listen for new pages and apply overrides immediately
@@ -1365,7 +1365,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       if (target.type() === 'page') {
         const page = await target.page();
         if (page) {
-          await applyFingerprintOverrides(page, storedFingerprint, accountId);
+          await applyFingerprintOverrides(page, fingerprint, accountId);
         }
       }
     });

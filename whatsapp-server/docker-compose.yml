@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Account 1 with WireGuard (Germany)
   whatsapp-account-1:
