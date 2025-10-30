@@ -1,8 +1,12 @@
 node_modules
 npm-debug.log
-Dockerfile
+Dockerfile*
 .dockerignore
 .wwebjs_auth
 .wwebjs_cache
 .env
 *.log
+.git
+.gitignore
+docker-compose.yml
+wireguard-configs

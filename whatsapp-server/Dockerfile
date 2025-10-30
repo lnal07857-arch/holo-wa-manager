@@ -1,12 +1,10 @@
 # Reliable Puppeteer + Node base image
 FROM ghcr.io/puppeteer/puppeteer:22
 
-# Environment variables
+# Environment variables - NO SECRETS HERE!
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_DOWNLOAD=false
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
-ENV SUPABASE_URL="https://umizkegxybjhqucbhgth.supabase.co"
-ENV SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtaXprZWd4eWJqaHF1Y2JoZ3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NzM0MjQsImV4cCI6MjA3NjU0OTQyNH0.t_C139tgMw__bCBTUkF-kgCaG3-MKKsukmYB8FQr-k4"
 
 # Set working directory
 WORKDIR /app
@@ -14,15 +12,19 @@ WORKDIR /app
 # Switch to root for installation
 USER root
 
-# Copy application files
+# Step 1: Copy package files first (for Docker layer caching)
+COPY package*.json ./
+
+# Step 2: Install dependencies
+RUN npm ci --omit=dev --verbose
+
+# Step 3: Install Puppeteer Chrome
+RUN npx puppeteer browsers install chrome
+
+# Step 4: Copy rest of the code
 COPY . ./
 
-# Install dependencies (after copying source)
-RUN npm install --omit=dev --force && \
-    npx puppeteer browsers install chrome && \
-    chown -R pptruser:pptruser /app
-
-# Ensure correct ownership
+# Set ownership
 RUN chown -R pptruser:pptruser /app
 
 # Switch back to non-root user
