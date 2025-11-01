@@ -6,9 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAW_RAILWAY_URL = Deno.env.get('RAILWAY_SERVER_URL') || '';
-const BASE_URL = RAW_RAILWAY_URL && RAW_RAILWAY_URL.startsWith('http') ? RAW_RAILWAY_URL : `https://${RAW_RAILWAY_URL}`;
-
+const RAW_RAILWAY_URL = (Deno.env.get('RAILWAY_SERVER_URL') || '').trim();
+// Ensure protocol and remove any trailing slashes to avoid paths like //api/...
+const WITH_PROTOCOL = RAW_RAILWAY_URL && RAW_RAILWAY_URL.startsWith('http') ? RAW_RAILWAY_URL : (RAW_RAILWAY_URL ? `https://${RAW_RAILWAY_URL}` : '');
+const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
