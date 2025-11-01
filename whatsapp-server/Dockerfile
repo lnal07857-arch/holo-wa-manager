@@ -16,7 +16,9 @@ USER root
 COPY package*.json ./
 
 # Step 2: Install dependencies
-RUN npm install --omit=dev --no-audit --no-fund --verbose
+RUN npm install --omit=dev --no-audit --no-fund --verbose \
+    && (npm ls whatsapp-web.js || (npm install whatsapp-web.js@^1.23.0 --no-audit --no-fund --verbose)) \
+    && npm ls whatsapp-web.js
 
 # Step 3: Install Puppeteer Chrome
 RUN npx puppeteer browsers install chrome
