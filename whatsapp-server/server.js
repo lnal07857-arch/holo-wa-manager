@@ -3,6 +3,7 @@ const { Client, LocalAuth } = pkg;
 import express from 'express';
 import cors from 'cors';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -923,7 +924,6 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     qrcode.generate(qr, { small: true });
     
     // Convert QR to data URL for display in browser
-    const QRCode = require('qrcode');
     let qrDataUrl = '';
     try {
       qrDataUrl = await QRCode.toDataURL(qr);
