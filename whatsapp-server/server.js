@@ -2,102 +2,475 @@ import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import express from 'express';
 import cors from 'cors';
-import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import ProxyChain from 'proxy-chain';
-import 'dotenv/config';
-
-// Configure stealth plugin with all evasions
-puppeteer.use(StealthPlugin());
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
+const MAX_ACCOUNTS = parseInt(process.env.MAX_ACCOUNTS || '20', 10);
 
 app.use(cors());
 app.use(express.json());
 
-// Supabase credentials helper
-function getSupabaseCreds() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-  return { url, key };
+// Initialize Supabase client if credentials are available
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  console.log('[Supabase] ✅ Client initialized');
+} else {
+  console.log('[Supabase] ⚠️ Credentials not configured, running without Supabase');
 }
 
-// Startup self-check for Supabase access
-async function verifySupabaseAccess() {
-  const { url, key } = getSupabaseCreds();
-  if (!url || !key) {
-    console.log('[SB check] Missing credentials, skipping verification');
-    return false;
-  }
+// Store for all WhatsApp clients
+const accounts = new Map();
+
+// Account status tracking
+const accountStatus = new Map();
+
+/**
+ * Initialize a single WhatsApp account
+ */
+async function initializeAccount(accountIndex) {
+  const accountId = `account-${accountIndex}`;
+  const logPrefix = `[Account ${accountIndex}]`;
   
+  if (accounts.has(accountId)) {
+    console.log(`${logPrefix} ⚠️ Already initialized, skipping...`);
+    return { success: false, message: 'Already initialized' };
+  }
+
   try {
-    const response = await fetch(`${url}/rest/v1/whatsapp_accounts?select=id&limit=1`, {
-      headers: { 
-        'apikey': key, 
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json'
+    console.log(`${logPrefix} 🚀 Initializing WhatsApp client...`);
+    
+    // Create session directory
+    const sessionPath = path.join(process.cwd(), 'sessions', accountId);
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true });
+      console.log(`${logPrefix} 📁 Created session directory: ${sessionPath}`);
+    }
+
+    // Initialize client with LocalAuth
+    const client = new Client({
+      authStrategy: new LocalAuth({ 
+        clientId: accountId,
+        dataPath: './sessions'
+      }),
+      puppeteer: {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-dev-tools',
+          '--disable-extensions'
+        ]
       }
     });
-    const text = await response.text();
-    console.log(`[SB check] REST access test: status=${response.status}, body=${text.slice(0, 200)}`);
-    return response.ok;
-  } catch (error) {
-    console.error('[SB check] Connection error:', error.message);
-    return false;
-  }
-}
 
-// Reset all connected accounts to disconnected on startup
-async function resetAccountStatuses() {
-  try {
-    const { url, key } = getSupabaseCreds();
-    if (!url || !key) {
-      console.log('Skipping account status reset: Supabase credentials not configured');
-      return;
-    }
-
-    const supabase = createClient(url, key);
-    const { data, error, count } = await supabase
-      .from('whatsapp_accounts')
-      .update({
-        status: 'disconnected',
-        qr_code: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('status', 'connected')
-      .select('id', { count: 'exact', head: true });
-
-    if (error) {
-      console.error('Failed to reset account statuses via SDK:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-    } else {
-      console.log(`✅ Reset all connected accounts to disconnected status (updated ${count ?? 0} rows)`);
-    }
-  } catch (error) {
-    console.error('Error resetting account statuses (SDK):', error);
-  }
-}
-
-// Periodic status check for disconnected clients
-async function checkClientStatuses() {
-  const { url, key } = getSupabaseCreds();
-  if (!url || !key) return;
-
-  const supabase = createClient(url, key);
-
-  for (const [accountId, client] of clients.entries()) {
-    try {
-      const state = await client.getState();
+    // QR Code event
+    client.on('qr', async (qr) => {
+      console.log(`${logPrefix} 📱 QR Code generated`);
       
-      if (state !== 'CONNECTED') {
+      try {
+        // Generate QR data URL
+        const qrDataUrl = await QRCode.toDataURL(qr);
+        
+        // Update status
+        accountStatus.set(accountId, {
+          index: accountIndex,
+          status: 'qr_required',
+          qrCode: qrDataUrl,
+          qrText: qr,
+          lastUpdate: new Date().toISOString()
+        });
+
+        // Update Supabase if available
+        if (supabase) {
+          const { error } = await supabase
+            .from('whatsapp_accounts')
+            .update({
+              status: 'qr_generated',
+              qr_code: qr,
+              updated_at: new Date().toISOString()
+            })
+            .eq('account_name', accountId);
+          
+          if (error) {
+            console.log(`${logPrefix} ⚠️ Supabase update failed:`, error.message);
+          }
+        }
+      } catch (error) {
+        console.error(`${logPrefix} ❌ QR generation error:`, error);
+      }
+    });
+
+    // Ready event
+    client.on('ready', async () => {
+      console.log(`${logPrefix} ✅ Client ready and connected!`);
+      
+      accountStatus.set(accountId, {
+        index: accountIndex,
+        status: 'connected',
+        qrCode: null,
+        qrText: null,
+        lastUpdate: new Date().toISOString(),
+        connectedAt: new Date().toISOString()
+      });
+
+      // Update Supabase if available
+      if (supabase) {
+        const { error } = await supabase
+          .from('whatsapp_accounts')
+          .update({
+            status: 'connected',
+            qr_code: null,
+            last_connected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('account_name', accountId);
+        
+        if (error) {
+          console.log(`${logPrefix} ⚠️ Supabase update failed:`, error.message);
+        }
+      }
+    });
+
+    // Authenticated event
+    client.on('authenticated', () => {
+      console.log(`${logPrefix} 🔐 Authentication successful`);
+    });
+
+    // Auth failure event
+    client.on('auth_failure', (msg) => {
+      console.error(`${logPrefix} ❌ Authentication failure:`, msg);
+      accountStatus.set(accountId, {
+        index: accountIndex,
+        status: 'auth_failed',
+        error: msg,
+        lastUpdate: new Date().toISOString()
+      });
+    });
+
+    // Disconnected event
+    client.on('disconnected', async (reason) => {
+      console.log(`${logPrefix} 🔌 Disconnected:`, reason);
+      
+      accountStatus.set(accountId, {
+        index: accountIndex,
+        status: 'disconnected',
+        reason: reason,
+        lastUpdate: new Date().toISOString()
+      });
+
+      // Update Supabase if available
+      if (supabase) {
+        await supabase
+          .from('whatsapp_accounts')
+          .update({
+            status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('account_name', accountId);
+      }
+
+      // Remove from active clients
+      accounts.delete(accountId);
+    });
+
+    // Message event
+    client.on('message', async (msg) => {
+      console.log(`${logPrefix} 📨 Message from ${msg.from}: ${msg.body.substring(0, 50)}...`);
+    });
+
+    // Store client and set initial status
+    accounts.set(accountId, client);
+    accountStatus.set(accountId, {
+      index: accountIndex,
+      status: 'initializing',
+      lastUpdate: new Date().toISOString()
+    });
+
+    // Initialize client
+    await client.initialize();
+    
+    return { success: true, message: 'Client initialized' };
+  } catch (error) {
+    console.error(`${logPrefix} ❌ Initialization error:`, error);
+    accountStatus.set(accountId, {
+      index: accountIndex,
+      status: 'error',
+      error: error.message,
+      lastUpdate: new Date().toISOString()
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Restart a specific account
+ */
+async function restartAccount(accountIndex) {
+  const accountId = `account-${accountIndex}`;
+  const logPrefix = `[Account ${accountIndex}]`;
+  
+  console.log(`${logPrefix} 🔄 Restarting...`);
+  
+  // Destroy existing client if present
+  if (accounts.has(accountId)) {
+    try {
+      const client = accounts.get(accountId);
+      await client.destroy();
+      accounts.delete(accountId);
+      console.log(`${logPrefix} ✅ Old client destroyed`);
+    } catch (error) {
+      console.log(`${logPrefix} ⚠️ Error destroying old client:`, error.message);
+    }
+  }
+  
+  // Wait a bit before reinitializing
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Reinitialize
+  return await initializeAccount(accountIndex);
+}
+
+/**
+ * Send message via specific account
+ */
+async function sendMessage(accountIndex, phoneNumber, message) {
+  const accountId = `account-${accountIndex}`;
+  const logPrefix = `[Account ${accountIndex}]`;
+  
+  const client = accounts.get(accountId);
+  if (!client) {
+    throw new Error('Account not initialized or not connected');
+  }
+
+  const formattedNumber = phoneNumber.includes('@c.us') 
+    ? phoneNumber 
+    : `${phoneNumber}@c.us`;
+
+  await client.sendMessage(formattedNumber, message);
+  console.log(`${logPrefix} ✉️ Message sent to ${phoneNumber}`);
+}
+
+// ============================================
+// API Routes
+// ============================================
+
+/**
+ * Health check
+ */
+app.get('/health', (req, res) => {
+  const activeAccounts = Array.from(accounts.keys()).length;
+  const totalAccounts = accountStatus.size;
+  
+  res.json({ 
+    status: 'ok',
+    activeAccounts,
+    totalAccounts,
+    maxAccounts: MAX_ACCOUNTS,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * Get status of all accounts
+ */
+app.get('/status', (req, res) => {
+  const statusArray = Array.from(accountStatus.entries()).map(([id, status]) => ({
+    id,
+    ...status
+  }));
+
+  res.json({
+    accounts: statusArray,
+    total: statusArray.length,
+    connected: statusArray.filter(a => a.status === 'connected').length,
+    qr_required: statusArray.filter(a => a.status === 'qr_required').length,
+    disconnected: statusArray.filter(a => a.status === 'disconnected').length,
+    error: statusArray.filter(a => a.status === 'error').length
+  });
+});
+
+/**
+ * Get status of specific account
+ */
+app.get('/status/:id', (req, res) => {
+  const accountIndex = parseInt(req.params.id, 10);
+  const accountId = `account-${accountIndex}`;
+  
+  if (!accountStatus.has(accountId)) {
+    return res.status(404).json({ error: 'Account not found' });
+  }
+
+  const status = accountStatus.get(accountId);
+  res.json({
+    id: accountId,
+    ...status
+  });
+});
+
+/**
+ * Initialize a specific account
+ */
+app.post('/initialize/:id', async (req, res) => {
+  try {
+    const accountIndex = parseInt(req.params.id, 10);
+    
+    if (accountIndex < 1 || accountIndex > MAX_ACCOUNTS) {
+      return res.status(400).json({ 
+        error: `Invalid account ID. Must be between 1 and ${MAX_ACCOUNTS}` 
+      });
+    }
+
+    const result = await initializeAccount(accountIndex);
+    res.json(result);
+  } catch (error) {
+    console.error('[API] Initialize error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Restart a specific account
+ */
+app.post('/restart/:id', async (req, res) => {
+  try {
+    const accountIndex = parseInt(req.params.id, 10);
+    
+    if (accountIndex < 1 || accountIndex > MAX_ACCOUNTS) {
+      return res.status(400).json({ 
+        error: `Invalid account ID. Must be between 1 and ${MAX_ACCOUNTS}` 
+      });
+    }
+
+    const result = await restartAccount(accountIndex);
+    res.json(result);
+  } catch (error) {
+    console.error('[API] Restart error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Send message via specific account
+ */
+app.post('/send/:id', async (req, res) => {
+  try {
+    const accountIndex = parseInt(req.params.id, 10);
+    const { phoneNumber, message } = req.body;
+    
+    if (!phoneNumber || !message) {
+      return res.status(400).json({ 
+        error: 'phoneNumber and message are required' 
+      });
+    }
+
+    await sendMessage(accountIndex, phoneNumber, message);
+    res.json({ success: true, message: 'Message sent' });
+  } catch (error) {
+    console.error('[API] Send error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Initialize all accounts
+ */
+app.post('/initialize-all', async (req, res) => {
+  const count = parseInt(req.body.count || MAX_ACCOUNTS, 10);
+  console.log(`[API] 🚀 Initializing ${count} accounts...`);
+  
+  const results = [];
+  for (let i = 1; i <= count; i++) {
+    const result = await initializeAccount(i);
+    results.push({ accountIndex: i, ...result });
+    // Small delay between initializations to avoid overwhelming the system
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  res.json({ 
+    message: `Initialized ${count} accounts`,
+    results 
+  });
+});
+
+// ============================================
+// Server Startup
+// ============================================
+
+app.listen(PORT, async () => {
+  console.log('='.repeat(60));
+  console.log('🚀 WhatsApp Multi-Account Server');
+  console.log('='.repeat(60));
+  console.log(`📡 Server running on port ${PORT}`);
+  console.log(`🔢 Max accounts: ${MAX_ACCOUNTS}`);
+  console.log(`💾 Sessions directory: ./sessions`);
+  console.log(`🔗 Supabase: ${supabase ? '✅ Connected' : '⚠️ Not configured'}`);
+  console.log('='.repeat(60));
+  console.log('');
+  console.log('📋 Available endpoints:');
+  console.log(`   GET  /health             - Health check`);
+  console.log(`   GET  /status             - All accounts status`);
+  console.log(`   GET  /status/:id         - Specific account status`);
+  console.log(`   POST /initialize/:id     - Initialize account`);
+  console.log(`   POST /restart/:id        - Restart account`);
+  console.log(`   POST /send/:id           - Send message via account`);
+  console.log(`   POST /initialize-all     - Initialize all accounts`);
+  console.log('');
+  console.log('='.repeat(60));
+  console.log('');
+
+  // Auto-initialize accounts if specified
+  const autoInit = process.env.AUTO_INIT_ACCOUNTS;
+  if (autoInit) {
+    const count = parseInt(autoInit, 10);
+    console.log(`[Startup] 🔄 Auto-initializing ${count} accounts...`);
+    for (let i = 1; i <= count; i++) {
+      await initializeAccount(i);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n[Shutdown] 🛑 Gracefully shutting down...');
+  
+  for (const [accountId, client] of accounts.entries()) {
+    try {
+      console.log(`[Shutdown] Destroying ${accountId}...`);
+      await client.destroy();
+    } catch (error) {
+      console.log(`[Shutdown] Error destroying ${accountId}:`, error.message);
+    }
+  }
+  
+  console.log('[Shutdown] ✅ All accounts closed');
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('\n[Shutdown] 🛑 SIGTERM received, shutting down...');
+  
+  for (const [accountId, client] of accounts.entries()) {
+    try {
+      await client.destroy();
+    } catch (error) {
+      console.log(`[Shutdown] Error destroying ${accountId}:`, error.message);
+    }
+  }
+  
+  process.exit(0);
+});
         console.log(`Account ${accountId} is not connected (state: ${state}), updating DB...`);
         
         const { error } = await supabase

@@ -1,10 +1,12 @@
-# Reliable Puppeteer + Node base image
-FROM ghcr.io/puppeteer/puppeteer:22
+# Railway-optimized Dockerfile for multi-account WhatsApp server
+FROM ghcr.io/puppeteer/puppeteer:22.10.0
 
-# Environment variables - NO SECRETS HERE!
+# Environment variables
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_DOWNLOAD=false
-ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+ENV MAX_ACCOUNTS=20
+ENV AUTO_INIT_ACCOUNTS=0
 
 # Set working directory
 WORKDIR /app
@@ -12,28 +14,49 @@ WORKDIR /app
 # Switch to root for installation
 USER root
 
-# Step 1: Copy package files first (for Docker layer caching)
-COPY whatsapp-server/package*.json ./
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libgdk-pixbuf2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Step 2: Install dependencies
-RUN npm install --omit=dev --no-audit --no-fund --verbose
+# Copy package files
+COPY package*.json ./
 
-# Step 3: Verify whatsapp-web.js installation and install Puppeteer Chrome
-RUN npm ls whatsapp-web.js || npm install whatsapp-web.js@^1.23.0 --no-audit --no-fund --verbose && \
-    node_modules/.bin/puppeteer browsers install chrome || npx --yes puppeteer@22.10.0 browsers install chrome
+# Install dependencies (production only)
+RUN npm ci --only=production --no-audit --no-fund
 
-# Step 4: Copy rest of the code
-COPY whatsapp-server/. ./
+# Copy application code
+COPY server.js ./
 
-# Step 5: Ensure dependencies after full copy (safety)
-RUN npm install --omit=dev --no-audit --no-fund --verbose && \
-    npm ls express && npm ls whatsapp-web.js
+# Create sessions directory
+RUN mkdir -p ./sessions && \
+    chown -R pptruser:pptruser /app && \
+    chmod -R 755 /app/sessions
 
-# Set ownership
-RUN chown -R pptruser:pptruser /app
-
-# Switch back to non-root user
+# Switch to non-root user
 USER pptruser
 
-EXPOSE 3000
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))" || exit 1
+
+# Start application
 CMD ["node", "server.js"]
