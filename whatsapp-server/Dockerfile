@@ -25,6 +25,10 @@ RUN npm ls whatsapp-web.js || npm install whatsapp-web.js@^1.23.0 --no-audit --n
 # Step 4: Copy rest of the code
 COPY . ./
 
+# Step 5: Ensure dependencies after full copy (safety)
+RUN npm install --omit=dev --no-audit --no-fund --verbose && \
+    npm ls express && npm ls whatsapp-web.js
+
 # Set ownership
 RUN chown -R pptruser:pptruser /app
 
