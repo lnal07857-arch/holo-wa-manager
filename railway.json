@@ -1,5 +1,4 @@
 {
-  "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "whatsapp-server/Dockerfile",
@@ -10,4 +9,3 @@
     "restartPolicyMaxRetries": 10
   }
 }
-
