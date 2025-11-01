@@ -16,16 +16,16 @@ RUN apt-get update && apt-get install -y \
     libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 xdg-utils ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package.json & package-lock.json first
+# Copy package files first
 COPY package*.json ./
 
-# Install Node dependencies as root
+# Install Node modules as root (so pptruser can access them)
 RUN npm ci --only=production --no-audit --no-fund
 
-# Copy application code
+# Copy rest of the application
 COPY . .
 
-# Sessions folder permissions
+# Sessions folder
 RUN mkdir -p ./sessions && chmod -R 755 ./sessions
 
 # Switch to non-root
@@ -37,4 +37,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
  CMD node -e "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))" || exit 1
 
+# Start server
 CMD ["node", "server.js"]
