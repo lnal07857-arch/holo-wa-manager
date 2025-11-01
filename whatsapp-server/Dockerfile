@@ -1,7 +1,7 @@
 # Railway-optimized Dockerfile for multi-account WhatsApp server
 FROM ghcr.io/puppeteer/puppeteer:22.10.0
 
-# Environment variables
+# Set environment variables
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_DOWNLOAD=false
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
@@ -14,7 +14,7 @@ WORKDIR /app
 # Switch to root for installation
 USER root
 
-# Install necessary system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     fonts-liberation \
     libappindicator3-1 \
@@ -37,26 +37,24 @@ RUN apt-get update && apt-get install -y \
 # Copy package.json and package-lock.json first
 COPY package*.json ./
 
-# Install Node.js dependencies
+# Install Node.js dependencies **as root**
 RUN npm ci --only=production --no-audit --no-fund
 
-# Copy the rest of the application code
+# Copy all app files
 COPY . .
 
-# Create sessions directory with proper permissions
-RUN mkdir -p ./sessions && \
-    chown -R pptruser:pptruser /app && \
-    chmod -R 755 /app/sessions
+# Make sure sessions folder exists
+RUN mkdir -p ./sessions && chmod -R 755 ./sessions
 
 # Switch to non-root user
 USER pptruser
 
-# Expose port for the app
+# Expose port
 EXPOSE 8080
 
-# Health check to ensure server is running
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))" || exit 1
 
-# Start the application
+# Start the server
 CMD ["node", "server.js"]
