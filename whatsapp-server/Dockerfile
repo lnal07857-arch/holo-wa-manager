@@ -14,7 +14,7 @@ WORKDIR /app
 # Switch to root for installation
 USER root
 
-# Install necessary dependencies
+# Install necessary system dependencies
 RUN apt-get update && apt-get install -y \
     fonts-liberation \
     libappindicator3-1 \
@@ -34,16 +34,16 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
+# Copy package.json and package-lock.json first
 COPY package*.json ./
 
-# Install dependencies (production only)
+# Install Node.js dependencies
 RUN npm ci --only=production --no-audit --no-fund
 
-# Copy application code
-COPY server.js ./
+# Copy the rest of the application code
+COPY . .
 
-# Create sessions directory
+# Create sessions directory with proper permissions
 RUN mkdir -p ./sessions && \
     chown -R pptruser:pptruser /app && \
     chmod -R 755 /app/sessions
@@ -51,12 +51,12 @@ RUN mkdir -p ./sessions && \
 # Switch to non-root user
 USER pptruser
 
-# Expose port
+# Expose port for the app
 EXPOSE 8080
 
-# Health check
+# Health check to ensure server is running
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))" || exit 1
 
-# Start application
+# Start the application
 CMD ["node", "server.js"]
