@@ -13,7 +13,7 @@ WORKDIR /app
 USER root
 
 # Step 1: Copy package files first (for Docker layer caching)
-COPY package*.json ./
+COPY whatsapp-server/package*.json ./
 
 # Step 2: Install dependencies
 RUN npm install --omit=dev --no-audit --no-fund --verbose
@@ -23,7 +23,7 @@ RUN npm ls whatsapp-web.js || npm install whatsapp-web.js@^1.23.0 --no-audit --n
     node_modules/.bin/puppeteer browsers install chrome || npx --yes puppeteer@22.10.0 browsers install chrome
 
 # Step 4: Copy rest of the code
-COPY . ./
+COPY whatsapp-server/. ./
 
 # Step 5: Ensure dependencies after full copy (safety)
 RUN npm install --omit=dev --no-audit --no-fund --verbose && \
