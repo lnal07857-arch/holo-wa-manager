@@ -1,18 +1,23 @@
 {
-  "name": "whatsapp-multi-account-server",
-  "version": "2.0.0",
-  "description": "Multi-Account WhatsApp Web.js Server - Railway Optimized",
+  "name": "whatsapp-server",
+  "version": "1.0.0",
+  "description": "WhatsApp Web.js Server",
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "qrcode-terminal": "^0.12.0",
     "qrcode": "^1.5.3",
+    "puppeteer": "^22.10.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "proxy-chain": "^2.4.0",
     "@supabase/supabase-js": "^2.46.0"
   },
   "engines": {
