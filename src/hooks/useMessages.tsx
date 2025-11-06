@@ -112,7 +112,10 @@ export const useMessages = () => {
         
         console.log(`[Filter] Loaded ${ownPhoneNumbers.size} own numbers and ${warmupPhoneNumbers.size} warmup numbers to filter`);
         
-        // Fetch all messages with account info
+        // Fetch messages from the last 30 days only (synced history)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
         const { data: messagesData, error: messagesError } = await supabase
           .from("messages")
           .select(`
@@ -122,6 +125,7 @@ export const useMessages = () => {
               status
             )
           `)
+          .gte("sent_at", thirtyDaysAgo.toISOString())
           .order("sent_at", { ascending: false });
 
         if (messagesError) throw messagesError;

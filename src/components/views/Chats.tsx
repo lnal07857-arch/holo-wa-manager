@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { useWarmupPhoneNumbers } from "@/hooks/useWarmupPhoneNumbers";
 
 
 const Chats = () => {
@@ -38,6 +39,7 @@ const Chats = () => {
   const { templates, isLoading: templatesLoading } = useTemplates();
   const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessagesContext();
   const { accounts } = useWhatsAppAccounts();
+  const { warmupPhones } = useWarmupPhoneNumbers();
 
   // Load disabled follow-up contacts
   useEffect(() => {
@@ -191,9 +193,19 @@ const Chats = () => {
         toast.error("Nachricht gespeichert, aber WhatsApp-Versand fehlgeschlagen");
         return;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending message:", error);
-      toast.error("Fehler beim Senden der Nachricht");
+      
+      // Check if it's a Railway server configuration issue
+      if (error?.message?.includes('RAILWAY_SERVER_URL')) {
+        toast.error("WhatsApp-Server ist nicht konfiguriert", {
+          description: "Bitte konfigurieren Sie die RAILWAY_SERVER_URL in den Edge Function Einstellungen."
+        });
+      } else {
+        toast.error("Fehler beim Senden der Nachricht", {
+          description: error?.message || "Unbekannter Fehler"
+        });
+      }
       setMessageInput(messageText); // Restore message on error
     }
   };
@@ -248,15 +260,20 @@ const Chats = () => {
     }
     
     // Exclude chats between own WhatsApp accounts (warm-up chats)
+    const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
+    
     // Check if the contact_phone belongs to any of the user's WhatsApp accounts
     const isOwnAccount = accounts.some(acc => {
-      // Remove all non-digit characters for comparison
       const cleanAccPhone = acc.phone_number.replace(/\D/g, '');
-      const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
       return cleanAccPhone === cleanContactPhone;
     });
     
     if (isOwnAccount) {
+      return false;
+    }
+    
+    // Also exclude warmup phone numbers (system-wide blacklist)
+    if (warmupPhones.has(cleanContactPhone)) {
       return false;
     }
     
