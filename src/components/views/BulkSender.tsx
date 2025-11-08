@@ -429,7 +429,8 @@ const BulkSender = () => {
 
                     // 2. Nachricht via WhatsApp versenden
                     try {
-                      const { error: sendError } = await supabase.functions.invoke("wa-gateway", {
+                      console.log(`[BulkSender] Sending message to ${contact_phone} via account ${accountId}`);
+                      const { data: sendData, error: sendError } = await supabase.functions.invoke("wa-gateway", {
                         body: {
                           action: "send-message",
                           accountId: accountId,
@@ -440,11 +441,14 @@ const BulkSender = () => {
 
                       if (sendError) {
                         console.error("WhatsApp Versand fehlgeschlagen:", sendError);
+                        toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
                       } else {
+                        console.log(`[BulkSender] Message sent successfully:`, sendData);
                         created += 1;
                       }
                     } catch (sendErr) {
                       console.error("Fehler beim WhatsApp-Versand:", sendErr);
+                      toast.error(`Exception beim Versand: ${sendErr}`);
                     }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
