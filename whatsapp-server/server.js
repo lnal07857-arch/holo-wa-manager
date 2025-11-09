@@ -1995,16 +1995,16 @@ app.listen(PORT, async () => {
   await resetAccountStatuses();
 
   // Keepalive - send presence every minute to prevent disconnects
-  setInterval(() => {
+  setInterval(async () => {
     for (const [id, client] of clients.entries()) {
       try {
-        client.sendPresenceAvailable();
+        await client.sendPresenceAvailable();
         console.log(`[KeepAlive] Sent presence ping for ${id}`);
       } catch (err) {
-        console.error(`[KeepAlive] Failed for ${id}:`, err.message);
+        console.error(`[KeepAlive] Error sending presence for ${id}:`, err?.message || err);
       }
     }
-  }, 60_000);
+  }, 60 * 1000);
 
   // Schedule periodic status checks every 2 minutes
   setInterval(checkClientStatuses, 120000);
