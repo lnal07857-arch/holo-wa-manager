@@ -1134,7 +1134,11 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
             if (!imageResponse.ok) {
               throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
             }
-            const imageBuffer = await imageResponse.buffer();
+
+            // Fix: arrayBuffer() statt buffer()
+            const arrayBuffer = await imageResponse.arrayBuffer();
+            const imageBuffer = Buffer.from(arrayBuffer);
+
             const base64Image = `data:image/jpeg;base64,${imageBuffer.toString("base64")}`;
             console.log("[Profile Sync] Setting profile picture...");
             await client.setProfilePicture(base64Image);
