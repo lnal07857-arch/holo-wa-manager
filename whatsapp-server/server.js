@@ -580,7 +580,6 @@ function generateFingerprint(accountId) {
 
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
-  await new Promise((r) => setTimeout(r, Math.random() * 2000 + 1000));
   // If a client exists, verify its state. If not connected, clean up and re-init to emit a fresh QR.
   if (clients.has(accountId)) {
     try {
@@ -923,17 +922,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
     puppeteer: {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-zygote",
-        "--single-process", // sehr wichtig: nur 1 Thread
-        "--disable-gpu",
-      ],
-      protocolTimeout: 120_000, // um ProtocolError zu vermeiden
+      browserWSEndpoint: browser.wsEndpoint(),
     },
     webVersionCache: {
       type: "remote",
