@@ -1700,10 +1700,9 @@ app.post("/api/fingerprint", async (req, res) => {
   }
 });
 
-// Bulk-Send API
-// ---- Bulk send API ----
 app.post("/api/send-bulk", async (req, res) => {
   const { accountId, messages } = req.body;
+
   if (!accountId || !Array.isArray(messages)) {
     return res.status(400).json({ success: false, error: "accountId and messages[] required" });
   }
@@ -1724,17 +1723,31 @@ app.post("/api/send-bulk", async (req, res) => {
   }
 
   let queued = 0;
+
   for (const msg of messages) {
     if (!msg.to || !msg.text) continue;
+
     queue.add(async () => {
+      const jid = `${msg.to.replace(/\D/g, "")}@c.us`;
+
       try {
-        const jid = `${msg.to.replace(/\D/g, "")}@c.us`;
         await client.sendMessage(jid, msg.text);
-        console.log(`[Bulk] Sent to ${msg.to}`);
+        console.log(`[Bulk] ✅ Sent to ${msg.to}`);
+        // kleine Pause, damit WhatsApp stabil bleibt
+        await new Promise((res) => setTimeout(res, 300));
       } catch (err) {
-        console.error(`[Bulk] Error sending to ${msg.to}:`, err?.message || err);
+        console.error(`[Bulk] ⚠ Error sending to ${msg.to}:`, err?.message || err);
+        // 1 Sekunde warten, dann einmal neu versuchen
+        await new Promise((res) => setTimeout(res, 1000));
+        try {
+          await client.sendMessage(jid, msg.text);
+          console.log(`[Bulk] 🔁 Retried successfully for ${msg.to}`);
+        } catch (retryErr) {
+          console.error(`[Bulk] ❌ Failed retry for ${msg.to}:`, retryErr?.message || retryErr);
+        }
       }
     });
+
     queued++;
   }
 
