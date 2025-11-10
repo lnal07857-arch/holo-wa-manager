@@ -166,7 +166,8 @@ class MessageQueue {
         // Random delay between 2-5 seconds
         await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 3000));
       } catch (error) {
-        console.error("Error processing message:", error);
+        console.error("[Queue] Error processing message:", error.message || error);
+        // Continue with next message even if one fails
       }
     }
 
@@ -1800,15 +1801,36 @@ app.post("/api/send-message", async (req, res) => {
     const queue = messageQueues.get(accountId);
 
     queue.add(async () => {
-      const formattedNumber = phoneNumber.includes("@c.us") ? phoneNumber : `${phoneNumber}@c.us`;
-
-      await client.sendMessage(formattedNumber, message);
-      console.log(`Message sent to ${phoneNumber}`);
+      try {
+        // Format phone number properly
+        let formattedNumber = phoneNumber.replace(/[^\d+]/g, '');
+        if (!formattedNumber.startsWith('+')) {
+          formattedNumber = '+' + formattedNumber;
+        }
+        
+        // Remove + for WhatsApp format
+        const whatsappNumber = formattedNumber.substring(1) + '@c.us';
+        
+        console.log(`[Send] Attempting to send to ${phoneNumber} (formatted: ${whatsappNumber})`);
+        
+        // Check if number is registered on WhatsApp
+        const isRegistered = await client.isRegisteredUser(whatsappNumber);
+        if (!isRegistered) {
+          console.error(`[Send] ✗ Number ${phoneNumber} is not registered on WhatsApp`);
+          return;
+        }
+        
+        await client.sendMessage(whatsappNumber, message);
+        console.log(`[Send] ✓ Message sent to ${phoneNumber}`);
+      } catch (err) {
+        console.error(`[Send] ✗ Failed to send to ${phoneNumber}:`, err.message || err);
+        throw err;
+      }
     });
 
     res.json({ success: true, message: "Message queued" });
   } catch (error) {
-    console.error("Error sending message:", error);
+    console.error("[Send API] Error:", error.message || error);
     res.status(500).json({ error: error.message });
   }
 });
