@@ -1481,22 +1481,79 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   return { success: true, message: "Client initialized" };
 }
 
-// ---- SafeSendPresence with Retry Loop ----
+// ---- SafeSendPresence (single robust implementation) ----
 const safeSendPresence = async (client, accountId, maxRetries = 3) => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await client.sendPresenceAvailable();
-      console.log(`[KeepAlive] Sent presence ping for ${accountId}`);
-      return;
-    } catch (err) {
-      console.warn(`[KeepAlive] Attempt ${attempt} failed for ${accountId}: ${err.message}`);
-      if (attempt < maxRetries) {
-        await new Promise((res) => setTimeout(res, 2000 * attempt));
-      } else {
-        console.error(`[KeepAlive] All retries failed for ${accountId}`);
+      // 1) Preferred: use library helper if available
+      if (typeof client.sendPresenceAvailable === "function") {
+        await client.sendPresenceAvailable();
+        console.log(`[Presence] sendPresenceAvailable() used for ${accountId}`);
+        return true;
       }
+
+      // 2) If client.pupPage exists (some versions expose it)
+      if (client && client.pupPage && typeof client.pupPage.evaluate === "function") {
+        try {
+          const ok = await client.pupPage.evaluate(() => {
+            try {
+              if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
+                window.Store.PresenceUtils.sendPresenceAvailable();
+                return true;
+              }
+            } catch (e) {}
+            return false;
+          });
+          if (ok) {
+            console.log(`[Presence] pupPage.evaluate() success for ${accountId}`);
+            return true;
+          }
+        } catch (e) {
+          console.warn(`[Presence] pupPage.evaluate() failed for ${accountId}: ${e?.message || e}`);
+        }
+      }
+
+      // 3) Fallback: try to get an open page from pupBrowser and evaluate there
+      if (client && client.pupBrowser && typeof client.pupBrowser.pages === "function") {
+        try {
+          const pages = await client.pupBrowser.pages();
+          for (const page of pages) {
+            try {
+              const ok = await page.evaluate(() => {
+                try {
+                  if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
+                    window.Store.PresenceUtils.sendPresenceAvailable();
+                    return true;
+                  }
+                } catch (e) {}
+                return false;
+              });
+              if (ok) {
+                console.log(`[Presence] pupBrowser.page.evaluate() success for ${accountId}`);
+                return true;
+              }
+            } catch (e) {
+              // ignore page-specific evaluation failures, try next page
+            }
+          }
+        } catch (e) {
+          console.warn(`[Presence] pupBrowser.pages() failed for ${accountId}: ${e?.message || e}`);
+        }
+      }
+
+      // Not ready yet, retry after delay
+      console.warn(`[Presence] PresenceUtils not ready for ${accountId}, retry ${attempt}/${maxRetries}`);
+      await sleep(2000 * attempt);
+    } catch (err) {
+      console.warn(`[Presence] Error on attempt ${attempt} for ${accountId}:`, err?.message || err);
+      await sleep(2000 * attempt);
     }
   }
+
+  console.warn(`[Presence] Giving up after ${maxRetries} attempts for ${accountId}`);
+  return false;
 };
 
 // Helper function to apply fingerprint overrides to a page
