@@ -1522,6 +1522,43 @@ async function safeSendPresence(client, accountId) {
   }
 }
 
+// ---- SafeSendPresence with Retry Loop ----
+async function safeSendPresence(client, accountId, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // if official helper exists
+      if (typeof client.sendPresenceAvailable === "function") {
+        await client.sendPresenceAvailable();
+        console.log(`[Presence] Sent presence for ${accountId}`);
+        return true;
+      }
+
+      // fallback to browser context if needed
+      if (client && client.pupPage) {
+        const res = await client.pupPage.evaluate(() => {
+          if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
+            window.Store.PresenceUtils.sendPresenceAvailable();
+            return true;
+          }
+          return false;
+        });
+        if (res) {
+          console.log(`[Presence] (page) sent presence for ${accountId}`);
+          return true;
+        }
+      }
+
+      console.warn(`[Presence] PresenceUtils not ready for ${accountId}, retry ${attempt}/${maxRetries}`);
+      await new Promise((r) => setTimeout(r, 2000)); // wait 2 s and retry
+    } catch (err) {
+      console.warn(`[Presence] Error on attempt ${attempt} for ${accountId}:`, err?.message || err);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+  console.warn(`[Presence] Giving up after ${maxRetries} attempts for ${accountId}`);
+  return false;
+}
+
 // Helper function to apply fingerprint overrides to a page
 async function applyFingerprintOverrides(page, fp, accountId) {
   try {
@@ -1667,9 +1704,9 @@ app.post("/api/fingerprint", async (req, res) => {
 });
 
 // Bulk-Send API
+// ---- Bulk send API ----
 app.post("/api/send-bulk", async (req, res) => {
-  const { accountId, messages } = req.body; // messages = [{ to, text }, ...]
-
+  const { accountId, messages } = req.body;
   if (!accountId || !Array.isArray(messages)) {
     return res.status(400).json({ success: false, error: "accountId and messages[] required" });
   }
@@ -1679,7 +1716,6 @@ app.post("/api/send-bulk", async (req, res) => {
     return res.status(400).json({ success: false, error: "Client not initialized or disconnected" });
   }
 
-  // Check client state
   const state = await client.getState().catch(() => null);
   if (state !== "CONNECTED") {
     return res.status(400).json({ success: false, error: `Client not connected (state: ${state})` });
@@ -1692,30 +1728,20 @@ app.post("/api/send-bulk", async (req, res) => {
 
   let queued = 0;
   for (const msg of messages) {
-    if (!msg || !msg.to || (!msg.text && !msg.media)) continue;
-
+    if (!msg.to || !msg.text) continue;
     queue.add(async () => {
       try {
-        // Build JID
-        const toJid = msg.to.includes("@") ? msg.to : `${msg.to.replace(/\D/g, "")}@c.us`;
-
-        if (msg.media && msg.mediaBase64 && msg.mediaMimetype) {
-          // optional: send media messages if provided
-          const media = new MessageMedia(msg.mediaMimetype, msg.mediaBase64, msg.fileName || "file");
-          await client.sendMessage(toJid, media, { caption: msg.text || "" });
-        } else {
-          await client.sendMessage(toJid, msg.text || "");
-        }
-        console.log(`[Bulk] Sent message to ${msg.to}`);
+        const jid = `${msg.to.replace(/\D/g, "")}@c.us`;
+        await client.sendMessage(jid, msg.text);
+        console.log(`[Bulk] Sent to ${msg.to}`);
       } catch (err) {
         console.error(`[Bulk] Error sending to ${msg.to}:`, err?.message || err);
       }
     });
-
     queued++;
   }
 
-  return res.json({ success: true, queued });
+  res.json({ success: true, queued });
 });
 
 app.post("/api/initialize", async (req, res) => {
@@ -1950,28 +1976,20 @@ app.listen(PORT, async () => {
   // Reset all connected accounts to disconnected
   await resetAccountStatuses();
 
-  // Keepalive - send presence every 5 minutes to prevent disconnects (safe)
-  const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  // Keepalive - send presence every 5 min with safe retry
+  const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000;
 
   setInterval(async () => {
     for (const [id, client] of clients.entries()) {
       try {
-        // Ensure client is connected before trying to send presence
         const state = await client.getState().catch(() => null);
         if (state !== "CONNECTED") {
-          console.log(`[KeepAlive] Skipping presence for ${id} (state: ${state})`);
+          console.log(`[KeepAlive] Skip ${id} (state: ${state})`);
           continue;
         }
-
-        // Use safe wrapper which avoids puppeteer evaluation crashes
-        const res = await safeSendPresence(client, id);
-        if (res?.ok) {
-          console.log(`[KeepAlive] Sent presence ping for ${id}`);
-        } else {
-          console.warn(`[KeepAlive] Presence not sent for ${id}: ${res?.reason || "unknown"}`);
-        }
+        await safeSendPresence(client, id);
       } catch (err) {
-        console.error(`[KeepAlive] Error sending presence for ${id}:`, err?.message || err);
+        console.error(`[KeepAlive] Error for ${id}:`, err?.message || err);
       }
     }
   }, KEEPALIVE_INTERVAL_MS);
