@@ -1743,20 +1743,17 @@ app.post("/api/send-bulk", async (req, res) => {
       const jid = `${msg.to.replace(/\D/g, "")}@c.us`;
 
       try {
-        await client.sendMessage(jid, msg.text);
+        // kurz warten, um DOM-Sync sicherzustellen
+        await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
+
+        // sendMessage mit zusätzlicher Abfang-Logik
+        const chat = await client.getChatById(jid);
+        if (!chat) throw new Error(`Chat ${jid} not found`);
+
+        await chat.sendMessage(msg.text);
         console.log(`[Bulk] ✅ Sent to ${msg.to}`);
-        // kleine Pause, damit WhatsApp stabil bleibt
-        await new Promise((res) => setTimeout(res, 300));
       } catch (err) {
-        console.error(`[Bulk] ⚠ Error sending to ${msg.to}:`, err?.message || err);
-        // 1 Sekunde warten, dann einmal neu versuchen
-        await new Promise((res) => setTimeout(res, 1000));
-        try {
-          await client.sendMessage(jid, msg.text);
-          console.log(`[Bulk] 🔁 Retried successfully for ${msg.to}`);
-        } catch (retryErr) {
-          console.error(`[Bulk] ❌ Failed retry for ${msg.to}:`, retryErr?.message || retryErr);
-        }
+        console.error(`[Bulk] ❌ Failed to send to ${msg.to}: ${err.message}`);
       }
     });
 
