@@ -580,6 +580,7 @@ function generateFingerprint(accountId) {
 
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
+  await new Promise((r) => setTimeout(r, Math.random() * 2000 + 1000));
   // If a client exists, verify its state. If not connected, clean up and re-init to emit a fresh QR.
   if (clients.has(accountId)) {
     try {
@@ -922,7 +923,17 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId }),
     puppeteer: {
-      browserWSEndpoint: browser.wsEndpoint(),
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-zygote",
+        "--single-process", // sehr wichtig: nur 1 Thread
+        "--disable-gpu",
+      ],
+      protocolTimeout: 120_000, // um ProtocolError zu vermeiden
     },
     webVersionCache: {
       type: "remote",
@@ -1803,23 +1814,23 @@ app.post("/api/send-message", async (req, res) => {
     queue.add(async () => {
       try {
         // Format phone number properly
-        let formattedNumber = phoneNumber.replace(/[^\d+]/g, '');
-        if (!formattedNumber.startsWith('+')) {
-          formattedNumber = '+' + formattedNumber;
+        let formattedNumber = phoneNumber.replace(/[^\d+]/g, "");
+        if (!formattedNumber.startsWith("+")) {
+          formattedNumber = "+" + formattedNumber;
         }
-        
+
         // Remove + for WhatsApp format
-        const whatsappNumber = formattedNumber.substring(1) + '@c.us';
-        
+        const whatsappNumber = formattedNumber.substring(1) + "@c.us";
+
         console.log(`[Send] Attempting to send to ${phoneNumber} (formatted: ${whatsappNumber})`);
-        
+
         // Check if number is registered on WhatsApp
         const isRegistered = await client.isRegisteredUser(whatsappNumber);
         if (!isRegistered) {
           console.error(`[Send] ✗ Number ${phoneNumber} is not registered on WhatsApp`);
           return;
         }
-        
+
         await client.sendMessage(whatsappNumber, message);
         console.log(`[Send] ✓ Message sent to ${phoneNumber}`);
       } catch (err) {
