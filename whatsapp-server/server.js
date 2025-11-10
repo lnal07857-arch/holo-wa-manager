@@ -1481,47 +1481,6 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   return { success: true, message: "Client initialized" };
 }
 
-// Safe presence sender - checks internals and avoids throwing puppeteer evaluation errors
-async function safeSendPresence(client, accountId) {
-  try {
-    // If client provides sendPresenceAvailable, call it wrapped
-    if (typeof client.sendPresenceAvailable === "function") {
-      // Try to run the built-in helper but guard against evaluation errors
-      await client.sendPresenceAvailable();
-      return { ok: true };
-    }
-
-    // Fallback: attempt directly in browser context (extra-guarded)
-    if (client && client.pupBrowser) {
-      const browser = await client.pupBrowser.catch(() => null);
-      if (!browser) return { ok: false, reason: "no-browser" };
-      const pages = await browser.pages().catch(() => []);
-      const page = pages[0];
-      if (!page) return { ok: false, reason: "no-page" };
-
-      const result = await page
-        .evaluate(() => {
-          try {
-            if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
-              window.Store.PresenceUtils.sendPresenceAvailable();
-              return { ok: true };
-            }
-            return { ok: false, reason: "PresenceUtils not ready" };
-          } catch (e) {
-            return { ok: false, reason: e && e.message ? e.message : "evaluate error" };
-          }
-        })
-        .catch((e) => ({ ok: false, reason: e?.message || e }));
-
-      return result;
-    }
-
-    return { ok: false, reason: "no-method" };
-  } catch (err) {
-    return { ok: false, reason: err?.message || err };
-  }
-}
-
 // ---- SafeSendPresence with Retry Loop ----
 async function safeSendPresence(client, accountId, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
