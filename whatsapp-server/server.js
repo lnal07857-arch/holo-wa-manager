@@ -1357,6 +1357,17 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   client.on("disconnected", async (reason) => {
     console.log("Client disconnected:", reason, "for account:", accountId);
 
+    // ✅ Fix: Ignore transient internal disconnections from Puppeteer (e.g. "Evaluation failed: b")
+    if (
+      reason &&
+      (reason.toString().includes("Evaluation failed") ||
+        reason.toString().includes("Protocol error") ||
+        reason.toString().includes("Execution context"))
+    ) {
+      console.warn(`[Disconnect] Ignoring transient Puppeteer error for ${accountId}`);
+      return;
+    }
+
     // Clear QR timeout
     const existingTimeout = qrTimeouts.get(accountId);
     if (existingTimeout) {
@@ -1375,6 +1386,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       proxyServers.delete(accountId);
     }
 
+    // Remove client data
     clients.delete(accountId);
     messageQueues.delete(accountId);
     lastActivity.delete(accountId);
