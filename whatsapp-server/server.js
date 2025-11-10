@@ -1356,18 +1356,15 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   // Disconnected event with Auto-Reconnect
   client.on("disconnected", async (reason) => {
     console.log("Client disconnected:", reason, "for account:", accountId);
-    clients.delete(accountId);
-    messageQueues.delete(accountId);
-    lastActivity.delete(accountId);
 
-    // Clear QR timeout if exists
+    // Clear QR timeout
     const existingTimeout = qrTimeouts.get(accountId);
     if (existingTimeout) {
       clearTimeout(existingTimeout);
       qrTimeouts.delete(accountId);
     }
 
-    // Stop local proxy bridge if running
+    // Close proxy server
     const srv = proxyServers.get(accountId);
     if (srv) {
       try {
@@ -1378,40 +1375,23 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       proxyServers.delete(accountId);
     }
 
-    // Update status in Supabase
-    try {
-      await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify({
-          status: "disconnected",
-          updated_at: new Date().toISOString(),
-        }),
-      });
-    } catch (error) {
-      console.error("Error updating status:", error);
+    clients.delete(accountId);
+    messageQueues.delete(accountId);
+    lastActivity.delete(accountId);
+
+    // If the reason is LOGOUT, don't auto re-init; require manual reconnect (security)
+    if (reason && reason.toString().toUpperCase().includes("LOGOUT")) {
+      console.log(`[Auto-Reconnect] Client ${accountId} logged out, not attempting reconnect`);
+      reconnectAttempts.delete(accountId);
+      return;
     }
 
-    // Auto-reconnect logic
+    // Auto-reconnect
     const attempts = reconnectAttempts.get(accountId) || 0;
     if (attempts < MAX_RECONNECT_ATTEMPTS) {
-      console.log(
-        `[Auto-Reconnect] Scheduling reconnect attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS} for ${accountId} in ${RECONNECT_DELAY}ms`,
-      );
       reconnectAttempts.set(accountId, attempts + 1);
-
-      setTimeout(async () => {
-        console.log(`[Auto-Reconnect] Attempting to reconnect ${accountId}...`);
-        try {
-          await initializeClient(accountId, userId, supabaseUrl, supabaseKey);
-        } catch (error) {
-          console.error(`[Auto-Reconnect] Failed to reconnect ${accountId}:`, error);
-        }
-      }, RECONNECT_DELAY);
+      console.log(`[Auto-Reconnect] Scheduling reconnect ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS} for ${accountId}`);
+      setTimeout(() => initializeClient(accountId, userId, supabaseUrl, supabaseKey), RECONNECT_DELAY);
     } else {
       console.log(`[Auto-Reconnect] Max reconnect attempts reached for ${accountId}`);
       reconnectAttempts.delete(accountId);
@@ -1499,6 +1479,47 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   }
 
   return { success: true, message: "Client initialized" };
+}
+
+// Safe presence sender - checks internals and avoids throwing puppeteer evaluation errors
+async function safeSendPresence(client, accountId) {
+  try {
+    // If client provides sendPresenceAvailable, call it wrapped
+    if (typeof client.sendPresenceAvailable === "function") {
+      // Try to run the built-in helper but guard against evaluation errors
+      await client.sendPresenceAvailable();
+      return { ok: true };
+    }
+
+    // Fallback: attempt directly in browser context (extra-guarded)
+    if (client && client.pupBrowser) {
+      const browser = await client.pupBrowser.catch(() => null);
+      if (!browser) return { ok: false, reason: "no-browser" };
+      const pages = await browser.pages().catch(() => []);
+      const page = pages[0];
+      if (!page) return { ok: false, reason: "no-page" };
+
+      const result = await page
+        .evaluate(() => {
+          try {
+            if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
+              window.Store.PresenceUtils.sendPresenceAvailable();
+              return { ok: true };
+            }
+            return { ok: false, reason: "PresenceUtils not ready" };
+          } catch (e) {
+            return { ok: false, reason: e && e.message ? e.message : "evaluate error" };
+          }
+        })
+        .catch((e) => ({ ok: false, reason: e?.message || e }));
+
+      return result;
+    }
+
+    return { ok: false, reason: "no-method" };
+  } catch (err) {
+    return { ok: false, reason: err?.message || err };
+  }
 }
 
 // Helper function to apply fingerprint overrides to a page
@@ -1658,7 +1679,7 @@ app.post("/api/send-bulk", async (req, res) => {
     return res.status(400).json({ success: false, error: "Client not initialized or disconnected" });
   }
 
-  // ✅ Neuer Check: Ist der Client wirklich verbunden?
+  // Check client state
   const state = await client.getState().catch(() => null);
   if (state !== "CONNECTED") {
     return res.status(400).json({ success: false, error: `Client not connected (state: ${state})` });
@@ -1669,21 +1690,32 @@ app.post("/api/send-bulk", async (req, res) => {
     return res.status(500).json({ success: false, error: "Message queue not found" });
   }
 
-  // ✅ Queue-Job für jedes Element in messages
+  let queued = 0;
   for (const msg of messages) {
-    if (!msg.to || !msg.text) continue;
+    if (!msg || !msg.to || (!msg.text && !msg.media)) continue;
 
     queue.add(async () => {
       try {
-        await client.sendMessage(`${msg.to}@c.us`, msg.text);
-        console.log(`[Bulk] Sent message to ${msg.to}: "${msg.text.slice(0, 50)}"`);
+        // Build JID
+        const toJid = msg.to.includes("@") ? msg.to : `${msg.to.replace(/\D/g, "")}@c.us`;
+
+        if (msg.media && msg.mediaBase64 && msg.mediaMimetype) {
+          // optional: send media messages if provided
+          const media = new MessageMedia(msg.mediaMimetype, msg.mediaBase64, msg.fileName || "file");
+          await client.sendMessage(toJid, media, { caption: msg.text || "" });
+        } else {
+          await client.sendMessage(toJid, msg.text || "");
+        }
+        console.log(`[Bulk] Sent message to ${msg.to}`);
       } catch (err) {
-        console.error(`[Bulk] Error sending to ${msg.to}:`, err.message || err);
+        console.error(`[Bulk] Error sending to ${msg.to}:`, err?.message || err);
       }
     });
+
+    queued++;
   }
 
-  res.json({ success: true, queued: messages.length });
+  return res.json({ success: true, queued });
 });
 
 app.post("/api/initialize", async (req, res) => {
@@ -1918,17 +1950,31 @@ app.listen(PORT, async () => {
   // Reset all connected accounts to disconnected
   await resetAccountStatuses();
 
-  // Keepalive - send presence every minute to prevent disconnects
+  // Keepalive - send presence every 5 minutes to prevent disconnects (safe)
+  const KEEPALIVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
   setInterval(async () => {
     for (const [id, client] of clients.entries()) {
       try {
-        await client.sendPresenceAvailable();
-        console.log(`[KeepAlive] Sent presence ping for ${id}`);
+        // Ensure client is connected before trying to send presence
+        const state = await client.getState().catch(() => null);
+        if (state !== "CONNECTED") {
+          console.log(`[KeepAlive] Skipping presence for ${id} (state: ${state})`);
+          continue;
+        }
+
+        // Use safe wrapper which avoids puppeteer evaluation crashes
+        const res = await safeSendPresence(client, id);
+        if (res?.ok) {
+          console.log(`[KeepAlive] Sent presence ping for ${id}`);
+        } else {
+          console.warn(`[KeepAlive] Presence not sent for ${id}: ${res?.reason || "unknown"}`);
+        }
       } catch (err) {
         console.error(`[KeepAlive] Error sending presence for ${id}:`, err?.message || err);
       }
     }
-  }, 60 * 1000);
+  }, KEEPALIVE_INTERVAL_MS);
 
   // Schedule periodic status checks every 2 minutes
   setInterval(checkClientStatuses, 120000);
