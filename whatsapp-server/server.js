@@ -1482,41 +1482,22 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
 }
 
 // ---- SafeSendPresence with Retry Loop ----
-async function safeSendPresence(client, accountId, maxRetries = 3) {
+const safeSendPresence = async (client, accountId, maxRetries = 3) => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // if official helper exists
-      if (typeof client.sendPresenceAvailable === "function") {
-        await client.sendPresenceAvailable();
-        console.log(`[Presence] Sent presence for ${accountId}`);
-        return true;
-      }
-
-      // fallback to browser context if needed
-      if (client && client.pupPage) {
-        const res = await client.pupPage.evaluate(() => {
-          if (window.Store && window.Store.PresenceUtils && window.Store.PresenceUtils.sendPresenceAvailable) {
-            window.Store.PresenceUtils.sendPresenceAvailable();
-            return true;
-          }
-          return false;
-        });
-        if (res) {
-          console.log(`[Presence] (page) sent presence for ${accountId}`);
-          return true;
-        }
-      }
-
-      console.warn(`[Presence] PresenceUtils not ready for ${accountId}, retry ${attempt}/${maxRetries}`);
-      await new Promise((r) => setTimeout(r, 2000)); // wait 2 s and retry
+      await client.sendPresenceAvailable();
+      console.log(`[KeepAlive] Sent presence ping for ${accountId}`);
+      return;
     } catch (err) {
-      console.warn(`[Presence] Error on attempt ${attempt} for ${accountId}:`, err?.message || err);
-      await new Promise((r) => setTimeout(r, 2000));
+      console.warn(`[KeepAlive] Attempt ${attempt} failed for ${accountId}: ${err.message}`);
+      if (attempt < maxRetries) {
+        await new Promise((res) => setTimeout(res, 2000 * attempt));
+      } else {
+        console.error(`[KeepAlive] All retries failed for ${accountId}`);
+      }
     }
   }
-  console.warn(`[Presence] Giving up after ${maxRetries} attempts for ${accountId}`);
-  return false;
-}
+};
 
 // Helper function to apply fingerprint overrides to a page
 async function applyFingerprintOverrides(page, fp, accountId) {
