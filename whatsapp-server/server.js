@@ -1655,111 +1655,35 @@ app.post("/api/send-bulk", async (req, res) => {
 
   const client = clients.get(accountId);
   if (!client) {
-    return res.status(400).json({ success: false, error: "Client not connected" });
+    return res.status(400).json({ success: false, error: "Client not initialized or disconnected" });
+  }
+
+  // ✅ Neuer Check: Ist der Client wirklich verbunden?
+  const state = await client.getState().catch(() => null);
+  if (state !== "CONNECTED") {
+    return res.status(400).json({ success: false, error: `Client not connected (state: ${state})` });
   }
 
   const queue = messageQueues.get(accountId);
   if (!queue) {
-    return res.status(500).json({ success: false, error: "Message queue not initialized" });
+    return res.status(500).json({ success: false, error: "Message queue not found" });
   }
 
-  // Add each message to the queue
+  // ✅ Queue-Job für jedes Element in messages
   for (const msg of messages) {
+    if (!msg.to || !msg.text) continue;
+
     queue.add(async () => {
-      const id = await client.getNumberId(msg.to);
-      if (!id) {
-        console.warn(`[Bulk] Skipping invalid number: ${msg.to}`);
-        return;
-      }
-
-      await client.sendMessage(id._serialized, msg.text);
-      console.log(`[Bulk] Sent to ${msg.to}: ${msg.text.slice(0, 40)}`);
-    });
-  }
-
-  res.json({ success: true, added: messages.length });
-});
-
-// Heartbeat endpoint to keep connections alive and trigger reconnects
-app.post("/api/heartbeat", async (req, res) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[Heartbeat] Received at ${timestamp}, checking ${clients.size} clients...`);
-
-  try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return res.status(500).json({
-        success: false,
-        error: "Supabase credentials not configured",
-      });
-    }
-
-    const results = [];
-
-    for (const [accountId, client] of clients.entries()) {
       try {
-        const state = await client.getState();
-        console.log(`[Heartbeat] Account ${accountId} state: ${state}`);
-
-        results.push({
-          accountId,
-          state,
-          isReady: state === "CONNECTED",
-        });
-
-        // If disconnected, update database and remove from map
-        if (state !== "CONNECTED") {
-          console.log(`[Heartbeat] Account ${accountId} not connected, updating database...`);
-
-          await fetch(`${supabaseUrl}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({
-              status: "disconnected",
-              updated_at: new Date().toISOString(),
-            }),
-          });
-
-          clients.delete(accountId);
-          messageQueues.delete(accountId);
-        } else {
-          // Update last activity for active clients
-          lastActivity.set(accountId, Date.now());
-        }
-      } catch (error) {
-        console.error(`[Heartbeat] Error checking account ${accountId}:`, error);
-        results.push({
-          accountId,
-          error: error.message,
-          isReady: false,
-        });
-
-        // Remove problematic client
-        clients.delete(accountId);
-        messageQueues.delete(accountId);
+        await client.sendMessage(`${msg.to}@c.us`, msg.text);
+        console.log(`[Bulk] Sent message to ${msg.to}: "${msg.text.slice(0, 50)}"`);
+      } catch (err) {
+        console.error(`[Bulk] Error sending to ${msg.to}:`, err.message || err);
       }
-    }
-
-    res.json({
-      success: true,
-      timestamp,
-      checkedClients: results.length,
-      activeClients: clients.size,
-      results,
-    });
-  } catch (error) {
-    console.error("[Heartbeat] Error during heartbeat check:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
     });
   }
+
+  res.json({ success: true, queued: messages.length });
 });
 
 app.post("/api/initialize", async (req, res) => {
