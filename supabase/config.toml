@@ -4,9 +4,6 @@ project_id = "umizkegxybjhqucbhgth"
 [functions.wireguard-health-check]
 verify_jwt = false
 
-[functions.get-service-key]
-verify_jwt = false  # Temporary - DELETE FUNCTION after use!
-
 # Cron Jobs - Automated Health Monitoring
 [[edge_runtime.cron]]
 # Run WireGuard health checks every 5 minutes
