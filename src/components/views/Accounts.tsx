@@ -60,32 +60,54 @@ const Accounts = () => {
   }, [accounts]);
 
   
-  // Validate account status on mount
-  useEffect(() => {
-    const validateAccountStatuses = async () => {
+  const [isValidating, setIsValidating] = useState(false);
+
+  // Manual status validation
+  const validateAllStatuses = async () => {
+    setIsValidating(true);
+    try {
       for (const account of sortedAccounts) {
-        if (account.status === 'connected') {
-          try {
-            const { data, error } = await supabase.functions.invoke('wa-gateway', {
-              body: { action: 'status', accountId: account.id }
-            });
-            
-            if (!error && data && !data.connected) {
-              // Update status to disconnected if not actually connected
-              await supabase
-                .from('whatsapp_accounts')
-                .update({ status: 'disconnected', qr_code: null })
-                .eq('id', account.id);
-            }
-          } catch (err) {
-            console.error(`Failed to validate status for ${account.account_name}:`, err);
+        try {
+          const { data, error } = await supabase.functions.invoke('wa-gateway', {
+            body: { action: 'status', accountId: account.id }
+          });
+          
+          console.log(`[Status Check] ${account.account_name}:`, data);
+          
+          if (error) {
+            console.error(`[Status Check Error] ${account.account_name}:`, error);
+            continue;
           }
+          
+          // Update DB based on actual server status
+          const newStatus = data?.connected ? 'connected' : 'disconnected';
+          if (account.status !== newStatus) {
+            await supabase
+              .from('whatsapp_accounts')
+              .update({ 
+                status: newStatus,
+                qr_code: newStatus === 'disconnected' ? null : account.qr_code
+              })
+              .eq('id', account.id);
+            
+            console.log(`[Status Updated] ${account.account_name}: ${account.status} → ${newStatus}`);
+          }
+        } catch (err) {
+          console.error(`Failed to validate ${account.account_name}:`, err);
         }
       }
-    };
-    
+      
+      toast.success('Status-Synchronisation abgeschlossen');
+      refetch();
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Validate account status on mount
+  useEffect(() => {
     if (sortedAccounts.length > 0) {
-      validateAccountStatuses();
+      validateAllStatuses();
     }
   }, [sortedAccounts.length]);
 
@@ -553,6 +575,24 @@ const Accounts = () => {
           <p className="text-muted-foreground">Verwalten Sie Ihre WhatsApp-Konten</p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={validateAllStatuses}
+            disabled={isValidating}
+          >
+            {isValidating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Synchronisiere...
+              </>
+            ) : (
+              <>
+                <Server className="w-4 h-4" />
+                Status synchronisieren
+              </>
+            )}
+          </Button>
           <Button 
             variant="outline" 
             className="gap-2 text-destructive border-destructive hover:bg-destructive/10"
