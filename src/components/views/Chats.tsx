@@ -33,6 +33,7 @@ const Chats = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [disabledFollowUpContacts, setDisabledFollowUpContacts] = useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -336,6 +337,60 @@ const Chats = () => {
     }
   };
 
+  const handleSyncMessages = async () => {
+    setIsSyncing(true);
+    try {
+      // Get only connected accounts (excluding warmup)
+      const connectedAccounts = accounts.filter(acc => 
+        acc.status === "connected" && !warmupPhones.has(acc.phone_number)
+      );
+
+      if (connectedAccounts.length === 0) {
+        toast.error("Keine verbundenen Accounts gefunden");
+        return;
+      }
+
+      toast.info(`Synchronisiere ${connectedAccounts.length} Account(s)...`);
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Sync messages for each connected account
+      for (const account of connectedAccounts) {
+        try {
+          const { error } = await supabase.functions.invoke("wa-gateway", {
+            body: {
+              action: "sync-messages",
+              accountId: account.id,
+            },
+          });
+
+          if (error) {
+            console.error(`Error syncing account ${account.account_name}:`, error);
+            errorCount++;
+          } else {
+            successCount++;
+          }
+        } catch (error) {
+          console.error(`Error syncing account ${account.account_name}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} Account(s) erfolgreich synchronisiert`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} Account(s) konnten nicht synchronisiert werden`);
+      }
+    } catch (error) {
+      console.error("Error syncing messages:", error);
+      toast.error("Fehler bei der Synchronisierung");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -343,28 +398,40 @@ const Chats = () => {
           <h2 className="text-3xl font-bold tracking-tight">Chats</h2>
           <p className="text-muted-foreground">Alle Konversationen im Überblick</p>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" className="gap-2">
-              <Trash2 className="w-4 h-4" />
-              Alle Nachrichten löschen
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Alle Nachrichten löschen?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Diese Aktion kann nicht rückgängig gemacht werden. Alle Chat-Nachrichten werden dauerhaft gelöscht.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteAllMessages} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Alle löschen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleSyncMessages}
+            disabled={isSyncing}
+            className="gap-2"
+          >
+            <Users className="w-4 h-4" />
+            {isSyncing ? "Synchronisiere..." : "Chats synchronisieren"}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="gap-2">
+                <Trash2 className="w-4 h-4" />
+                Alle Nachrichten löschen
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Alle Nachrichten löschen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Diese Aktion kann nicht rückgängig gemacht werden. Alle Chat-Nachrichten werden dauerhaft gelöscht.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAllMessages} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Alle löschen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <Card className="h-[calc(100vh-200px)]">

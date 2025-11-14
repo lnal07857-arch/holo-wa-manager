@@ -398,6 +398,39 @@ serve(async (req) => {
         });
       }
 
+      case 'sync-messages': {
+        // Manuell alle Nachrichten vom WhatsApp-Server synchronisieren
+        console.log(`[Sync Messages] Calling Railway at: ${BASE_URL}/api/sync-messages`);
+        console.log(`[Sync Messages] AccountId: ${accountId}`);
+        
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        
+        const response = await fetch(`${BASE_URL}/api/sync-messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            accountId,
+            supabaseUrl,
+            supabaseKey 
+          }),
+        });
+
+        console.log(`[Sync Messages] Railway response status: ${response.status}`);
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error(`[Sync Messages] Railway error: ${error}`);
+          throw new Error(`Railway error: ${error}`);
+        }
+
+        const data = await response.json();
+        console.log(`[Sync Messages] Success:`, data);
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'get-fingerprint': {
         // Fingerprint-Informationen abrufen
         console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint`);
