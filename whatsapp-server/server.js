@@ -293,6 +293,14 @@ async function syncAllMessages(client, accountId, supa) {
           });
           console.log(`[Sync] Marked ${unreadMessageIds.size} messages as unread`);
         }
+        // Fallback: If WA reports 0 unread but there are incoming messages, mark the latest incoming as unread for app visibility
+        if (unreadMessageIds.size === 0 && incomingMessages.length > 0) {
+          const lastIncoming = incomingMessages[incomingMessages.length - 1];
+          if (lastIncoming?.id?._serialized) {
+            unreadMessageIds.add(lastIncoming.id._serialized);
+            console.log(`[Sync] WA reported 0 unread; marked last incoming as unread: ${lastIncoming.id._serialized}`);
+          }
+        }
 
         // Process messages in reverse order (oldest first)
         const sortedMessages = [...recentMessages].reverse();
