@@ -546,6 +546,11 @@ const BulkSender = () => {
                     }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
+                    
+                    // Delay zwischen Nachrichten (2 Sekunden)
+                    if (i < contactsToSend.length - 1) {
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
                   }
 
                   const totalProcessed = sendStats.successful + sendStats.failed + sendStats.skipped;
