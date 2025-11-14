@@ -35,6 +35,13 @@ const BulkSender = () => {
   const [delay, setDelay] = useState("2-5");
   const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Statistiken für Versand
+  const [sendStats, setSendStats] = useState({
+    successful: 0,
+    failed: 0,
+    skipped: 0
+  });
 
   // Keine automatische Auswahl - User muss manuell Accounts wählen
 
@@ -356,6 +363,7 @@ const BulkSender = () => {
                 try {
                   setSending(true);
                   setProgress(0);
+                  setSendStats({ successful: 0, failed: 0, skipped: 0 });
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
@@ -385,12 +393,12 @@ const BulkSender = () => {
                     excludedCount = contacts.length - contactsToSend.length;
                     
                     if (excludedCount > 0) {
+                      setSendStats(prev => ({ ...prev, skipped: excludedCount }));
                       toast.info(`${excludedCount} bereits kontaktierte Person(en) werden übersprungen`);
                     }
                   }
 
                   const total = contactsToSend.length;
-                  let created = 0;
 
                   for (let i = 0; i < contactsToSend.length; i++) {
                     const contact = contactsToSend[i];
@@ -408,6 +416,7 @@ const BulkSender = () => {
                     const contact_name = contact.name || null;
 
                     if (!contact_phone) {
+                      setSendStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
                       setProgress(Math.round(((i + 1) / total) * 100));
                       continue;
                     }
@@ -423,6 +432,7 @@ const BulkSender = () => {
 
                     if (dbError) {
                       console.error("Fehler beim Anlegen der Nachricht:", dbError);
+                      setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                       setProgress(Math.round(((i + 1) / total) * 100));
                       continue;
                     }
@@ -441,20 +451,39 @@ const BulkSender = () => {
 
                       if (sendError) {
                         console.error("WhatsApp Versand fehlgeschlagen:", sendError);
-                        toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
+                        setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                        
+                        // Prüfen ob Nummer nicht in WhatsApp existiert
+                        const errorMsg = sendError.message?.toLowerCase() || '';
+                        if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
+                          toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
+                        } else {
+                          toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
+                        }
+                      } else if (sendData?.error) {
+                        // Prüfen auf Server-seitige Fehler
+                        setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                        const errorMsg = sendData.error?.toLowerCase() || '';
+                        if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
+                          toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
+                        } else {
+                          toast.error(`Fehler beim Versand an ${contact.name}: ${sendData.error}`);
+                        }
                       } else {
                         console.log(`[BulkSender] Message sent successfully:`, sendData);
-                        created += 1;
+                        setSendStats(prev => ({ ...prev, successful: prev.successful + 1 }));
                       }
                     } catch (sendErr) {
                       console.error("Fehler beim WhatsApp-Versand:", sendErr);
+                      setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                       toast.error(`Exception beim Versand: ${sendErr}`);
                     }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
                   }
 
-                  toast.success(`Versand abgeschlossen! ${created}/${total} Nachrichten angelegt`);
+                  const totalProcessed = sendStats.successful + sendStats.failed + sendStats.skipped;
+                  toast.success(`Versand abgeschlossen! ✅ ${sendStats.successful} erfolgreich | ❌ ${sendStats.failed} fehlgeschlagen | ⏭️ ${sendStats.skipped} übersprungen`);
                 } catch (e) {
                   console.error(e);
                   toast.error("Fehler beim Versand");
@@ -467,15 +496,33 @@ const BulkSender = () => {
               Versand starten ({contacts.length} Empfänger)
             </Button>
           ) : (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Versand läuft...</span>
-                <span className="font-semibold">{Math.round(progress)}%</span>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Versand läuft...</span>
+                  <span className="font-semibold">{Math.round(progress)}%</span>
+                </div>
+                <Progress value={progress} />
+                <p className="text-xs text-muted-foreground text-center">
+                  {Math.round((progress / 100) * contacts.length)} von {contacts.length} Nachrichten verarbeitet
+                </p>
               </div>
-              <Progress value={progress} />
-              <p className="text-xs text-muted-foreground text-center">
-                {Math.round((progress / 100) * contacts.length)} von {contacts.length} Nachrichten gesendet
-              </p>
+              
+              {/* Statistik während des Versands */}
+              <div className="grid grid-cols-3 gap-3 p-4 bg-muted rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{sendStats.successful}</div>
+                  <div className="text-xs text-muted-foreground">Erfolgreich</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-red-600">{sendStats.failed}</div>
+                  <div className="text-xs text-muted-foreground">Fehlgeschlagen</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-600">{sendStats.skipped}</div>
+                  <div className="text-xs text-muted-foreground">Übersprungen</div>
+                </div>
+              </div>
             </div>
           )}
           <Alert>
