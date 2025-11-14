@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle, Smartphone } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -600,52 +601,224 @@ const BulkSender = () => {
                   Detaillierte Übersicht aller versendeten Nachrichten
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[400px] rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Kontakt</TableHead>
-                        <TableHead>Telefon</TableHead>
-                        <TableHead>Account</TableHead>
-                        <TableHead>Fehlergrund</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sendResults.map((result, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            {result.status === 'success' && (
-                              <Badge variant="default" className="gap-1">
-                                <CheckCircle2 className="w-3 h-3" />
-                                Erfolg
-                              </Badge>
-                            )}
-                            {result.status === 'failed' && (
-                              <Badge variant="destructive" className="gap-1">
-                                <XCircle className="w-3 h-3" />
-                                Fehler
-                              </Badge>
-                            )}
-                            {result.status === 'skipped' && (
-                              <Badge variant="secondary" className="gap-1">
-                                <MinusCircle className="w-3 h-3" />
-                                Übersprungen
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-medium">{result.contact}</TableCell>
-                          <TableCell className="font-mono text-sm">{result.phone}</TableCell>
-                          <TableCell>{result.account}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {result.reason || '-'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+              <CardContent className="space-y-4">
+                {/* Zusammenfassung pro Account */}
+                <div className="grid gap-3">
+                  <h4 className="text-sm font-semibold">Zusammenfassung pro Account</h4>
+                  {(() => {
+                    const accountStats = sendResults.reduce((acc, result) => {
+                      if (!acc[result.account]) {
+                        acc[result.account] = { success: 0, failed: 0, skipped: 0, notWhatsApp: 0 };
+                      }
+                      if (result.status === 'success') acc[result.account].success++;
+                      if (result.status === 'failed') {
+                        acc[result.account].failed++;
+                        if (result.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                            result.reason?.toLowerCase().includes('not registered')) {
+                          acc[result.account].notWhatsApp++;
+                        }
+                      }
+                      if (result.status === 'skipped') acc[result.account].skipped++;
+                      return acc;
+                    }, {} as Record<string, { success: number; failed: number; skipped: number; notWhatsApp: number }>);
+                    
+                    return (
+                      <div className="grid gap-2">
+                        {Object.entries(accountStats).map(([account, stats]) => (
+                          <div key={account} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <Smartphone className="w-4 h-4 text-muted-foreground" />
+                              <span className="font-medium">{account}</span>
+                            </div>
+                            <div className="flex gap-3 text-sm">
+                              <span className="text-green-600 font-semibold">✓ {stats.success}</span>
+                              <span className="text-red-600 font-semibold">✗ {stats.failed}</span>
+                              {stats.notWhatsApp > 0 && (
+                                <span className="text-orange-600 font-semibold">⚠ {stats.notWhatsApp} nicht in WA</span>
+                              )}
+                              {stats.skipped > 0 && (
+                                <span className="text-yellow-600 font-semibold">⏭ {stats.skipped}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Tabs für verschiedene Ansichten */}
+                <Tabs defaultValue="all" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="all">
+                      Alle ({sendResults.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="success">
+                      Erfolgreich ({sendResults.filter(r => r.status === 'success').length})
+                    </TabsTrigger>
+                    <TabsTrigger value="failed">
+                      Fehler ({sendResults.filter(r => r.status === 'failed').length})
+                    </TabsTrigger>
+                    <TabsTrigger value="not-whatsapp">
+                      Kein WhatsApp ({sendResults.filter(r => 
+                        r.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                        r.reason?.toLowerCase().includes('not registered')
+                      ).length})
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="all">
+                    <ScrollArea className="h-[400px] rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Kontakt</TableHead>
+                            <TableHead>Telefon</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead>Fehlergrund</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sendResults.map((result, index) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                {result.status === 'success' && (
+                                  <Badge variant="default" className="gap-1">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Erfolg
+                                  </Badge>
+                                )}
+                                {result.status === 'failed' && (
+                                  <Badge variant="destructive" className="gap-1">
+                                    <XCircle className="w-3 h-3" />
+                                    Fehler
+                                  </Badge>
+                                )}
+                                {result.status === 'skipped' && (
+                                  <Badge variant="secondary" className="gap-1">
+                                    <MinusCircle className="w-3 h-3" />
+                                    Übersprungen
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium">{result.contact}</TableCell>
+                              <TableCell className="font-mono text-sm">{result.phone}</TableCell>
+                              <TableCell className="text-sm">{result.account}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {result.reason || '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </TabsContent>
+
+                  <TabsContent value="success">
+                    <ScrollArea className="h-[400px] rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kontakt</TableHead>
+                            <TableHead>Telefon</TableHead>
+                            <TableHead>Account</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sendResults
+                            .filter(r => r.status === 'success')
+                            .map((result, index) => (
+                              <TableRow key={index} className="bg-green-50 dark:bg-green-950/20">
+                                <TableCell className="font-medium">{result.contact}</TableCell>
+                                <TableCell className="font-mono text-sm">{result.phone}</TableCell>
+                                <TableCell className="text-sm">{result.account}</TableCell>
+                              </TableRow>
+                            ))}
+                          {sendResults.filter(r => r.status === 'success').length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                Keine erfolgreichen Nachrichten
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </TabsContent>
+
+                  <TabsContent value="failed">
+                    <ScrollArea className="h-[400px] rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kontakt</TableHead>
+                            <TableHead>Telefon</TableHead>
+                            <TableHead>Account</TableHead>
+                            <TableHead>Fehlergrund</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sendResults
+                            .filter(r => r.status === 'failed')
+                            .map((result, index) => (
+                              <TableRow key={index} className="bg-red-50 dark:bg-red-950/20">
+                                <TableCell className="font-medium">{result.contact}</TableCell>
+                                <TableCell className="font-mono text-sm">{result.phone}</TableCell>
+                                <TableCell className="text-sm">{result.account}</TableCell>
+                                <TableCell className="text-sm text-red-600">{result.reason}</TableCell>
+                              </TableRow>
+                            ))}
+                          {sendResults.filter(r => r.status === 'failed').length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                Keine fehlgeschlagenen Nachrichten
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </TabsContent>
+
+                  <TabsContent value="not-whatsapp">
+                    <ScrollArea className="h-[400px] rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kontakt</TableHead>
+                            <TableHead>Telefon</TableHead>
+                            <TableHead>Account</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sendResults
+                            .filter(r => 
+                              r.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                              r.reason?.toLowerCase().includes('not registered')
+                            )
+                            .map((result, index) => (
+                              <TableRow key={index} className="bg-orange-50 dark:bg-orange-950/20">
+                                <TableCell className="font-medium">{result.contact}</TableCell>
+                                <TableCell className="font-mono text-sm">{result.phone}</TableCell>
+                                <TableCell className="text-sm">{result.account}</TableCell>
+                              </TableRow>
+                            ))}
+                          {sendResults.filter(r => 
+                            r.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                            r.reason?.toLowerCase().includes('not registered')
+                          ).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                Keine Nummern ohne WhatsApp
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           )}
