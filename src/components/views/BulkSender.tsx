@@ -574,6 +574,7 @@ const BulkSender = () => {
                       contact_name,
                       message_text,
                       direction: "outgoing",
+                      is_read: true, // Ausgehende Nachrichten sind immer gelesen
                     });
 
                     if (dbError) {
