@@ -596,27 +596,41 @@ const BulkSender = () => {
               </div>
 
               {/* Live-Status-Anzeige während des Versands */}
-              {sendResults.length > 0 && (
-                <Card className="mt-4">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Live-Status</CardTitle>
-                    <CardDescription className="text-xs">
-                      Letzte {Math.min(sendResults.length, 10)} Versandvorgänge
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[240px]">
-                      <Table>
-                        <TableHeader>
+              <Card className="mt-4">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Smartphone className="w-4 h-4" />
+                    Live-Status
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {sendResults.length > 0 
+                      ? `Letzte ${Math.min(sendResults.length, 10)} Versandvorgänge` 
+                      : 'Versand wird gestartet...'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[240px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]">Status</TableHead>
+                          <TableHead>Kontakt</TableHead>
+                          <TableHead>Telefon</TableHead>
+                          <TableHead>Info</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sendResults.length === 0 ? (
                           <TableRow>
-                            <TableHead className="w-[50px]">Status</TableHead>
-                            <TableHead>Kontakt</TableHead>
-                            <TableHead>Telefon</TableHead>
-                            <TableHead>Grund</TableHead>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Smartphone className="w-8 h-8 animate-pulse" />
+                                <p>Warte auf erste Versandvorgänge...</p>
+                              </div>
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sendResults.slice(-10).reverse().map((result, index) => (
+                        ) : (
+                          sendResults.slice(-10).reverse().map((result, index) => (
                             <TableRow 
                               key={`live-${sendResults.length - index}`}
                               className={
@@ -642,21 +656,21 @@ const BulkSender = () => {
                               <TableCell className="font-mono text-xs">{result.phone}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {result.status === 'success' 
-                                  ? 'Erfolgreich zugestellt' 
+                                  ? '✓ Erfolgreich zugestellt' 
                                   : result.reason?.toLowerCase().includes('nicht in whatsapp') || 
                                     result.reason?.toLowerCase().includes('not registered')
-                                  ? 'Nicht bei WhatsApp'
-                                  : result.reason || 'Fehlgeschlagen'
+                                  ? '⊘ Nicht bei WhatsApp'
+                                  : `✗ ${result.reason || 'Fehlgeschlagen'}`
                                 }
                               </TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              )}
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
             </div>
           )}
           
