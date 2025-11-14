@@ -340,25 +340,26 @@ const Chats = () => {
   const handleSyncMessages = async () => {
     setIsSyncing(true);
     try {
-      // Warmup-Nummern normalisieren (nur Ziffern) und echte Statusprüfung je Account
-      const warmupsNorm = new Set(Array.from(warmupPhones as Set<string>).map((p) => p.replace(/\D/g, "")));
-      const accountsToSync = [] as typeof accounts;
-      for (const acc of accounts) {
-        const digits = (acc.phone_number || "").replace(/\D/g, "");
-        if (warmupsNorm.has(digits)) {
-          continue; // Warmup ausnehmen
-        }
-        try {
-          const { data, error } = await supabase.functions.invoke("wa-gateway", {
-            body: { action: "status", accountId: acc.id },
-          });
-          if (!error && (data as any)?.connected === true) {
-            accountsToSync.push(acc);
+      // Prüfe tatsächlichen Verbindungsstatus je Account (Warmup-Chats werden serverseitig ausgeschlossen)
+      const checks = await Promise.all(
+        accounts.map(async (acc) => {
+          try {
+            const { data, error } = await supabase.functions.invoke("wa-gateway", {
+              body: { action: "status", accountId: acc.id },
+            });
+            const connected = !error && (data as any)?.connected === true;
+            return { acc, connected };
+          } catch (e) {
+            console.warn(`Statuscheck fehlgeschlagen für ${acc.account_name}:`, e);
+            return { acc, connected: false };
           }
-        } catch (e) {
-          console.warn(`Statuscheck fehlgeschlagen für ${acc.account_name}:`, e);
-        }
-      }
+        })
+      );
+
+      // Behalte nur wirklich verbundene Accounts; fallback: DB-Status "connected"
+      const accountsToSync = checks
+        .filter(({ acc, connected }) => connected || acc.status === "connected")
+        .map(({ acc }) => acc);
 
       if (accountsToSync.length === 0) {
         toast.error("Keine verbundenen Accounts gefunden");
