@@ -362,6 +362,123 @@ const BulkSender = () => {
         </CardContent>
       </Card>
 
+      {/* Bulk-Sendungen Übersicht */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Bulk-Sendungen</span>
+            <Badge variant="secondary">{sendResults.length > 0 ? '1' : '0'} Kampagnen</Badge>
+          </CardTitle>
+          <CardDescription>
+            Übersicht aller durchgeführten Massen-Versandaktionen
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {sendResults.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Send className="w-12 h-12 text-muted-foreground/50 mb-4" />
+                <h3 className="font-semibold text-lg mb-2">Noch keine Bulk-Sendungen</h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Hier werden alle durchgeführten Massen-Versandaktionen mit Details angezeigt.
+                  Starten Sie Ihre erste Kampagne, um Ergebnisse zu sehen.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Aktuelle Kampagne */}
+                <Card className="border-primary/50 bg-primary/5">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">Aktuelle Kampagne</CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                          Gestartet: {new Date().toLocaleString('de-DE')}
+                        </CardDescription>
+                      </div>
+                      <Badge variant={sending ? "default" : "secondary"}>
+                        {sending ? "Läuft..." : "Abgeschlossen"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* Statistiken */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <div className="text-lg font-bold text-green-600">{sendStats.successful}</div>
+                        <div className="text-xs text-muted-foreground">Erfolgreich</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-red-600">{sendStats.failed}</div>
+                        <div className="text-xs text-muted-foreground">Fehlgeschlagen</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-yellow-600">{sendStats.skipped}</div>
+                        <div className="text-xs text-muted-foreground">Übersprungen</div>
+                      </div>
+                    </div>
+                    
+                    {/* Live-Status während Versand */}
+                    {sending && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Fortschritt</span>
+                          <span className="font-semibold">{Math.round(progress)}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    )}
+                    
+                    {/* Letzte Versandvorgänge */}
+                    {sendResults.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs font-medium mb-2">Letzte Vorgänge:</p>
+                        <div className="space-y-1">
+                          {sendResults.slice(-3).reverse().map((result, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs p-2 rounded bg-muted/50">
+                              {result.status === 'success' ? (
+                                <CheckCircle2 className="w-3 h-3 text-green-600 flex-shrink-0" />
+                              ) : result.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                                result.reason?.toLowerCase().includes('not registered') ? (
+                                <MinusCircle className="w-3 h-3 text-orange-600 flex-shrink-0" />
+                              ) : (
+                                <XCircle className="w-3 h-3 text-red-600 flex-shrink-0" />
+                              )}
+                              <span className="font-medium truncate">{result.contact}</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-muted-foreground font-mono">{result.phone}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Platzhalter für zukünftige Kampagnen */}
+                <Card className="opacity-50">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">Frühere Kampagnen</CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                          Werden hier angezeigt sobald verfügbar
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      Zukünftig werden hier alle abgeschlossenen Kampagnen mit vollständiger Historie angezeigt.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Versand starten</CardTitle>
