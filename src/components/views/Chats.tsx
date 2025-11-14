@@ -340,23 +340,40 @@ const Chats = () => {
   const handleSyncMessages = async () => {
     setIsSyncing(true);
     try {
-      // Get only connected accounts (excluding warmup)
-      const connectedAccounts = accounts.filter(acc => 
-        acc.status === "connected" && !warmupPhones.has(acc.phone_number)
-      );
+      // Warmup-Nummern normalisieren (nur Ziffern), damit +49 / 049 etc. korrekt erkannt werden
+      const warmupsNorm = new Set(Array.from(warmupPhones as Set<string>).map((p) => p.replace(/\D/g, "")));
 
-      if (connectedAccounts.length === 0) {
+      // Prüfe tatsächlichen Verbindungsstatus pro Account über den WhatsApp-Server
+      const accountsToSync = [] as typeof accounts;
+      for (const acc of accounts) {
+        const digits = (acc.phone_number || "").replace(/\D/g, "");
+        if (warmupsNorm.has(digits)) {
+          continue; // Warmup ausnehmen
+        }
+        try {
+          const { data, error } = await supabase.functions.invoke("wa-gateway", {
+            body: { action: "status", accountId: acc.id },
+          });
+          if (!error && (data as any)?.connected === true) {
+            accountsToSync.push(acc);
+          }
+        } catch (e) {
+          console.warn(`Statuscheck fehlgeschlagen für ${acc.account_name}:`, e);
+        }
+      }
+
+      if (accountsToSync.length === 0) {
         toast.error("Keine verbundenen Accounts gefunden");
         return;
       }
 
-      toast.info(`Synchronisiere ${connectedAccounts.length} Account(s)...`);
+      toast.info(`Synchronisiere ${accountsToSync.length} Account(s)...`);
 
       let successCount = 0;
       let errorCount = 0;
 
-      // Sync messages for each connected account
-      for (const account of connectedAccounts) {
+      // Sync messages für alle verbundenen, nicht-Warmup Accounts
+      for (const account of accountsToSync) {
         try {
           const { error } = await supabase.functions.invoke("wa-gateway", {
             body: {
