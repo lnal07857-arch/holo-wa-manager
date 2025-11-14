@@ -374,10 +374,12 @@ const BulkSender = () => {
               disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0 || sending}
               onClick={async () => {
                 try {
+                  console.log("[BulkSender] Starting send process...");
                   setSending(true);
                   setProgress(0);
                   setSendStats({ successful: 0, failed: 0, skipped: 0 });
                   setSendResults([]);
+                  console.log("[BulkSender] State initialized, sending=true");
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
@@ -431,14 +433,19 @@ const BulkSender = () => {
                     const contact_name = contact.name || null;
 
                     if (!contact_phone) {
+                      console.log("[BulkSender] Skipping contact (no phone):", contact_name);
                       setSendStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
-                      setSendResults(prev => [...prev, {
-                        contact: contact_name || 'Unbekannt',
-                        phone: String(contact.phone || ""),
-                        account: accountName,
-                        status: 'skipped',
-                        reason: 'Keine Telefonnummer'
-                      }]);
+                      setSendResults(prev => {
+                        const newResults: SendResult[] = [...prev, {
+                          contact: contact_name || 'Unbekannt',
+                          phone: String(contact.phone || ""),
+                          account: accountName,
+                          status: 'skipped' as const,
+                          reason: 'Keine Telefonnummer'
+                        }];
+                        console.log("[BulkSender] sendResults updated, length:", newResults.length);
+                        return newResults;
+                      });
                       setProgress(Math.round(((i + 1) / total) * 100));
                       continue;
                     }
@@ -525,12 +532,16 @@ const BulkSender = () => {
                       } else {
                         console.log(`[BulkSender] Message sent successfully:`, sendData);
                         setSendStats(prev => ({ ...prev, successful: prev.successful + 1 }));
-                        setSendResults(prev => [...prev, {
-                          contact: contact_name || 'Unbekannt',
-                          phone: contact_phone,
-                          account: accountName,
-                          status: 'success',
-                        }]);
+                        setSendResults(prev => {
+                          const newResults: SendResult[] = [...prev, {
+                            contact: contact_name || 'Unbekannt',
+                            phone: contact_phone,
+                            account: accountName,
+                            status: 'success' as const,
+                          }];
+                          console.log("[BulkSender] Success! sendResults updated, length:", newResults.length);
+                          return newResults;
+                        });
                       }
                     } catch (sendErr) {
                       console.error("Fehler beim WhatsApp-Versand:", sendErr);
@@ -604,8 +615,8 @@ const BulkSender = () => {
                   </CardTitle>
                   <CardDescription className="text-xs">
                     {sendResults.length > 0 
-                      ? `Letzte ${Math.min(sendResults.length, 10)} Versandvorgänge` 
-                      : 'Versand wird gestartet...'}
+                      ? `${sendResults.length} Versandvorgänge (Zeige letzte 10)` 
+                      : 'Warte auf erste Ergebnisse... (Diese Anzeige aktualisiert sich automatisch)'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
