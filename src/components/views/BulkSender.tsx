@@ -594,6 +594,69 @@ const BulkSender = () => {
                   <div className="text-xs text-muted-foreground">Übersprungen</div>
                 </div>
               </div>
+
+              {/* Live-Status-Anzeige während des Versands */}
+              {sendResults.length > 0 && (
+                <Card className="mt-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Live-Status</CardTitle>
+                    <CardDescription className="text-xs">
+                      Letzte {Math.min(sendResults.length, 10)} Versandvorgänge
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[240px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[50px]">Status</TableHead>
+                            <TableHead>Kontakt</TableHead>
+                            <TableHead>Telefon</TableHead>
+                            <TableHead>Grund</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sendResults.slice(-10).reverse().map((result, index) => (
+                            <TableRow 
+                              key={`live-${sendResults.length - index}`}
+                              className={
+                                result.status === 'success' 
+                                  ? 'bg-green-50 dark:bg-green-950/20' 
+                                  : result.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                                    result.reason?.toLowerCase().includes('not registered')
+                                  ? 'bg-orange-50 dark:bg-orange-950/20'
+                                  : 'bg-red-50 dark:bg-red-950/20'
+                              }
+                            >
+                              <TableCell>
+                                {result.status === 'success' ? (
+                                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                ) : result.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                                   result.reason?.toLowerCase().includes('not registered') ? (
+                                  <MinusCircle className="w-5 h-5 text-orange-600" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-red-600" />
+                                )}
+                              </TableCell>
+                              <TableCell className="font-medium text-sm">{result.contact}</TableCell>
+                              <TableCell className="font-mono text-xs">{result.phone}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {result.status === 'success' 
+                                  ? 'Erfolgreich zugestellt' 
+                                  : result.reason?.toLowerCase().includes('nicht in whatsapp') || 
+                                    result.reason?.toLowerCase().includes('not registered')
+                                  ? 'Nicht bei WhatsApp'
+                                  : result.reason || 'Fehlgeschlagen'
+                                }
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
           
