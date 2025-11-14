@@ -400,33 +400,54 @@ serve(async (req) => {
 
       case 'sync-messages': {
         // Manuell alle Nachrichten vom WhatsApp-Server synchronisieren
-        console.log(`[Sync Messages] Calling Railway at: ${BASE_URL}/api/sync-messages`);
-        console.log(`[Sync Messages] AccountId: ${accountId}`);
+        console.log(`[Sync Messages] Requested for AccountId: ${accountId}`);
         
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-        
-        const response = await fetch(`${BASE_URL}/api/sync-messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            accountId,
-            supabaseUrl,
-            supabaseKey 
-          }),
-        });
 
-        console.log(`[Sync Messages] Railway response status: ${response.status}`);
+        // Try multiple possible endpoints for backward compatibility
+        const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = [
+          { method: 'POST', url: `${BASE_URL}/api/sync-messages`, body: { accountId, supabaseUrl, supabaseKey } },
+          { method: 'POST', url: `${BASE_URL}/api/syncMessages`, body: { accountId, supabaseUrl, supabaseKey } },
+          { method: 'GET',  url: `${BASE_URL}/api/sync-messages?accountId=${accountId}` },
+          { method: 'POST', url: `${BASE_URL}/api/sync`, body: { accountId, supabaseUrl, supabaseKey } },
+        ];
 
-        if (!response.ok) {
-          const error = await response.text();
-          console.error(`[Sync Messages] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+        let lastErrorText = '';
+        for (const c of candidates) {
+          try {
+            console.log(`[Sync Messages] Trying ${c.method} ${c.url}`);
+            const response = await fetch(c.url, {
+              method: c.method,
+              headers: { 'Content-Type': 'application/json' },
+              body: c.method === 'POST' ? JSON.stringify(c.body) : undefined,
+            });
+
+            console.log(`[Sync Messages] Candidate response status: ${response.status}`);
+            if (response.ok) {
+              const data = await response.json();
+              console.log(`[Sync Messages] Success via ${c.url}`);
+              return new Response(JSON.stringify(data), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            const text = await response.text();
+            lastErrorText = text;
+            // Continue trying next candidate on 404 or generic Cannot POST
+            if (response.status === 404 || /Cannot\s+POST/i.test(text)) {
+              continue;
+            }
+            // For other HTTP errors, break and return immediately
+            throw new Error(text);
+          } catch (err) {
+            console.warn(`[Sync Messages] Attempt failed for ${c.url}:`, err);
+          }
         }
 
-        const data = await response.json();
-        console.log(`[Sync Messages] Success:`, data);
-        return new Response(JSON.stringify(data), {
+        console.error(`[Sync Messages] All endpoints failed. Last error: ${lastErrorText}`);
+        return new Response(JSON.stringify({ error: 'SYNC_ENDPOINT_NOT_AVAILABLE', details: lastErrorText }), {
+          status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
