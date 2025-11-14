@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Send, FileText, AlertCircle, X } from "lucide-react";
+import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +22,14 @@ interface Contact {
   name: string;
   phone: string;
   [key: string]: any;
+}
+
+interface SendResult {
+  contact: string;
+  phone: string;
+  account: string;
+  status: 'success' | 'failed' | 'skipped';
+  reason?: string;
 }
 
 const BulkSender = () => {
@@ -42,6 +52,8 @@ const BulkSender = () => {
     failed: 0,
     skipped: 0
   });
+  
+  const [sendResults, setSendResults] = useState<SendResult[]>([]);
 
   // Keine automatische Auswahl - User muss manuell Accounts wählen
 
@@ -364,6 +376,7 @@ const BulkSender = () => {
                   setSending(true);
                   setProgress(0);
                   setSendStats({ successful: 0, failed: 0, skipped: 0 });
+                  setSendResults([]);
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
@@ -406,6 +419,7 @@ const BulkSender = () => {
 
                     // Account-Rotation: Verteile die Kontakte gleichmäßig über alle verbundenen Accounts
                     const accountId = connectedAccountIds[i % connectedAccountIds.length];
+                    const accountName = accounts.find(acc => acc.id === accountId)?.account_name || 'Unbekannt';
 
                     const template = (textRotation && selectedTemplateObjects.length > 0)
                       ? selectedTemplateObjects[i % selectedTemplateObjects.length]
@@ -417,6 +431,13 @@ const BulkSender = () => {
 
                     if (!contact_phone) {
                       setSendStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+                      setSendResults(prev => [...prev, {
+                        contact: contact_name || 'Unbekannt',
+                        phone: String(contact.phone || ""),
+                        account: accountName,
+                        status: 'skipped',
+                        reason: 'Keine Telefonnummer'
+                      }]);
                       setProgress(Math.round(((i + 1) / total) * 100));
                       continue;
                     }
@@ -433,6 +454,13 @@ const BulkSender = () => {
                     if (dbError) {
                       console.error("Fehler beim Anlegen der Nachricht:", dbError);
                       setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                      setSendResults(prev => [...prev, {
+                        contact: contact_name || 'Unbekannt',
+                        phone: contact_phone,
+                        account: accountName,
+                        status: 'failed',
+                        reason: 'Datenbankfehler: ' + dbError.message
+                      }]);
                       setProgress(Math.round(((i + 1) / total) * 100));
                       continue;
                     }
@@ -455,6 +483,18 @@ const BulkSender = () => {
                         
                         // Prüfen ob Nummer nicht in WhatsApp existiert
                         const errorMsg = sendError.message?.toLowerCase() || '';
+                        const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert') 
+                          ? 'Nummer nicht in WhatsApp'
+                          : sendError.message || 'Unbekannter Fehler';
+                        
+                        setSendResults(prev => [...prev, {
+                          contact: contact_name || 'Unbekannt',
+                          phone: contact_phone,
+                          account: accountName,
+                          status: 'failed',
+                          reason
+                        }]);
+                        
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
                         } else {
@@ -464,6 +504,18 @@ const BulkSender = () => {
                         // Prüfen auf Server-seitige Fehler
                         setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                         const errorMsg = sendData.error?.toLowerCase() || '';
+                        const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')
+                          ? 'Nummer nicht in WhatsApp'
+                          : sendData.error || 'Unbekannter Fehler';
+                        
+                        setSendResults(prev => [...prev, {
+                          contact: contact_name || 'Unbekannt',
+                          phone: contact_phone,
+                          account: accountName,
+                          status: 'failed',
+                          reason
+                        }]);
+                        
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
                         } else {
@@ -472,10 +524,23 @@ const BulkSender = () => {
                       } else {
                         console.log(`[BulkSender] Message sent successfully:`, sendData);
                         setSendStats(prev => ({ ...prev, successful: prev.successful + 1 }));
+                        setSendResults(prev => [...prev, {
+                          contact: contact_name || 'Unbekannt',
+                          phone: contact_phone,
+                          account: accountName,
+                          status: 'success',
+                        }]);
                       }
                     } catch (sendErr) {
                       console.error("Fehler beim WhatsApp-Versand:", sendErr);
                       setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                      setSendResults(prev => [...prev, {
+                        contact: contact_name || 'Unbekannt',
+                        phone: contact_phone,
+                        account: accountName,
+                        status: 'failed',
+                        reason: String(sendErr)
+                      }]);
                       toast.error(`Exception beim Versand: ${sendErr}`);
                     }
 
@@ -525,6 +590,66 @@ const BulkSender = () => {
               </div>
             </div>
           )}
+          
+          {/* Detaillierte Ergebnisse nach dem Versand */}
+          {sendResults.length > 0 && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Versand-Details</CardTitle>
+                <CardDescription>
+                  Detaillierte Übersicht aller versendeten Nachrichten
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px] rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Kontakt</TableHead>
+                        <TableHead>Telefon</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Fehlergrund</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sendResults.map((result, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            {result.status === 'success' && (
+                              <Badge variant="default" className="gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Erfolg
+                              </Badge>
+                            )}
+                            {result.status === 'failed' && (
+                              <Badge variant="destructive" className="gap-1">
+                                <XCircle className="w-3 h-3" />
+                                Fehler
+                              </Badge>
+                            )}
+                            {result.status === 'skipped' && (
+                              <Badge variant="secondary" className="gap-1">
+                                <MinusCircle className="w-3 h-3" />
+                                Übersprungen
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">{result.contact}</TableCell>
+                          <TableCell className="font-mono text-sm">{result.phone}</TableCell>
+                          <TableCell>{result.account}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {result.reason || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+          
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
