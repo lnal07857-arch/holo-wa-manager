@@ -1856,35 +1856,58 @@ app.post("/api/disconnect", async (req, res) => {
     }
 
     const client = clients.get(accountId);
+
     if (!client) {
-      return res.json({ success: true, message: "Client not found or already disconnected" });
+      return res.json({ success: true, message: "Client not found, already disconnected" });
     }
 
-    console.log(`Disconnecting client for account: ${accountId}`);
-
-    // Clear QR timeout if exists
-    const existingTimeout = qrTimeouts.get(accountId);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-      qrTimeouts.delete(accountId);
-    }
-
-    // Destroy the client and clean up resources
-    try {
-      await client.destroy();
-    } catch (err) {
-      console.error("Error destroying client:", err);
-    }
-
+    // Destroy the client properly
+    await client.destroy();
+    
+    // Remove from maps
     clients.delete(accountId);
     messageQueues.delete(accountId);
     lastActivity.delete(accountId);
-    reconnectAttempts.delete(accountId);
 
-    console.log(`Client ${accountId} successfully disconnected and removed`);
+    console.log(`Client ${accountId} disconnected and cleaned up`);
+
     res.json({ success: true, message: "Client disconnected" });
   } catch (error) {
     console.error("Error disconnecting client:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Sync messages endpoint - manually sync all messages from WhatsApp
+app.post("/api/sync-messages", async (req, res) => {
+  try {
+    const { accountId, supabaseUrl, supabaseKey } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ error: "accountId is required" });
+    }
+
+    const client = clients.get(accountId);
+    if (!client) {
+      return res.status(404).json({ error: "Client not found or not connected" });
+    }
+
+    const url = supabaseUrl || process.env.SUPABASE_URL;
+    const key = supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+
+    if (!url || !key) {
+      return res.status(500).json({ error: "Supabase credentials not configured" });
+    }
+
+    const supa = createClient(url, key);
+
+    console.log(`[Sync API] Starting message sync for account: ${accountId}`);
+    await syncAllMessages(client, accountId, supa);
+    console.log(`[Sync API] Message sync completed for account: ${accountId}`);
+
+    res.json({ success: true, message: "Messages synchronized successfully" });
+  } catch (error) {
+    console.error("[Sync API] Error syncing messages:", error);
     res.status(500).json({ error: error.message });
   }
 });
