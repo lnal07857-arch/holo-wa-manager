@@ -340,10 +340,8 @@ const Chats = () => {
   const handleSyncMessages = async () => {
     setIsSyncing(true);
     try {
-      // Warmup-Nummern normalisieren (nur Ziffern), damit +49 / 049 etc. korrekt erkannt werden
+      // Warmup-Nummern normalisieren (nur Ziffern) und echte Statusprüfung je Account
       const warmupsNorm = new Set(Array.from(warmupPhones as Set<string>).map((p) => p.replace(/\D/g, "")));
-
-      // Prüfe tatsächlichen Verbindungsstatus pro Account über den WhatsApp-Server
       const accountsToSync = [] as typeof accounts;
       for (const acc of accounts) {
         const digits = (acc.phone_number || "").replace(/\D/g, "");
