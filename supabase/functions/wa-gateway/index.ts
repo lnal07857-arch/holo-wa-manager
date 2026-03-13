@@ -173,7 +173,7 @@ serve(async (req) => {
             console.log(`[Initialize] Retry ${retryCount} status: ${response.status}`);
           } else {
             // Non-proxy error - don't retry
-            throw new Error(`Railway server error (${response.status}): ${errorText}`);
+            throw new Error(`Backend server error (${response.status}): ${errorText}`);
           }
         }
 
