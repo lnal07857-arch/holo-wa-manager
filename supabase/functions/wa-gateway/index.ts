@@ -38,7 +38,7 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
-        console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
+        console.log(`[Initialize] Calling server at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
         // Get WireGuard config from active_config_id
