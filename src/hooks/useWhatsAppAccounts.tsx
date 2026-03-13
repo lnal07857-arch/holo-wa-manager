@@ -70,32 +70,49 @@ export const useWhatsAppAccounts = () => {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
-      // First, disconnect the client on Railway server
+      // First, disconnect the client on WhatsApp server (best effort)
       try {
         const { error: disconnectError } = await supabase.functions.invoke('wa-gateway', {
           body: { action: 'disconnect', accountId }
         });
-        
+
         if (disconnectError) {
           console.warn('[Disconnect] Warning:', disconnectError.message);
-          // Continue with deletion even if disconnect fails
         }
       } catch (err) {
         console.warn('[Disconnect] Warning:', err);
-        // Continue with deletion even if disconnect fails
       }
-      
-      // Then delete from database
-      const { error } = await supabase
+
+      // Delete dependent rows first to avoid relational/RLS cascade issues
+      const [messagesResult, campaignsResult] = await Promise.all([
+        supabase.from("messages").delete().eq("account_id", accountId),
+        supabase.from("bulk_campaigns").delete().eq("account_id", accountId),
+      ]);
+
+      if (messagesResult.error) {
+        throw new Error(`Nachrichten konnten nicht gelöscht werden: ${messagesResult.error.message}`);
+      }
+
+      if (campaignsResult.error) {
+        throw new Error(`Kampagnen konnten nicht gelöscht werden: ${campaignsResult.error.message}`);
+      }
+
+      const { error, count } = await supabase
         .from("whatsapp_accounts")
-        .delete()
+        .delete({ count: "exact" })
         .eq("id", accountId);
 
       if (error) throw error;
+      if (!count) {
+        throw new Error("Account nicht gefunden oder keine Berechtigung zum Löschen.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
       toast.success("Account gelöscht und Verbindung beendet");
+    },
+    onError: (error: Error) => {
+      toast.error(`Löschen fehlgeschlagen: ${error.message}`);
     },
   });
 
