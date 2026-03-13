@@ -647,9 +647,9 @@ const Accounts = () => {
                     placeholder="z.B. +49 151 12345678" 
                     required 
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Die Telefonnummer ist wichtig für das Warm-up, damit die Accounts sich gegenseitig anschreiben können.
-                  </p>
+                   <p className="text-xs text-muted-foreground">
+                     Format: +49 151 12345678
+                   </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loadingQR}>
                   {loadingQR ? <>
