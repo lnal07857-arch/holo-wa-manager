@@ -203,7 +203,7 @@ serve(async (req) => {
           .update({ proxy_server: null })
           .eq('id', accountId);
 
-        console.log(`[Initialize-Direct] Calling Railway at: ${BASE_URL}/api/initialize`);
+        console.log(`[Initialize-Direct] Calling server at: ${BASE_URL}/api/initialize`);
         const response = await fetch(`${BASE_URL}/api/initialize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +217,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const err = await response.text();
-          console.error(`[Initialize-Direct] Railway error: ${err}`);
+          console.error(`[Initialize-Direct] Server error: ${err}`);
           return new Response(JSON.stringify({ error: err }), {
             status: response.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
