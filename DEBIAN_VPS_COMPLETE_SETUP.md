@@ -404,7 +404,7 @@ Setze die URL deines VPS-WhatsApp-Servers in den Backend-Funktionen-Screts:
 -- ODER via Supabase Dashboard
 ```
 
-**Neuer Wert für `RAILWAY_SERVER_URL`:**
+**Neuer Wert für `VPS_SERVER_URL`:**
 ```
 https://wa-api.example.com
 ```
