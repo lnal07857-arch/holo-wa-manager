@@ -1,7 +1,7 @@
 # Vollständige Debian VPS Setup-Anleitung
 ## WhatsApp-Server Backend + React Frontend
 
-Diese Anleitung zeigt dir, wie du sowohl den WhatsApp-Server (aktuell auf Railway) als auch das React Frontend auf einem Debian VPS einrichtest.
+Diese Anleitung zeigt dir, wie du sowohl den WhatsApp-Server als auch das React Frontend auf einem Debian VPS einrichtest.
 
 ---
 
@@ -391,11 +391,11 @@ certbot renew --dry-run
 
 ---
 
-## 🔧 Teil 6: Railway Server URL aktualisieren
+## 🔧 Teil 6: Server-URL aktualisieren
 
-### 6.1 Supabase Secret aktualisieren
+### 6.1 Secret aktualisieren
 
-Da dein WhatsApp-Server jetzt auf dem VPS läuft statt auf Railway, musst du die URL aktualisieren:
+Setze die URL deines VPS-WhatsApp-Servers in den Backend-Funktionen-Secrets:
 
 **In deiner Lovable Cloud Datenbank:**
 
@@ -404,7 +404,7 @@ Da dein WhatsApp-Server jetzt auf dem VPS läuft statt auf Railway, musst du die
 -- ODER via Supabase Dashboard
 ```
 
-**Neuer Wert für `RAILWAY_SERVER_URL`:**
+**Neuer Wert für `VPS_SERVER_URL`:**
 ```
 https://wa-api.example.com
 ```
@@ -680,7 +680,7 @@ crontab -e
 - [ ] Firewall ist aktiv (`ufw status`)
 - [ ] Logs werden geschrieben (`tail -f /var/log/whatsapp-server.log`)
 - [ ] Backup-Script läuft (`/root/backup.sh`)
-- [ ] `RAILWAY_SERVER_URL` in Supabase ist aktualisiert
+- [ ] `VPS_SERVER_URL` in den Backend-Funktions-Secrets ist aktualisiert
 
 ---
 

@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAW_RAILWAY_URL = (Deno.env.get('RAILWAY_SERVER_URL') || '').trim();
+const RAW_SERVER_URL = (Deno.env.get('VPS_SERVER_URL') || Deno.env.get('RAILWAY_SERVER_URL') || '').trim();
 // Ensure protocol and remove any trailing slashes to avoid paths like //api/...
-const WITH_PROTOCOL = RAW_RAILWAY_URL && RAW_RAILWAY_URL.startsWith('http') ? RAW_RAILWAY_URL : (RAW_RAILWAY_URL ? `https://${RAW_RAILWAY_URL}` : '');
+const WITH_PROTOCOL = RAW_SERVER_URL && RAW_SERVER_URL.startsWith('http') ? RAW_SERVER_URL : (RAW_SERVER_URL ? `https://${RAW_SERVER_URL}` : '');
 const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -18,7 +18,7 @@ serve(async (req) => {
 
   try {
     if (!BASE_URL || BASE_URL === 'https://') {
-      throw new Error('RAILWAY_SERVER_URL is not configured');
+      throw new Error('VPS_SERVER_URL is not configured');
     }
 
     const { action, accountId, phoneNumber, phone, message, text, contacts } = await req.json();
@@ -38,7 +38,7 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
-        console.log(`[Initialize] Calling Railway at: ${BASE_URL}/api/initialize`);
+        console.log(`[Initialize] Calling server at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
         // Get WireGuard config from active_config_id
@@ -86,7 +86,7 @@ serve(async (req) => {
             console.warn('⚠️ [Initialize] Config ID exists but no content found');
           }
         } else {
-          console.log('ℹ️ [Initialize] No VPN configured, using direct connection (Railway mode)');
+          console.log('ℹ️ [Initialize] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
         const attemptInitialize = async () => {
@@ -173,7 +173,7 @@ serve(async (req) => {
             console.log(`[Initialize] Retry ${retryCount} status: ${response.status}`);
           } else {
             // Non-proxy error - don't retry
-            throw new Error(`Railway server error (${response.status}): ${errorText}`);
+            throw new Error(`Backend server error (${response.status}): ${errorText}`);
           }
         }
 
@@ -203,7 +203,7 @@ serve(async (req) => {
           .update({ proxy_server: null })
           .eq('id', accountId);
 
-        console.log(`[Initialize-Direct] Calling Railway at: ${BASE_URL}/api/initialize`);
+        console.log(`[Initialize-Direct] Calling server at: ${BASE_URL}/api/initialize`);
         const response = await fetch(`${BASE_URL}/api/initialize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +217,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const err = await response.text();
-          console.error(`[Initialize-Direct] Railway error: ${err}`);
+          console.error(`[Initialize-Direct] Server error: ${err}`);
           return new Response(JSON.stringify({ error: err }), {
             status: response.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -267,10 +267,10 @@ serve(async (req) => {
             console.warn('⚠️ [Send Message] Invalid proxy config, proceeding without proxy');
           }
         } else {
-          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (Railway mode)');
+          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
-        console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);
+        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message`);
 
         const requestBody: any = {
           accountId,
@@ -288,12 +288,12 @@ serve(async (req) => {
           body: JSON.stringify(requestBody),
         });
 
-        console.log(`[Send Message] Railway response status: ${response.status}`);
+        console.log(`[Send Message] Server response status: ${response.status}`);
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Send Message] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Send Message] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
@@ -320,7 +320,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.text();
-          throw new Error(`Railway error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
@@ -332,14 +332,14 @@ serve(async (req) => {
       case 'status': {
         // Status abrufen - wenn accountId vorhanden, dann Account-Status, sonst Server-Status
         if (accountId) {
-          console.log(`[Account Status] Calling Railway at: ${BASE_URL}/api/status/${accountId}`);
+          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId}`);
           
           const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
 
           if (!response.ok) {
             const error = await response.text();
-            console.error(`[Account Status] Railway error: ${error}`);
-            throw new Error(`Railway error: ${error}`);
+            console.error(`[Account Status] Server error: ${error}`);
+            throw new Error(`Server error: ${error}`);
           }
 
           const data = await response.json();
@@ -349,19 +349,19 @@ serve(async (req) => {
           });
         } else {
           // Server-Status abrufen (ohne accountId)
-          console.log(`[Server Status] Calling Railway at: ${BASE_URL}/api/status`);
+          console.log(`[Server Status] Calling server at: ${BASE_URL}/api/status`);
           
           const response = await fetch(`${BASE_URL}/api/status`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
           });
 
-          console.log(`[Server Status] Railway response status: ${response.status}`);
+          console.log(`[Server Status] Server response status: ${response.status}`);
 
           if (!response.ok) {
             const error = await response.text();
-            console.error(`[Server Status] Railway error: ${error}`);
-            throw new Error(`Railway error: ${error}`);
+            console.error(`[Server Status] Server error: ${error}`);
+            throw new Error(`Server error: ${error}`);
           }
 
           const data = await response.json();
@@ -374,7 +374,7 @@ serve(async (req) => {
 
       case 'disconnect': {
         // Client-Instanz beenden und aufräumen
-        console.log(`[Disconnect] Calling Railway at: ${BASE_URL}/api/disconnect`);
+        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect`);
         console.log(`[Disconnect] AccountId: ${accountId}`);
         
         const response = await fetch(`${BASE_URL}/api/disconnect`, {
@@ -383,17 +383,105 @@ serve(async (req) => {
           body: JSON.stringify({ accountId }),
         });
 
-        console.log(`[Disconnect] Railway response status: ${response.status}`);
+        console.log(`[Disconnect] Server response status: ${response.status}`);
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Disconnect] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Disconnect] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
         console.log(`[Disconnect] Success:`, data);
         return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'delete-account': {
+        if (!accountId) {
+          throw new Error('accountId is required');
+        }
+
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+        const authHeader = req.headers.get('authorization');
+
+        if (!authHeader) {
+          throw new Error('No authorization header');
+        }
+
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+
+        const {
+          data: { user },
+          error: userError,
+        } = await userClient.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error('Not authenticated');
+        }
+
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+        const { data: ownedAccount, error: ownershipError } = await adminClient
+          .from('whatsapp_accounts')
+          .select('id')
+          .eq('id', accountId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (ownershipError) throw ownershipError;
+        if (!ownedAccount) {
+          throw new Error('Account nicht gefunden oder keine Berechtigung.');
+        }
+
+        try {
+          await fetch(`${BASE_URL}/api/disconnect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId }),
+          });
+        } catch (disconnectError) {
+          console.warn('[Delete Account] Disconnect warning:', disconnectError);
+        }
+
+        const [messagesDelete, campaignsDelete] = await Promise.all([
+          adminClient.from('messages').delete({ count: 'exact' }).eq('account_id', accountId),
+          adminClient.from('bulk_campaigns').delete({ count: 'exact' }).eq('account_id', accountId),
+        ]);
+
+        if (messagesDelete.error) {
+          throw new Error(`Nachrichten konnten nicht gelöscht werden: ${messagesDelete.error.message}`);
+        }
+
+        if (campaignsDelete.error) {
+          throw new Error(`Kampagnen konnten nicht gelöscht werden: ${campaignsDelete.error.message}`);
+        }
+
+        const { error: accountDeleteError, count: accountDeleteCount } = await adminClient
+          .from('whatsapp_accounts')
+          .delete({ count: 'exact' })
+          .eq('id', accountId)
+          .eq('user_id', user.id);
+
+        if (accountDeleteError) {
+          throw accountDeleteError;
+        }
+
+        if (!accountDeleteCount) {
+          throw new Error('Account konnte nicht gelöscht werden.');
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          deletedAccountId: accountId,
+          deletedMessages: messagesDelete.count || 0,
+          deletedCampaigns: campaignsDelete.count || 0,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -454,7 +542,7 @@ serve(async (req) => {
 
       case 'get-fingerprint': {
         // Fingerprint-Informationen abrufen
-        console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint`);
+        console.log(`[Get Fingerprint] Calling server at: ${BASE_URL}/api/fingerprint`);
         
         const response = await fetch(`${BASE_URL}/api/fingerprint`, {
           method: 'POST',
@@ -468,8 +556,8 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Get Fingerprint] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Get Fingerprint] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();

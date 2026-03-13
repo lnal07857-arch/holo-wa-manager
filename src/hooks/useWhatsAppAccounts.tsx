@@ -70,32 +70,21 @@ export const useWhatsAppAccounts = () => {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
-      // First, disconnect the client on Railway server
-      try {
-        const { error: disconnectError } = await supabase.functions.invoke('wa-gateway', {
-          body: { action: 'disconnect', accountId }
-        });
-        
-        if (disconnectError) {
-          console.warn('[Disconnect] Warning:', disconnectError.message);
-          // Continue with deletion even if disconnect fails
-        }
-      } catch (err) {
-        console.warn('[Disconnect] Warning:', err);
-        // Continue with deletion even if disconnect fails
-      }
-      
-      // Then delete from database
-      const { error } = await supabase
-        .from("whatsapp_accounts")
-        .delete()
-        .eq("id", accountId);
+      const { data, error } = await supabase.functions.invoke('wa-gateway', {
+        body: { action: 'delete-account', accountId }
+      });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Löschen fehlgeschlagen');
+      if ((data as { error?: string })?.error) {
+        throw new Error((data as { error: string }).error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
       toast.success("Account gelöscht und Verbindung beendet");
+    },
+    onError: (error: Error) => {
+      toast.error(`Löschen fehlgeschlagen: ${error.message}`);
     },
   });
 
