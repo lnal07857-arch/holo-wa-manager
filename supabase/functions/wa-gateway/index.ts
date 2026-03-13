@@ -320,7 +320,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.text();
-          throw new Error(`Railway error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
