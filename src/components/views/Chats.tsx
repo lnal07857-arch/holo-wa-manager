@@ -245,10 +245,6 @@ const Chats = () => {
       return false;
     }
     
-    // Also exclude warmup phone numbers (system-wide blacklist)
-    if (warmupPhones.has(cleanContactPhone)) {
-      return false;
-    }
     
     // Apply filter tabs
     let matchesFilter = true;
