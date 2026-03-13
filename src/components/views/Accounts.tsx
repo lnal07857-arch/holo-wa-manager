@@ -335,9 +335,9 @@ const Accounts = () => {
             throw new Error(error.message || 'Edge Function Fehler');
           }
 
-          // Fehler vom Railway-Server behandeln
+          // Fehler vom Server behandeln
           if (data?.error) {
-            console.error('[WhatsApp Init Error from Railway]', data.error);
+            console.error('[WhatsApp Init Error from Server]', data.error);
             if (typeof data.error === 'string' && (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create'))) {
               throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
             }
