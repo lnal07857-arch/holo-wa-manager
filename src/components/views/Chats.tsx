@@ -40,30 +40,6 @@ const Chats = () => {
   const { templates, isLoading: templatesLoading } = useTemplates();
   const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessagesContext();
   const { accounts } = useWhatsAppAccounts();
-  const { warmupPhones } = useWarmupPhoneNumbers();
-
-  // Load disabled follow-up contacts
-  useEffect(() => {
-    const loadDisabledContacts = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from("follow_up_disabled_contacts")
-          .select("contact_phone")
-          .eq("user_id", user.id);
-
-        if (error) throw error;
-
-        setDisabledFollowUpContacts(new Set(data.map(d => d.contact_phone)));
-      } catch (error) {
-        console.error("Error loading disabled follow-up contacts:", error);
-      }
-    };
-
-    loadDisabledContacts();
-  }, []);
 
   // Filter templates for chats only
   const chatTemplates = templates.filter(t => t.for_chats);
