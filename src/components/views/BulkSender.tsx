@@ -654,12 +654,19 @@ const BulkSender = () => {
                           toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
                         }
                       } else if (sendData?.error) {
-                        // Prüfen auf Server-seitige Fehler
                         setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
-                        const errorMsg = sendData.error?.toLowerCase() || '';
+                        const errorMsg = (typeof sendData.error === 'string' ? sendData.error : '').toLowerCase();
+                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
                         const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')
                           ? 'Nummer nicht in WhatsApp'
-                          : sendData.error || 'Unbekannter Fehler';
+                          : isDisconnect ? 'Account disconnected' : sendData.error || 'Unbekannter Fehler';
+                        
+                        // Account aus Rotation entfernen bei Disconnect
+                        if (isDisconnect && !failedAccountIds.has(accountId)) {
+                          failedAccountIds.add(accountId);
+                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
+                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                        }
                         
                         setSendResults(prev => [...prev, {
                           contact: contact_name || 'Unbekannt',
@@ -671,7 +678,7 @@ const BulkSender = () => {
                         
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else {
+                        } else if (!isDisconnect) {
                           toast.error(`Fehler beim Versand an ${contact.name}: ${sendData.error}`);
                         }
                       } else {
