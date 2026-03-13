@@ -329,7 +329,7 @@ const Accounts = () => {
                 continue; // Try again
               }
               
-              throw new Error('Railway Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
+              throw new Error('Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
             }
             
             throw new Error(error.message || 'Edge Function Fehler');
