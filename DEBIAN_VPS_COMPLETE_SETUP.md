@@ -391,11 +391,11 @@ certbot renew --dry-run
 
 ---
 
-## 🔧 Teil 6: Railway Server URL aktualisieren
+## 🔧 Teil 6: Server-URL aktualisieren
 
-### 6.1 Supabase Secret aktualisieren
+### 6.1 Secret aktualisieren
 
-Da dein WhatsApp-Server jetzt auf dem VPS läuft statt auf Railway, musst du die URL aktualisieren:
+Setze die URL deines VPS-WhatsApp-Servers in den Backend-Funktionen-Screts:
 
 **In deiner Lovable Cloud Datenbank:**
 
