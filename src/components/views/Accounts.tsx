@@ -329,15 +329,15 @@ const Accounts = () => {
                 continue; // Try again
               }
               
-              throw new Error('Railway Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
+              throw new Error('Server überlastet. Bitte trennen Sie einen Account, bevor Sie einen neuen verbinden, oder versuchen Sie es später erneut.');
             }
             
             throw new Error(error.message || 'Edge Function Fehler');
           }
 
-          // Fehler vom Railway-Server behandeln
+          // Fehler vom Server behandeln
           if (data?.error) {
-            console.error('[WhatsApp Init Error from Railway]', data.error);
+            console.error('[WhatsApp Init Error from Server]', data.error);
             if (typeof data.error === 'string' && (data.error.includes('Failed to launch the browser') || data.error.includes('pthread_create'))) {
               throw new Error('Server-Ressourcen erschöpft. Bitte trennen Sie einen bestehenden Account, bevor Sie einen neuen hinzufügen.');
             }
@@ -431,7 +431,7 @@ const Accounts = () => {
         return;
       }
 
-      toast.info(`Trenne ${sortedAccounts.length} Instanzen auf Railway...`);
+      toast.info(`Trenne ${sortedAccounts.length} Instanzen...`);
 
       let successCount = 0;
       let errorCount = 0;
