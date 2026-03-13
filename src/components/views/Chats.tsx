@@ -231,10 +231,6 @@ const Chats = () => {
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
     
-    // Exclude chats that are in follow-up (disabled)
-    if (disabledFollowUpContacts.has(chat.contact_phone)) {
-      return false;
-    }
     
     // Exclude chats between own WhatsApp accounts (warm-up chats)
     const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
