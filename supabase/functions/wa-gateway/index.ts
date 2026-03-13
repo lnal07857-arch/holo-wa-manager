@@ -267,10 +267,10 @@ serve(async (req) => {
             console.warn('⚠️ [Send Message] Invalid proxy config, proceeding without proxy');
           }
         } else {
-          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (Railway mode)');
+          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
-        console.log(`[Send Message] Calling Railway at: ${BASE_URL}/api/send-message`);
+        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message`);
 
         const requestBody: any = {
           accountId,
@@ -288,12 +288,12 @@ serve(async (req) => {
           body: JSON.stringify(requestBody),
         });
 
-        console.log(`[Send Message] Railway response status: ${response.status}`);
+        console.log(`[Send Message] Server response status: ${response.status}`);
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Send Message] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Send Message] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
