@@ -431,7 +431,7 @@ const Accounts = () => {
         return;
       }
 
-      toast.info(`Trenne ${sortedAccounts.length} Instanzen auf Railway...`);
+      toast.info(`Trenne ${sortedAccounts.length} Instanzen...`);
 
       let successCount = 0;
       let errorCount = 0;
