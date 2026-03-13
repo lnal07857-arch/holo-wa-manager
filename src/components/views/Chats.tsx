@@ -153,7 +153,7 @@ const Chats = () => {
 
       let sendError = await trySend();
 
-      // If client on Railway was restarted, auto-initialize and retry once
+      // If the client process was restarted, auto-initialize and retry once
       if (sendError) {
         toast.message("Verbindung wird neu hergestellt…", { description: "WhatsApp-Client wird initialisiert" });
         await supabase.functions.invoke("wa-gateway", {
@@ -172,10 +172,10 @@ const Chats = () => {
     } catch (error: any) {
       console.error("Error sending message:", error);
       
-      // Check if it's a Railway server configuration issue
-      if (error?.message?.includes('RAILWAY_SERVER_URL')) {
+      // Check if it's a server configuration issue
+      if (error?.message?.includes('VPS_SERVER_URL') || error?.message?.includes('RAILWAY_SERVER_URL')) {
         toast.error("WhatsApp-Server ist nicht konfiguriert", {
-          description: "Bitte konfigurieren Sie die RAILWAY_SERVER_URL in den Edge Function Einstellungen."
+          description: "Bitte konfigurieren Sie VPS_SERVER_URL (oder RAILWAY_SERVER_URL als Legacy-Variable) in den Backend-Funktionen-Einstellungen."
         });
       } else {
         toast.error("Fehler beim Senden der Nachricht", {
