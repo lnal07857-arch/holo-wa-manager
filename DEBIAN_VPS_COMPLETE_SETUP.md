@@ -395,7 +395,7 @@ certbot renew --dry-run
 
 ### 6.1 Secret aktualisieren
 
-Setze die URL deines VPS-WhatsApp-Servers in den Backend-Funktionen-Screts:
+Setze die URL deines VPS-WhatsApp-Servers in den Backend-Funktionen-Secrets:
 
 **In deiner Lovable Cloud Datenbank:**
 
