@@ -360,6 +360,20 @@ const BulkSender = () => {
             </div>
             <Switch checked={excludeContacted} onCheckedChange={setExcludeContacted} />
           </div>
+
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="space-y-0.5">
+              <Label>Auto-Retry bei Fehler</Label>
+              <p className="text-sm text-muted-foreground">
+                Fehlgeschlagene Nachrichten automatisch mit anderem Account erneut versuchen ({maxRetries} Versuche)
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setMaxRetries(Math.max(0, maxRetries - 1))} disabled={maxRetries === 0}>-</Button>
+              <span className="w-6 text-center font-medium">{maxRetries}</span>
+              <Button variant="outline" size="sm" onClick={() => setMaxRetries(Math.min(5, maxRetries + 1))} disabled={maxRetries === 5}>+</Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
