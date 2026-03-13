@@ -500,11 +500,13 @@ const BulkSender = () => {
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
-                  const connectedAccountIds = accounts
+                  // Intelligente Account-Rotation: Nur verbundene Accounts, dynamisch aktualisiert
+                  let activeAccountIds = accounts
                     .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
                     .map(acc => acc.id);
+                  const failedAccountIds = new Set<string>();
 
-                  if (connectedAccountIds.length === 0) {
+                  if (activeAccountIds.length === 0) {
                     toast.error("Keine verbundenen WhatsApp-Accounts verfügbar");
                     setSending(false);
                     return;
@@ -532,13 +534,31 @@ const BulkSender = () => {
                   }
 
                   const total = contactsToSend.length;
+                  let rotationIndex = 0;
 
                   for (let i = 0; i < contactsToSend.length; i++) {
                     const contact = contactsToSend[i];
                     const contact_phone = sanitizePhone(String(contact.phone || ""));
 
-                    // Account-Rotation: Verteile die Kontakte gleichmäßig über alle verbundenen Accounts
-                    const accountId = connectedAccountIds[i % connectedAccountIds.length];
+                    // Intelligente Rotation: Überspringe ausgefallene Accounts
+                    if (activeAccountIds.length === 0) {
+                      // Alle Accounts ausgefallen – restliche Kontakte als fehlgeschlagen markieren
+                      toast.error("Alle Accounts disconnected – Versand wird abgebrochen");
+                      const remaining = contactsToSend.slice(i);
+                      setSendStats(prev => ({ ...prev, failed: prev.failed + remaining.length }));
+                      setSendResults(prev => [...prev, ...remaining.map(c => ({
+                        contact: c.name || 'Unbekannt',
+                        phone: String(c.phone || ""),
+                        account: '-',
+                        status: 'failed' as const,
+                        reason: 'Alle Accounts disconnected'
+                      }))]);
+                      setProgress(100);
+                      break;
+                    }
+
+                    const accountId = activeAccountIds[rotationIndex % activeAccountIds.length];
+                    rotationIndex++;
                     const accountName = accounts.find(acc => acc.id === accountId)?.account_name || 'Unbekannt';
 
                     const template = (textRotation && selectedTemplateObjects.length > 0)
@@ -607,11 +627,18 @@ const BulkSender = () => {
                         console.error("WhatsApp Versand fehlgeschlagen:", sendError);
                         setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                         
-                        // Prüfen ob Nummer nicht in WhatsApp existiert
                         const errorMsg = sendError.message?.toLowerCase() || '';
+                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
                         const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert') 
                           ? 'Nummer nicht in WhatsApp'
-                          : sendError.message || 'Unbekannter Fehler';
+                          : isDisconnect ? 'Account disconnected' : sendError.message || 'Unbekannter Fehler';
+                        
+                        // Account aus Rotation entfernen bei Disconnect
+                        if (isDisconnect && !failedAccountIds.has(accountId)) {
+                          failedAccountIds.add(accountId);
+                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
+                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                        }
                         
                         setSendResults(prev => [...prev, {
                           contact: contact_name || 'Unbekannt',
@@ -623,16 +650,23 @@ const BulkSender = () => {
                         
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else {
+                        } else if (!isDisconnect) {
                           toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
                         }
                       } else if (sendData?.error) {
-                        // Prüfen auf Server-seitige Fehler
                         setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
-                        const errorMsg = sendData.error?.toLowerCase() || '';
+                        const errorMsg = (typeof sendData.error === 'string' ? sendData.error : '').toLowerCase();
+                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
                         const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')
                           ? 'Nummer nicht in WhatsApp'
-                          : sendData.error || 'Unbekannter Fehler';
+                          : isDisconnect ? 'Account disconnected' : sendData.error || 'Unbekannter Fehler';
+                        
+                        // Account aus Rotation entfernen bei Disconnect
+                        if (isDisconnect && !failedAccountIds.has(accountId)) {
+                          failedAccountIds.add(accountId);
+                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
+                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                        }
                         
                         setSendResults(prev => [...prev, {
                           contact: contact_name || 'Unbekannt',
@@ -644,7 +678,7 @@ const BulkSender = () => {
                         
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else {
+                        } else if (!isDisconnect) {
                           toast.error(`Fehler beim Versand an ${contact.name}: ${sendData.error}`);
                         }
                       } else {
