@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { useWarmupPhoneNumbers } from "@/hooks/useWarmupPhoneNumbers";
+
 
 
 const Chats = () => {
@@ -32,7 +32,6 @@ const Chats = () => {
     const saved = localStorage.getItem("favoriteChatKeys");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
-  const [disabledFollowUpContacts, setDisabledFollowUpContacts] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,30 +39,6 @@ const Chats = () => {
   const { templates, isLoading: templatesLoading } = useTemplates();
   const { chatGroups, loading: messagesLoading, addOptimisticMessage, markMessagesAsRead } = useMessagesContext();
   const { accounts } = useWhatsAppAccounts();
-  const { warmupPhones } = useWarmupPhoneNumbers();
-
-  // Load disabled follow-up contacts
-  useEffect(() => {
-    const loadDisabledContacts = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data, error } = await supabase
-          .from("follow_up_disabled_contacts")
-          .select("contact_phone")
-          .eq("user_id", user.id);
-
-        if (error) throw error;
-
-        setDisabledFollowUpContacts(new Set(data.map(d => d.contact_phone)));
-      } catch (error) {
-        console.error("Error loading disabled follow-up contacts:", error);
-      }
-    };
-
-    loadDisabledContacts();
-  }, []);
 
   // Filter templates for chats only
   const chatTemplates = templates.filter(t => t.for_chats);
@@ -255,10 +230,6 @@ const Chats = () => {
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
     
-    // Exclude chats that are in follow-up (disabled)
-    if (disabledFollowUpContacts.has(chat.contact_phone)) {
-      return false;
-    }
     
     // Exclude chats between own WhatsApp accounts (warm-up chats)
     const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
@@ -273,10 +244,6 @@ const Chats = () => {
       return false;
     }
     
-    // Also exclude warmup phone numbers (system-wide blacklist)
-    if (warmupPhones.has(cleanContactPhone)) {
-      return false;
-    }
     
     // Apply filter tabs
     let matchesFilter = true;
