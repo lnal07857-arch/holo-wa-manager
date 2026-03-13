@@ -65,10 +65,7 @@ const Index = () => {
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
     { id: "bulk", label: "Bulk Sender", icon: Send },
-    { id: "autochat", label: "Warm-up", icon: Zap },
-    { id: "followup", label: "Follow-up", icon: Clock },
     { id: "vpn-proxies", label: "VPN & Fingerprint", icon: Shield },
-    { id: "server-status", label: "Server Status", icon: Server },
   ];
 
   return (
