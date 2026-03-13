@@ -86,7 +86,7 @@ serve(async (req) => {
             console.warn('⚠️ [Initialize] Config ID exists but no content found');
           }
         } else {
-          console.log('ℹ️ [Initialize] No VPN configured, using direct connection (Railway mode)');
+          console.log('ℹ️ [Initialize] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
         const attemptInitialize = async () => {
