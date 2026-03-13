@@ -1,7 +1,7 @@
 # Vollständige Debian VPS Setup-Anleitung
 ## WhatsApp-Server Backend + React Frontend
 
-Diese Anleitung zeigt dir, wie du sowohl den WhatsApp-Server (aktuell auf Railway) als auch das React Frontend auf einem Debian VPS einrichtest.
+Diese Anleitung zeigt dir, wie du sowohl den WhatsApp-Server als auch das React Frontend auf einem Debian VPS einrichtest.
 
 ---
 
