@@ -49,7 +49,7 @@ Setze in den Backend-Funktions-Secrets:
 VPS_SERVER_URL=https://wa-api.example.com
 ```
 
-(Optional kompatibel: `RAILWAY_SERVER_URL` als Legacy-Fallback.)
+(Empfohlen: ausschließlich `VPS_SERVER_URL` verwenden.)
 
 ## 7) Betrieb & Logs
 

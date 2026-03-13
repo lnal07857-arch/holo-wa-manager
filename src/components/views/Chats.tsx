@@ -175,7 +175,7 @@ const Chats = () => {
       // Check if it's a server configuration issue
       if (error?.message?.includes('VPS_SERVER_URL') || error?.message?.includes('RAILWAY_SERVER_URL')) {
         toast.error("WhatsApp-Server ist nicht konfiguriert", {
-          description: "Bitte konfigurieren Sie VPS_SERVER_URL (oder RAILWAY_SERVER_URL als Legacy-Variable) in den Backend-Funktionen-Einstellungen."
+          description: "Bitte konfigurieren Sie VPS_SERVER_URL in den Backend-Funktionen-Einstellungen."
         });
       } else {
         toast.error("Fehler beim Senden der Nachricht", {

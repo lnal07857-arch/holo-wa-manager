@@ -18,7 +18,7 @@ serve(async (req) => {
 
   try {
     if (!BASE_URL || BASE_URL === 'https://') {
-      throw new Error('VPS_SERVER_URL (or legacy RAILWAY_SERVER_URL) is not configured');
+      throw new Error('VPS_SERVER_URL is not configured');
     }
 
     const { action, accountId, phoneNumber, phone, message, text, contacts } = await req.json();

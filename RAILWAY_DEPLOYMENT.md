@@ -15,10 +15,10 @@ In den Backend-Funktions-Secrets:
 VPS_SERVER_URL=https://wa-api.example.com
 ```
 
-Optionaler Legacy-Fallback (weiterhin unterstützt):
+Verwende ausschließlich:
 
 ```bash
-RAILWAY_SERVER_URL=https://wa-api.example.com
+VPS_SERVER_URL=https://wa-api.example.com
 ```
 
 ## Health Check

@@ -46,7 +46,7 @@ Wenn dein Server unter einer neuen Domain läuft, setze in den Backend-Funktions
 VPS_SERVER_URL=https://wa-api.example.com
 ```
 
-(Optional kompatibel: `RAILWAY_SERVER_URL` wird weiterhin als Legacy-Fallback unterstützt.)
+(Empfohlen: ausschließlich `VPS_SERVER_URL` verwenden.)
 
 ---
 
