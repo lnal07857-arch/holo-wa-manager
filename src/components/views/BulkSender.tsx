@@ -44,6 +44,7 @@ const BulkSender = () => {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [textRotation, setTextRotation] = useState(true);
   const [delay, setDelay] = useState("2-5");
+  const [maxRetries, setMaxRetries] = useState(2);
   const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
