@@ -680,7 +680,7 @@ crontab -e
 - [ ] Firewall ist aktiv (`ufw status`)
 - [ ] Logs werden geschrieben (`tail -f /var/log/whatsapp-server.log`)
 - [ ] Backup-Script läuft (`/root/backup.sh`)
-- [ ] `RAILWAY_SERVER_URL` in Supabase ist aktualisiert
+- [ ] `VPS_SERVER_URL` in den Backend-Funktions-Secrets ist aktualisiert
 
 ---
 
