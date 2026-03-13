@@ -54,14 +54,8 @@ const Index = () => {
         return <Templates />;
       case "bulk":
         return <BulkSender />;
-      case "autochat":
-        return <AutoChat />;
-      case "followup":
-        return <FollowUp />;
       case "vpn-proxies":
         return <VpnProxies />;
-      case "server-status":
-        return <ServerStatus />;
       default:
         return <Accounts />;
     }
