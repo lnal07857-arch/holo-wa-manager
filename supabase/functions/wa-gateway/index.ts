@@ -454,7 +454,7 @@ serve(async (req) => {
 
       case 'get-fingerprint': {
         // Fingerprint-Informationen abrufen
-        console.log(`[Get Fingerprint] Calling Railway at: ${BASE_URL}/api/fingerprint`);
+        console.log(`[Get Fingerprint] Calling server at: ${BASE_URL}/api/fingerprint`);
         
         const response = await fetch(`${BASE_URL}/api/fingerprint`, {
           method: 'POST',
@@ -468,8 +468,8 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Get Fingerprint] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Get Fingerprint] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
