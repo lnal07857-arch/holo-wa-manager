@@ -877,8 +877,8 @@ const SortableAccountCard = ({
                 size="sm" 
                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                 onClick={() => disconnectAccount(account.id)}
-                disabled={disconnecting === account.id || account.status !== "connected"}
-                title={account.status !== "connected" ? "Nur verbundene Accounts können getrennt werden" : "Instanz trennen"}
+                disabled={disconnecting === account.id}
+                title="Instanz trennen"
               >
                 {disconnecting === account.id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
