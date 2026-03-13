@@ -398,6 +398,94 @@ serve(async (req) => {
         });
       }
 
+      case 'delete-account': {
+        if (!accountId) {
+          throw new Error('accountId is required');
+        }
+
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+        const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+        const authHeader = req.headers.get('authorization');
+
+        if (!authHeader) {
+          throw new Error('No authorization header');
+        }
+
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        });
+
+        const {
+          data: { user },
+          error: userError,
+        } = await userClient.auth.getUser();
+
+        if (userError || !user) {
+          throw new Error('Not authenticated');
+        }
+
+        const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+        const { data: ownedAccount, error: ownershipError } = await adminClient
+          .from('whatsapp_accounts')
+          .select('id')
+          .eq('id', accountId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (ownershipError) throw ownershipError;
+        if (!ownedAccount) {
+          throw new Error('Account nicht gefunden oder keine Berechtigung.');
+        }
+
+        try {
+          await fetch(`${BASE_URL}/api/disconnect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId }),
+          });
+        } catch (disconnectError) {
+          console.warn('[Delete Account] Disconnect warning:', disconnectError);
+        }
+
+        const [messagesDelete, campaignsDelete] = await Promise.all([
+          adminClient.from('messages').delete({ count: 'exact' }).eq('account_id', accountId),
+          adminClient.from('bulk_campaigns').delete({ count: 'exact' }).eq('account_id', accountId),
+        ]);
+
+        if (messagesDelete.error) {
+          throw new Error(`Nachrichten konnten nicht gelöscht werden: ${messagesDelete.error.message}`);
+        }
+
+        if (campaignsDelete.error) {
+          throw new Error(`Kampagnen konnten nicht gelöscht werden: ${campaignsDelete.error.message}`);
+        }
+
+        const { error: accountDeleteError, count: accountDeleteCount } = await adminClient
+          .from('whatsapp_accounts')
+          .delete({ count: 'exact' })
+          .eq('id', accountId)
+          .eq('user_id', user.id);
+
+        if (accountDeleteError) {
+          throw accountDeleteError;
+        }
+
+        if (!accountDeleteCount) {
+          throw new Error('Account konnte nicht gelöscht werden.');
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          deletedAccountId: accountId,
+          deletedMessages: messagesDelete.count || 0,
+          deletedCampaigns: campaignsDelete.count || 0,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'sync-messages': {
         // Manuell alle Nachrichten vom WhatsApp-Server synchronisieren
         console.log(`[Sync Messages] Requested for AccountId: ${accountId}`);
