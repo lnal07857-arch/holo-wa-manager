@@ -32,7 +32,7 @@ const Chats = () => {
     const saved = localStorage.getItem("favoriteChatKeys");
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
-  const [disabledFollowUpContacts, setDisabledFollowUpContacts] = useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
