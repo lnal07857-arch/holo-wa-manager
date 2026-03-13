@@ -101,16 +101,7 @@ export const useMessages = () => {
           (userAccounts || []).map(acc => acc.phone_number.replace(/\D/g, ''))
         );
         
-        // Fetch warmup phone numbers to filter them out
-        const { data: warmupData } = await supabase
-          .from("warmup_phone_numbers")
-          .select("phone_number");
-        
-        const warmupPhoneNumbers = new Set(
-          (warmupData || []).map(item => item.phone_number.replace(/\D/g, ''))
-        );
-        
-        console.log(`[Filter] Loaded ${ownPhoneNumbers.size} own numbers and ${warmupPhoneNumbers.size} warmup numbers to filter`);
+        console.log(`[Filter] Loaded ${ownPhoneNumbers.size} own numbers to filter`);
         
         // Fetch messages from the last 30 days only (synced history)
         const thirtyDaysAgo = new Date();
