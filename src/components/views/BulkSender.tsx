@@ -627,11 +627,18 @@ const BulkSender = () => {
                         console.error("WhatsApp Versand fehlgeschlagen:", sendError);
                         setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                         
-                        // Prüfen ob Nummer nicht in WhatsApp existiert
                         const errorMsg = sendError.message?.toLowerCase() || '';
+                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
                         const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert') 
                           ? 'Nummer nicht in WhatsApp'
-                          : sendError.message || 'Unbekannter Fehler';
+                          : isDisconnect ? 'Account disconnected' : sendError.message || 'Unbekannter Fehler';
+                        
+                        // Account aus Rotation entfernen bei Disconnect
+                        if (isDisconnect && !failedAccountIds.has(accountId)) {
+                          failedAccountIds.add(accountId);
+                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
+                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                        }
                         
                         setSendResults(prev => [...prev, {
                           contact: contact_name || 'Unbekannt',
@@ -643,7 +650,7 @@ const BulkSender = () => {
                         
                         if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
                           toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else {
+                        } else if (!isDisconnect) {
                           toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
                         }
                       } else if (sendData?.error) {
