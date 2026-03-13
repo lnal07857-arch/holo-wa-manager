@@ -53,14 +53,20 @@ const Accounts = () => {
     })
   );
 
-  // Sort accounts by display_order
+  // Sort accounts by display_order - use JSON comparison to avoid infinite loop
   useEffect(() => {
     const sorted = [...accounts].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    setSortedAccounts(sorted);
+    setSortedAccounts(prev => {
+      const prevIds = prev.map(a => a.id + a.status + a.display_order).join(',');
+      const newIds = sorted.map(a => a.id + a.status + a.display_order).join(',');
+      if (prevIds === newIds) return prev; // No change, skip re-render
+      return sorted;
+    });
   }, [accounts]);
 
   
   const [isValidating, setIsValidating] = useState(false);
+  const [hasValidated, setHasValidated] = useState(false);
 
   // Manual status validation
   const validateAllStatuses = async () => {
@@ -104,12 +110,13 @@ const Accounts = () => {
     }
   };
 
-  // Validate account status on mount
+  // Validate account status on mount (once only)
   useEffect(() => {
-    if (sortedAccounts.length > 0) {
+    if (sortedAccounts.length > 0 && !hasValidated && !isValidating) {
+      setHasValidated(true);
       validateAllStatuses();
     }
-  }, [sortedAccounts.length]);
+  }, [sortedAccounts.length, hasValidated]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -391,22 +398,23 @@ const Accounts = () => {
   const disconnectAccount = async (accountId: string) => {
     setDisconnecting(accountId);
     try {
-      const { error } = await supabase.functions.invoke('wa-gateway', {
-        body: { action: 'disconnect', accountId }
-      });
-      
-      if (error) {
-        console.error('[Disconnect Error]', error);
-        toast.error('Fehler beim Trennen der Instanz');
-      } else {
-        // Update status in database
-        await supabase
-          .from('whatsapp_accounts')
-          .update({ status: 'disconnected', qr_code: null })
-          .eq('id', accountId);
-        
-        toast.success('Instanz erfolgreich getrennt');
+      // Try to disconnect on server
+      try {
+        await supabase.functions.invoke('wa-gateway', {
+          body: { action: 'disconnect', accountId }
+        });
+      } catch (err) {
+        console.warn('[Disconnect] Server disconnect failed (continuing):', err);
       }
+      
+      // Always update status in database
+      await supabase
+        .from('whatsapp_accounts')
+        .update({ status: 'disconnected', qr_code: null })
+        .eq('id', accountId);
+      
+      toast.success('Instanz erfolgreich getrennt');
+      refetch();
     } catch (error: any) {
       console.error('[Disconnect Error]', error);
       toast.error(error.message || 'Fehler beim Trennen der Instanz');
@@ -640,9 +648,9 @@ const Accounts = () => {
                     placeholder="z.B. +49 151 12345678" 
                     required 
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Die Telefonnummer ist wichtig für das Warm-up, damit die Accounts sich gegenseitig anschreiben können.
-                  </p>
+                   <p className="text-xs text-muted-foreground">
+                     Format: +49 151 12345678
+                   </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loadingQR}>
                   {loadingQR ? <>
@@ -870,8 +878,8 @@ const SortableAccountCard = ({
                 size="sm" 
                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                 onClick={() => disconnectAccount(account.id)}
-                disabled={disconnecting === account.id || account.status !== "connected"}
-                title={account.status !== "connected" ? "Nur verbundene Accounts können getrennt werden" : "Instanz trennen"}
+                disabled={disconnecting === account.id}
+                title="Instanz trennen"
               >
                 {disconnecting === account.id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
