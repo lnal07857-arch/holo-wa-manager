@@ -332,14 +332,14 @@ serve(async (req) => {
       case 'status': {
         // Status abrufen - wenn accountId vorhanden, dann Account-Status, sonst Server-Status
         if (accountId) {
-          console.log(`[Account Status] Calling Railway at: ${BASE_URL}/api/status/${accountId}`);
+          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId}`);
           
           const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
 
           if (!response.ok) {
             const error = await response.text();
-            console.error(`[Account Status] Railway error: ${error}`);
-            throw new Error(`Railway error: ${error}`);
+            console.error(`[Account Status] Server error: ${error}`);
+            throw new Error(`Server error: ${error}`);
           }
 
           const data = await response.json();
@@ -349,19 +349,19 @@ serve(async (req) => {
           });
         } else {
           // Server-Status abrufen (ohne accountId)
-          console.log(`[Server Status] Calling Railway at: ${BASE_URL}/api/status`);
+          console.log(`[Server Status] Calling server at: ${BASE_URL}/api/status`);
           
           const response = await fetch(`${BASE_URL}/api/status`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
           });
 
-          console.log(`[Server Status] Railway response status: ${response.status}`);
+          console.log(`[Server Status] Server response status: ${response.status}`);
 
           if (!response.ok) {
             const error = await response.text();
-            console.error(`[Server Status] Railway error: ${error}`);
-            throw new Error(`Railway error: ${error}`);
+            console.error(`[Server Status] Server error: ${error}`);
+            throw new Error(`Server error: ${error}`);
           }
 
           const data = await response.json();
