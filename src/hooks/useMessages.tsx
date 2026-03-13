@@ -186,10 +186,6 @@ export const useMessages = () => {
           
           // CRITICAL: Skip chats from warmup phone numbers (system-wide blacklist)
           const cleanContactPhone = msg.contact_phone.replace(/\D/g, '');
-          if (warmupPhoneNumbers.has(cleanContactPhone)) {
-            console.log(`[Filter] Skipping warmup contact: ${msg.contact_phone}`);
-            return;
-          }
           
           // CRITICAL: Skip chats between own accounts (second priority filter)
           if (ownPhoneNumbers.has(cleanContactPhone)) {
