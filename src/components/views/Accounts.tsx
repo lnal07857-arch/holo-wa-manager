@@ -53,14 +53,20 @@ const Accounts = () => {
     })
   );
 
-  // Sort accounts by display_order
+  // Sort accounts by display_order - use JSON comparison to avoid infinite loop
   useEffect(() => {
     const sorted = [...accounts].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    setSortedAccounts(sorted);
+    setSortedAccounts(prev => {
+      const prevIds = prev.map(a => a.id + a.status + a.display_order).join(',');
+      const newIds = sorted.map(a => a.id + a.status + a.display_order).join(',');
+      if (prevIds === newIds) return prev; // No change, skip re-render
+      return sorted;
+    });
   }, [accounts]);
 
   
   const [isValidating, setIsValidating] = useState(false);
+  const [hasValidated, setHasValidated] = useState(false);
 
   // Manual status validation
   const validateAllStatuses = async () => {
@@ -104,12 +110,13 @@ const Accounts = () => {
     }
   };
 
-  // Validate account status on mount
+  // Validate account status on mount (once only)
   useEffect(() => {
-    if (sortedAccounts.length > 0) {
+    if (sortedAccounts.length > 0 && !hasValidated && !isValidating) {
+      setHasValidated(true);
       validateAllStatuses();
     }
-  }, [sortedAccounts.length]);
+  }, [sortedAccounts.length, hasValidated]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
