@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAW_RAILWAY_URL = (Deno.env.get('RAILWAY_SERVER_URL') || '').trim();
+const RAW_SERVER_URL = (Deno.env.get('VPS_SERVER_URL') || Deno.env.get('RAILWAY_SERVER_URL') || '').trim();
 // Ensure protocol and remove any trailing slashes to avoid paths like //api/...
-const WITH_PROTOCOL = RAW_RAILWAY_URL && RAW_RAILWAY_URL.startsWith('http') ? RAW_RAILWAY_URL : (RAW_RAILWAY_URL ? `https://${RAW_RAILWAY_URL}` : '');
+const WITH_PROTOCOL = RAW_SERVER_URL && RAW_SERVER_URL.startsWith('http') ? RAW_SERVER_URL : (RAW_SERVER_URL ? `https://${RAW_SERVER_URL}` : '');
 const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -18,7 +18,7 @@ serve(async (req) => {
 
   try {
     if (!BASE_URL || BASE_URL === 'https://') {
-      throw new Error('RAILWAY_SERVER_URL is not configured');
+      throw new Error('VPS_SERVER_URL (or legacy RAILWAY_SERVER_URL) is not configured');
     }
 
     const { action, accountId, phoneNumber, phone, message, text, contacts } = await req.json();
