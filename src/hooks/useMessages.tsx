@@ -250,7 +250,7 @@ export const useMessages = () => {
     fetchMessages(true);
 
     // Debounced fetch to avoid multiple rapid reloads
-    let debounceTimer: NodeJS.Timeout | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
