@@ -70,41 +70,13 @@ export const useWhatsAppAccounts = () => {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
-      // First, disconnect the client on WhatsApp server (best effort)
-      try {
-        const { error: disconnectError } = await supabase.functions.invoke('wa-gateway', {
-          body: { action: 'disconnect', accountId }
-        });
+      const { data, error } = await supabase.functions.invoke('wa-gateway', {
+        body: { action: 'delete-account', accountId }
+      });
 
-        if (disconnectError) {
-          console.warn('[Disconnect] Warning:', disconnectError.message);
-        }
-      } catch (err) {
-        console.warn('[Disconnect] Warning:', err);
-      }
-
-      // Delete dependent rows first to avoid relational/RLS cascade issues
-      const [messagesResult, campaignsResult] = await Promise.all([
-        supabase.from("messages").delete().eq("account_id", accountId),
-        supabase.from("bulk_campaigns").delete().eq("account_id", accountId),
-      ]);
-
-      if (messagesResult.error) {
-        throw new Error(`Nachrichten konnten nicht gelöscht werden: ${messagesResult.error.message}`);
-      }
-
-      if (campaignsResult.error) {
-        throw new Error(`Kampagnen konnten nicht gelöscht werden: ${campaignsResult.error.message}`);
-      }
-
-      const { error, count } = await supabase
-        .from("whatsapp_accounts")
-        .delete({ count: "exact" })
-        .eq("id", accountId);
-
-      if (error) throw error;
-      if (!count) {
-        throw new Error("Account nicht gefunden oder keine Berechtigung zum Löschen.");
+      if (error) throw new Error(error.message || 'Löschen fehlgeschlagen');
+      if ((data as { error?: string })?.error) {
+        throw new Error((data as { error: string }).error);
       }
     },
     onSuccess: () => {
