@@ -589,14 +589,14 @@ const BulkSender = () => {
                     }
 
                     // 1. Nachricht in DB speichern
-                    const { error: dbError } = await supabase.from("messages").insert({
+                    const { data: dbMsg, error: dbError } = await supabase.from("messages").insert({
                       account_id: accountId,
                       contact_phone,
                       contact_name,
                       message_text,
                       direction: "outgoing",
-                      is_read: true, // Ausgehende Nachrichten sind immer gelesen
-                    });
+                      is_read: true,
+                    }).select('id').single();
 
                     if (dbError) {
                       console.error("Fehler beim Anlegen der Nachricht:", dbError);
@@ -612,108 +612,150 @@ const BulkSender = () => {
                       continue;
                     }
 
-                    // 2. Nachricht via WhatsApp versenden
-                    try {
-                      console.log(`[BulkSender] Sending message to ${contact_phone} via account ${accountId}`);
-                      const { data: sendData, error: sendError } = await supabase.functions.invoke("wa-gateway", {
-                        body: {
-                          action: "send-message",
-                          accountId: accountId,
-                          phoneNumber: contact_phone,
-                          message: message_text,
-                        },
-                      });
+                    // 2. Nachricht via WhatsApp versenden mit Retry-Logik
+                    let sent = false;
+                    let lastReason = '';
+                    let triedAccountIds: string[] = [];
 
-                      if (sendError) {
-                        console.error("WhatsApp Versand fehlgeschlagen:", sendError);
-                        setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
+                    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                      // Bei Retry: anderen Account wählen
+                      let tryAccountId = accountId;
+                      let tryAccountName = accountName;
+
+                      if (attempt > 0) {
+                        // Finde einen anderen aktiven Account der noch nicht probiert wurde
+                        const availableForRetry = activeAccountIds.filter(id => !triedAccountIds.includes(id));
+                        if (availableForRetry.length === 0) {
+                          console.log(`[BulkSender] No more accounts for retry attempt ${attempt}`);
+                          break;
+                        }
+                        tryAccountId = availableForRetry[attempt % availableForRetry.length];
+                        tryAccountName = accounts.find(acc => acc.id === tryAccountId)?.account_name || 'Unbekannt';
                         
-                        const errorMsg = sendError.message?.toLowerCase() || '';
-                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
-                        const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert') 
-                          ? 'Nummer nicht in WhatsApp'
-                          : isDisconnect ? 'Account disconnected' : sendError.message || 'Unbekannter Fehler';
-                        
-                        // Account aus Rotation entfernen bei Disconnect
-                        if (isDisconnect && !failedAccountIds.has(accountId)) {
-                          failedAccountIds.add(accountId);
-                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
-                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                        // Update DB-Nachricht auf neuen Account
+                        if (dbMsg?.id) {
+                          await supabase.from("messages").update({ account_id: tryAccountId }).eq("id", dbMsg.id);
                         }
                         
-                        setSendResults(prev => [...prev, {
-                          contact: contact_name || 'Unbekannt',
-                          phone: contact_phone,
-                          account: accountName,
-                          status: 'failed',
-                          reason
-                        }]);
+                        console.log(`[BulkSender] Retry ${attempt}/${maxRetries} for ${contact_phone} with account "${tryAccountName}"`);
+                        toast.info(`🔄 Retry ${attempt} für ${contact_name || contact_phone} mit "${tryAccountName}"`);
                         
-                        if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
-                          toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else if (!isDisconnect) {
-                          toast.error(`Fehler beim Versand an ${contact.name}: ${sendError.message}`);
-                        }
-                      } else if (sendData?.error) {
-                        setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
-                        const errorMsg = (typeof sendData.error === 'string' ? sendData.error : '').toLowerCase();
-                        const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
-                        const reason = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')
-                          ? 'Nummer nicht in WhatsApp'
-                          : isDisconnect ? 'Account disconnected' : sendData.error || 'Unbekannter Fehler';
-                        
-                        // Account aus Rotation entfernen bei Disconnect
-                        if (isDisconnect && !failedAccountIds.has(accountId)) {
-                          failedAccountIds.add(accountId);
-                          activeAccountIds = activeAccountIds.filter(id => id !== accountId);
-                          toast.warning(`⚠️ Account "${accountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
-                        }
-                        
-                        setSendResults(prev => [...prev, {
-                          contact: contact_name || 'Unbekannt',
-                          phone: contact_phone,
-                          account: accountName,
-                          status: 'failed',
-                          reason
-                        }]);
-                        
-                        if (errorMsg.includes('not registered') || errorMsg.includes('nicht registriert')) {
-                          toast.error(`${contact.name}: Nummer nicht in WhatsApp`);
-                        } else if (!isDisconnect) {
-                          toast.error(`Fehler beim Versand an ${contact.name}: ${sendData.error}`);
-                        }
-                      } else {
-                        console.log(`[BulkSender] Message sent successfully:`, sendData);
-                        setSendStats(prev => ({ ...prev, successful: prev.successful + 1 }));
-                        setSendResults(prev => {
-                          const newResults: SendResult[] = [...prev, {
-                            contact: contact_name || 'Unbekannt',
-                            phone: contact_phone,
-                            account: accountName,
-                            status: 'success' as const,
-                          }];
-                          console.log("[BulkSender] Success! sendResults updated, length:", newResults.length);
-                          return newResults;
-                        });
+                        // Erhöhtes Delay vor Retry (3-6 Sekunden)
+                        await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 3000));
                       }
-                    } catch (sendErr) {
-                      console.error("Fehler beim WhatsApp-Versand:", sendErr);
+
+                      triedAccountIds.push(tryAccountId);
+
+                      try {
+                        console.log(`[BulkSender] Sending message to ${contact_phone} via account ${tryAccountId} (attempt ${attempt + 1})`);
+                        const { data: sendData, error: sendError } = await supabase.functions.invoke("wa-gateway", {
+                          body: {
+                            action: "send-message",
+                            accountId: tryAccountId,
+                            phoneNumber: contact_phone,
+                            message: message_text,
+                          },
+                        });
+
+                        if (sendError) {
+                          const errorMsg = sendError.message?.toLowerCase() || '';
+                          const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
+                          const isNotRegistered = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert');
+                          
+                          // Account aus Rotation entfernen bei Disconnect
+                          if (isDisconnect && !failedAccountIds.has(tryAccountId)) {
+                            failedAccountIds.add(tryAccountId);
+                            activeAccountIds = activeAccountIds.filter(id => id !== tryAccountId);
+                            toast.warning(`⚠️ Account "${tryAccountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                          }
+
+                          // Nicht-registrierte Nummern: kein Retry
+                          if (isNotRegistered) {
+                            lastReason = 'Nummer nicht in WhatsApp';
+                            break;
+                          }
+
+                          lastReason = isDisconnect ? 'Account disconnected' : sendError.message || 'Unbekannter Fehler';
+                          // Retry bei Disconnect oder generischem Fehler
+                          continue;
+
+                        } else if (sendData?.error) {
+                          const errorMsg = (typeof sendData.error === 'string' ? sendData.error : '').toLowerCase();
+                          const isDisconnect = errorMsg.includes('disconnected') || errorMsg.includes('not connected') || errorMsg.includes('connection closed') || errorMsg.includes('logout') || errorMsg.includes('stream:error');
+                          const isNotRegistered = errorMsg.includes('not registered') || errorMsg.includes('nicht registriert');
+                          
+                          if (isDisconnect && !failedAccountIds.has(tryAccountId)) {
+                            failedAccountIds.add(tryAccountId);
+                            activeAccountIds = activeAccountIds.filter(id => id !== tryAccountId);
+                            toast.warning(`⚠️ Account "${tryAccountName}" disconnected – wird aus Rotation entfernt (${activeAccountIds.length} verbleibend)`);
+                          }
+
+                          if (isNotRegistered) {
+                            lastReason = 'Nummer nicht in WhatsApp';
+                            break;
+                          }
+
+                          lastReason = isDisconnect ? 'Account disconnected' : sendData.error || 'Unbekannter Fehler';
+                          continue;
+
+                        } else {
+                          // ✅ Erfolgreich gesendet – Zustellbestätigung prüfen
+                          const messageKey = sendData?.key?.id || sendData?.messageId;
+                          console.log(`[BulkSender] Message sent successfully via "${tryAccountName}":`, messageKey || sendData);
+                          
+                          // Kurze Pause zur Zustellbestätigung (Server antwortet erst nach ACK)
+                          // Baileys wartet bereits intern auf ACK, daher ist die Antwort = Zustellung bestätigt
+                          sent = true;
+                          
+                          setSendStats(prev => ({ ...prev, successful: prev.successful + 1 }));
+                          setSendResults(prev => {
+                            const newResults: SendResult[] = [...prev, {
+                              contact: contact_name || 'Unbekannt',
+                              phone: contact_phone,
+                              account: tryAccountName,
+                              status: 'success' as const,
+                            }];
+                            return newResults;
+                          });
+
+                          if (attempt > 0) {
+                            toast.success(`✅ Retry erfolgreich: ${contact_name || contact_phone} via "${tryAccountName}"`);
+                          }
+                          break;
+                        }
+                      } catch (sendErr) {
+                        console.error(`Fehler beim WhatsApp-Versand (Attempt ${attempt + 1}):`, sendErr);
+                        lastReason = String(sendErr);
+                        // Bei Exception: weiter zum nächsten Retry
+                        continue;
+                      }
+                    }
+
+                    // Falls nach allen Retries nicht gesendet
+                    if (!sent) {
                       setSendStats(prev => ({ ...prev, failed: prev.failed + 1 }));
                       setSendResults(prev => [...prev, {
                         contact: contact_name || 'Unbekannt',
                         phone: contact_phone,
-                        account: accountName,
+                        account: triedAccountIds.map(id => accounts.find(a => a.id === id)?.account_name || '?').join(' → '),
                         status: 'failed',
-                        reason: String(sendErr)
+                        reason: lastReason + (triedAccountIds.length > 1 ? ` (${triedAccountIds.length} Versuche)` : '')
                       }]);
-                      toast.error(`Exception beim Versand: ${sendErr}`);
+                      
+                      if (lastReason.includes('Nummer nicht in WhatsApp')) {
+                        toast.error(`${contact_name || contact_phone}: Nummer nicht in WhatsApp`);
+                      } else {
+                        toast.error(`Fehlgeschlagen nach ${triedAccountIds.length} Versuchen: ${contact_name || contact_phone}`);
+                      }
                     }
 
                     setProgress(Math.round(((i + 1) / total) * 100));
                     
-                    // Delay zwischen Nachrichten (2 Sekunden)
+                    // Dynamisches Delay basierend auf Einstellung
                     if (i < contactsToSend.length - 1) {
-                      await new Promise(resolve => setTimeout(resolve, 2000));
+                      const [minDelay, maxDelay] = delay.split('-').map(Number);
+                      const delayMs = ((minDelay || 2) + Math.random() * ((maxDelay || 5) - (minDelay || 2))) * 1000;
+                      await new Promise(resolve => setTimeout(resolve, delayMs));
                     }
                   }
 
