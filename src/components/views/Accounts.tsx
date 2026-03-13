@@ -398,22 +398,23 @@ const Accounts = () => {
   const disconnectAccount = async (accountId: string) => {
     setDisconnecting(accountId);
     try {
-      const { error } = await supabase.functions.invoke('wa-gateway', {
-        body: { action: 'disconnect', accountId }
-      });
-      
-      if (error) {
-        console.error('[Disconnect Error]', error);
-        toast.error('Fehler beim Trennen der Instanz');
-      } else {
-        // Update status in database
-        await supabase
-          .from('whatsapp_accounts')
-          .update({ status: 'disconnected', qr_code: null })
-          .eq('id', accountId);
-        
-        toast.success('Instanz erfolgreich getrennt');
+      // Try to disconnect on server
+      try {
+        await supabase.functions.invoke('wa-gateway', {
+          body: { action: 'disconnect', accountId }
+        });
+      } catch (err) {
+        console.warn('[Disconnect] Server disconnect failed (continuing):', err);
       }
+      
+      // Always update status in database
+      await supabase
+        .from('whatsapp_accounts')
+        .update({ status: 'disconnected', qr_code: null })
+        .eq('id', accountId);
+      
+      toast.success('Instanz erfolgreich getrennt');
+      refetch();
     } catch (error: any) {
       console.error('[Disconnect Error]', error);
       toast.error(error.message || 'Fehler beim Trennen der Instanz');
