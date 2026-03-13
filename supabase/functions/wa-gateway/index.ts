@@ -374,7 +374,7 @@ serve(async (req) => {
 
       case 'disconnect': {
         // Client-Instanz beenden und aufräumen
-        console.log(`[Disconnect] Calling Railway at: ${BASE_URL}/api/disconnect`);
+        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect`);
         console.log(`[Disconnect] AccountId: ${accountId}`);
         
         const response = await fetch(`${BASE_URL}/api/disconnect`, {
@@ -383,12 +383,12 @@ serve(async (req) => {
           body: JSON.stringify({ accountId }),
         });
 
-        console.log(`[Disconnect] Railway response status: ${response.status}`);
+        console.log(`[Disconnect] Server response status: ${response.status}`);
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`[Disconnect] Railway error: ${error}`);
-          throw new Error(`Railway error: ${error}`);
+          console.error(`[Disconnect] Server error: ${error}`);
+          throw new Error(`Server error: ${error}`);
         }
 
         const data = await response.json();
