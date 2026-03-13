@@ -33,7 +33,6 @@ const Chats = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
