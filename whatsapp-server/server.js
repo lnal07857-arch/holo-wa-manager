@@ -1468,38 +1468,53 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
   clients.set(accountId, client);
   messageQueues.set(accountId, new MessageQueue());
 
-  await client.initialize();
-
-  // Apply fingerprint overrides IMMEDIATELY after initialization, before WhatsApp loads
-  console.log(`[Fingerprint] Applying fingerprint overrides for ${accountId} BEFORE WhatsApp loads`);
-  try {
-    // Wait a moment for browser to be ready
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const browser = await client.pupBrowser;
-    const pages = await browser.pages();
-
-    // Apply to all existing pages
-    for (const page of pages) {
-      await applyFingerprintOverrides(page, fingerprint, accountId);
-    }
-
-    // Listen for new pages and apply overrides immediately
-    browser.on("targetcreated", async (target) => {
-      if (target.type() === "page") {
-        const page = await target.page();
-        if (page) {
-          await applyFingerprintOverrides(page, fingerprint, accountId);
-        }
+  // Start initialization in background - respond immediately to avoid Edge Function timeout
+  client.initialize().then(async () => {
+    // Apply fingerprint overrides AFTER initialization
+    console.log(`[Fingerprint] Applying fingerprint overrides for ${accountId} AFTER init`);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const browser = await client.pupBrowser;
+      const pages = await browser.pages();
+      for (const page of pages) {
+        await applyFingerprintOverrides(page, fingerprint, accountId);
       }
-    });
+      browser.on("targetcreated", async (target) => {
+        if (target.type() === "page") {
+          const page = await target.page();
+          if (page) {
+            await applyFingerprintOverrides(page, fingerprint, accountId);
+          }
+        }
+      });
+      console.log(`[Fingerprint] ✅ Fingerprint overrides applied successfully for ${accountId}`);
+    } catch (err) {
+      console.error(`[Fingerprint] ❌ Error applying overrides for ${accountId}:`, err);
+    }
+  }).catch(err => {
+    console.error('Client initialization failed:', accountId, err.message || err);
+    clients.delete(accountId);
+    messageQueues.delete(accountId);
+    lastActivity.delete(accountId);
+    reconnectAttempts.delete(accountId);
+    
+    // Update status in Supabase
+    fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.SUPABASE_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        status: 'disconnected',
+        qr_code: null,
+        updated_at: new Date().toISOString()
+      })
+    }).catch(e => console.error('Failed to update status after init error:', e));
+  });
 
-    console.log(`[Fingerprint] ✅ Fingerprint overrides applied successfully for ${accountId}`);
-  } catch (err) {
-    console.error(`[Fingerprint] ❌ Error applying overrides for ${accountId}:`, err);
-  }
-
-  return { success: true, message: "Client initialized" };
+  return { success: true, message: "Client initializing" };
 }
 
 // ---- SafeSendPresence (single robust implementation) ----
