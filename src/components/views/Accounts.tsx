@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -672,7 +673,7 @@ const Accounts = () => {
                         <p className="text-sm text-muted-foreground">QR-Code wird generiert...</p>
                       </div>
                     ) : qrCode ? (
-                      <img src={qrCode} alt="WhatsApp Web QR Code" className="w-full h-full object-contain" />
+                      <QRCodeSVG value={qrCode} size={224} level="M" />
                     ) : (
                       <p className="text-sm text-muted-foreground">Kein QR-Code verfügbar</p>
                     )}
