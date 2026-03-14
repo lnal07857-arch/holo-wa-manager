@@ -3,6 +3,7 @@ const { Client, LocalAuth } = pkg;
 import express from 'express';
 import cors from 'cors';
 import qrcode from 'qrcode-terminal';
+import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 
 const app = express();
@@ -10,6 +11,18 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Supabase client with service role key (bypasses RLS)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ SUPABASE_URL and SUPABASE_KEY must be set in .env');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+console.log('✅ Supabase client initialized:', supabaseUrl);
 
 // Store active WhatsApp clients
 const clients = new Map();
@@ -20,7 +33,7 @@ class MessageQueue {
     this.queue = [];
     this.processing = false;
     this.messageCount = 0;
-    this.resetTime = Date.now() + 3600000; // Reset after 1 hour
+    this.resetTime = Date.now() + 3600000;
   }
 
   async add(task) {
@@ -34,13 +47,11 @@ class MessageQueue {
     this.processing = true;
     
     while (this.queue.length > 0) {
-      // Reset counter every hour
       if (Date.now() > this.resetTime) {
         this.messageCount = 0;
         this.resetTime = Date.now() + 3600000;
       }
 
-      // Check rate limit (50 messages per hour)
       if (this.messageCount >= 50) {
         const waitTime = this.resetTime - Date.now();
         console.log(`Rate limit reached. Waiting ${waitTime}ms`);
@@ -53,7 +64,6 @@ class MessageQueue {
       try {
         await task();
         this.messageCount++;
-        // Random delay between 2-5 seconds
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
       } catch (error) {
         console.error('Error processing message:', error);
@@ -65,6 +75,21 @@ class MessageQueue {
 }
 
 const messageQueues = new Map();
+
+// Helper: Update account in Supabase
+async function updateAccount(accountId, data) {
+  const { error } = await supabase
+    .from('whatsapp_accounts')
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq('id', accountId);
+  
+  if (error) {
+    console.error(`❌ [Supabase] Update failed for ${accountId}:`, error.message);
+  } else {
+    console.log(`✅ [Supabase] Updated ${accountId}:`, Object.keys(data).join(', '));
+  }
+  return error;
+}
 
 // Initialize WhatsApp client
 async function initializeClient(accountId, userId) {
@@ -90,78 +115,27 @@ async function initializeClient(accountId, userId) {
 
   // QR Code event
   client.on('qr', async (qr) => {
-    console.log('QR RECEIVED for', accountId);
+    console.log('📱 QR RECEIVED for', accountId);
     qrcode.generate(qr, { small: true });
-    
-    // Update status in Supabase
-    try {
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
-        },
-        body: JSON.stringify({
-          qr_code: qr,
-          status: 'qr_generated',
-          updated_at: new Date().toISOString()
-        })
-      });
-      console.log('QR code saved to Supabase');
-    } catch (error) {
-      console.error('Error saving QR to Supabase:', error);
-    }
+    await updateAccount(accountId, { qr_code: qr, status: 'qr_generated' });
   });
 
   // Ready event
   client.on('ready', async () => {
-    console.log('Client is ready!', accountId);
-    
-    // Update status in Supabase
-    try {
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
-        },
-        body: JSON.stringify({
-          status: 'connected',
-          qr_code: null,
-          updated_at: new Date().toISOString()
-        })
-      });
-      console.log('Status updated to connected');
-    } catch (error) {
-      console.error('Error updating status:', error);
-    }
+    console.log('✅ Client is ready!', accountId);
+    await updateAccount(accountId, { 
+      status: 'connected', 
+      qr_code: null, 
+      last_connected_at: new Date().toISOString() 
+    });
   });
 
   // Disconnected event
   client.on('disconnected', async (reason) => {
-    console.log('Client disconnected:', reason);
+    console.log('❌ Client disconnected:', reason);
     clients.delete(accountId);
     messageQueues.delete(accountId);
-    
-    // Update status in Supabase
-    try {
-      await fetch(`${process.env.SUPABASE_URL}/rest/v1/whatsapp_accounts?id=eq.${accountId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.SUPABASE_KEY,
-          'Authorization': `Bearer ${process.env.SUPABASE_KEY}`
-        },
-        body: JSON.stringify({
-          status: 'disconnected',
-          updated_at: new Date().toISOString()
-        })
-      });
-    } catch (error) {
-      console.error('Error updating status:', error);
-    }
+    await updateAccount(accountId, { status: 'disconnected' });
   });
 
   clients.set(accountId, client);
@@ -185,8 +159,17 @@ app.post('/api/initialize', async (req, res) => {
       return res.status(400).json({ error: 'accountId and userId are required' });
     }
 
-    const result = await initializeClient(accountId, userId);
-    res.json(result);
+    // Start initialization in background (non-blocking)
+    initializeClient(accountId, userId).catch(err => {
+      console.error('Background init error:', err);
+    });
+
+    res.json({ 
+      success: true, 
+      accountId,
+      status: 'initializing',
+      message: 'Client initializing in background' 
+    });
   } catch (error) {
     console.error('Error initializing client:', error);
     res.status(500).json({ error: error.message });
@@ -233,6 +216,23 @@ app.get('/api/status/:accountId', (req, res) => {
   }
   
   res.json({ connected: true });
+});
+
+// Debug endpoint - test Supabase connection
+app.get('/api/debug/supabase', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('whatsapp_accounts')
+      .select('id, status, qr_code')
+      .limit(1);
+    
+    if (error) {
+      return res.json({ ok: false, error: error.message });
+    }
+    res.json({ ok: true, supabaseUrl, rowCount: data.length, sample: data });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 app.listen(PORT, () => {
