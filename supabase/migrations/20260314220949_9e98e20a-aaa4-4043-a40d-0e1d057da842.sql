@@ -1,0 +1,2 @@
+ALTER TABLE public.whatsapp_accounts DROP CONSTRAINT whatsapp_accounts_status_check;
+ALTER TABLE public.whatsapp_accounts ADD CONSTRAINT whatsapp_accounts_status_check CHECK (status = ANY (ARRAY['connected'::text, 'disconnected'::text, 'blocked'::text, 'pending'::text, 'initializing'::text]));

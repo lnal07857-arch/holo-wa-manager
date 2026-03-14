@@ -957,7 +957,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
         .from("whatsapp_accounts")
         .update({
           qr_code: qrDataUrl,
-          status: "initializing",
+          status: "pending",
           updated_at: new Date().toISOString(),
         })
         .eq("id", accountId);
