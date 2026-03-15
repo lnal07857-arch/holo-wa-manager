@@ -190,42 +190,12 @@ const QR_TIMEOUT = 2 * 60 * 1000;
 // Sync all messages (no time limit)
 async function syncAllMessages(client, accountId, supa) {
   try {
-    // Fetch warmup contacts to exclude them from sync
-    const { data: accountData } = await supa
-      .from("whatsapp_accounts")
-      .select("user_id")
-      .eq("id", accountId)
-      .maybeSingle();
-
-    let warmupPhones = new Set();
-    if (accountData?.user_id) {
-      const { data: warmupSettings } = await supa
-        .from("warmup_settings")
-        .select("all_pairs")
-        .eq("user_id", accountData.user_id)
-        .maybeSingle();
-
-      if (warmupSettings?.all_pairs) {
-        // Extract phone numbers from all_pairs
-        const pairs = Array.isArray(warmupSettings.all_pairs) ? warmupSettings.all_pairs : [];
-        pairs.forEach((pair) => {
-          if (pair.account1 === accountId && pair.phone2) {
-            warmupPhones.add(pair.phone2.replace(/\D/g, ""));
-          }
-          if (pair.account2 === accountId && pair.phone1) {
-            warmupPhones.add(pair.phone1.replace(/\D/g, ""));
-          }
-        });
-        console.log(`[Sync] Found ${warmupPhones.size} warmup contacts to exclude:`, Array.from(warmupPhones));
-      }
-    }
 
     const chats = await client.getChats();
     console.log(`[Sync] Found ${chats.length} total chats to process`);
 
     let totalSynced = 0;
     let totalSkipped = 0;
-    let totalWarmupSkipped = 0;
     let totalProcessed = 0;
 
     for (const chat of chats) {
@@ -240,13 +210,6 @@ async function syncAllMessages(client, accountId, supa) {
 
         if (!chatPhone) {
           console.log(`[Sync] Skipping chat without valid phone number:`, chat.id);
-          continue;
-        }
-
-        // Check if this is a warmup chat and skip it
-        if (warmupPhones.has(chatPhone)) {
-          console.log(`[Sync] Skipping warmup chat: ${chat.name || chatPhone}`);
-          totalWarmupSkipped++;
           continue;
         }
 
@@ -395,7 +358,7 @@ async function syncAllMessages(client, accountId, supa) {
     }
 
     console.log(
-      `[Sync] Complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalWarmupSkipped} warmup chats excluded, ${totalProcessed} chats processed`,
+      `[Sync] Complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalProcessed} chats processed`,
     );
   } catch (error) {
     console.error("[Sync] Error in syncAllMessages:", error);
