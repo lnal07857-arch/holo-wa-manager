@@ -1780,7 +1780,7 @@ app.post("/api/send-message", async (req, res) => {
       }
     });
 
-    res.json({ success: true, message: "Message queued" });
+    res.json({ success: true, message: "Message queued", workerId: WORKER_ID });
   } catch (error) {
     console.error("[Send API] Error:", error.message || error);
     res.status(500).json({ error: error.message });
