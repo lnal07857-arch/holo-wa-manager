@@ -218,6 +218,15 @@ serve(async (req) => {
 
         const data = await response.json();
         console.log(`[Initialize] Success:`, data);
+        
+        // Save worker_id from server response
+        if (data?.workerId) {
+          const supabaseUrl2 = Deno.env.get('SUPABASE_URL');
+          const supabaseKey2 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          const supa2 = createClient(supabaseUrl2 || '', supabaseKey2 || '');
+          await saveWorkerId(supa2, accountId, data.workerId);
+        }
+        
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
