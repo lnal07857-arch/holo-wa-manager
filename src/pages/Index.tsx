@@ -54,8 +54,6 @@ const Index = () => {
         return <Templates />;
       case "bulk":
         return <BulkSender />;
-      case "vpn-proxies":
-        return <VpnProxies />;
       default:
         return <Accounts />;
     }
