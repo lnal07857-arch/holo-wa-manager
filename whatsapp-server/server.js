@@ -1606,7 +1606,7 @@ async function applyFingerprintOverrides(page, fp, accountId) {
 
 // API Routes
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", clients: clients.size });
+  res.json({ status: "ok", workerId: WORKER_ID, clients: clients.size });
 });
 
 // Get fingerprint info for an account
