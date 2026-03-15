@@ -150,7 +150,6 @@ const Accounts = () => {
   };
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [initializingAccount, setInitializingAccount] = useState<string | null>(null);
