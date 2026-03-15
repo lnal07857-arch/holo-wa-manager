@@ -364,9 +364,17 @@ serve(async (req) => {
       case 'status': {
         // Status abrufen - wenn accountId vorhanden, dann Account-Status, sonst Server-Status
         if (accountId) {
-          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId}`);
+          // Get worker_id for routing
+          const supabaseUrl = Deno.env.get('SUPABASE_URL');
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          const supa = createClient(supabaseUrl || '', supabaseKey || '');
+          const workerId = await getWorkerIdForAccount(supa, accountId);
           
-          const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
+          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId} (worker: ${workerId || 'any'})`);
+          
+          const response = await fetch(`${BASE_URL}/api/status/${accountId}`, {
+            headers: workerHeaders(workerId),
+          });
 
           if (!response.ok) {
             const error = await response.text();
@@ -405,13 +413,18 @@ serve(async (req) => {
       }
 
       case 'disconnect': {
-        // Client-Instanz beenden und aufräumen
-        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect`);
+        // Get worker_id for routing
+        const supabaseUrl4 = Deno.env.get('SUPABASE_URL');
+        const supabaseKey4 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa4 = createClient(supabaseUrl4 || '', supabaseKey4 || '');
+        const workerId4 = await getWorkerIdForAccount(supa4, accountId);
+        
+        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect (worker: ${workerId4 || 'any'})`);
         console.log(`[Disconnect] AccountId: ${accountId}`);
         
         const response = await fetch(`${BASE_URL}/api/disconnect`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: workerHeaders(workerId4),
           body: JSON.stringify({ accountId }),
         });
 
@@ -424,6 +437,10 @@ serve(async (req) => {
         }
 
         const data = await response.json();
+        
+        // Clear worker_id on disconnect
+        await supa4.from('whatsapp_accounts').update({ worker_id: null }).eq('id', accountId);
+        
         console.log(`[Disconnect] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
