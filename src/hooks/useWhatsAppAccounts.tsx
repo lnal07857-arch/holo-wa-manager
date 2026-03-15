@@ -38,7 +38,7 @@ export const useWhatsAppAccounts = () => {
   });
 
   const createAccount = useMutation({
-    mutationFn: async (account: { account_name: string; phone_number: string }) => {
+    mutationFn: async (account: { account_name?: string }) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -48,16 +48,14 @@ export const useWhatsAppAccounts = () => {
         .from("whatsapp_accounts")
         .insert({
           user_id: user.id,
-          account_name: account.account_name,
-          phone_number: account.phone_number,
+          account_name: account.account_name || 'Neues Konto',
         })
         .select()
         .single();
 
       if (error) throw error;
       
-      // VPN/Proxy-Zuweisung ist jetzt optional (manuell über UI)
-      console.log('[Account Create] Account created without automatic VPN assignment');
+      console.log('[Account Create] Account created - phone will be auto-detected after QR scan');
       
       return data;
     },

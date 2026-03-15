@@ -478,8 +478,7 @@ const Accounts = () => {
     try {
       console.log('[Account Create] Starting account creation...');
       const result = await createAccount.mutateAsync({
-        account_name: accountName,
-        phone_number: phoneNumber
+        account_name: accountName || undefined
       });
       console.log('[Account Create] Account created:', result);
 
@@ -489,7 +488,6 @@ const Accounts = () => {
         await initializeWhatsApp(result.id);
       }
       setAccountName("");
-      setPhoneNumber("");
     } catch (error: any) {
       console.error('[Create Account Error]', error);
       toast.error(error.message || 'Fehler beim Erstellen des Accounts');
