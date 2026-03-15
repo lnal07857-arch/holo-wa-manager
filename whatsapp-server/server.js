@@ -15,6 +15,8 @@ puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ACCOUNT_INDEX = process.env.ACCOUNT_INDEX || '0';
+const WORKER_ID = `worker-${ACCOUNT_INDEX.padStart(2, '0')}`;
 
 app.use(cors());
 app.use(express.json());
@@ -1436,7 +1438,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }).catch(e => console.error('Failed to update status after init error:', e));
   });
 
-  return { success: true, message: "Client initializing" };
+  return { success: true, message: "Client initializing", workerId: WORKER_ID };
 }
 
 // ---- SafeSendPresence (single robust implementation) ----
@@ -1604,7 +1606,7 @@ async function applyFingerprintOverrides(page, fp, accountId) {
 
 // API Routes
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", clients: clients.size });
+  res.json({ status: "ok", workerId: WORKER_ID, clients: clients.size });
 });
 
 // Get fingerprint info for an account
@@ -1720,9 +1722,14 @@ app.post("/api/initialize", async (req, res) => {
     const url = supabaseUrl || process.env.SUPABASE_URL;
     const key = supabaseKey || process.env.SUPABASE_KEY;
 
-    console.log(`Initializing WhatsApp client for account: ${accountId}`);
+    console.log(`[${WORKER_ID}] Initializing WhatsApp client for account: ${accountId}`);
+    
+    // Save worker assignment immediately
+    const supa = createClient(url, key);
+    await supa.from('whatsapp_accounts').update({ worker_id: WORKER_ID }).eq('id', accountId);
+    
     const result = await initializeClient(accountId, userId || accountId, url, key);
-    res.json(result);
+    res.json({ ...result, workerId: WORKER_ID });
   } catch (error) {
     console.error("Error initializing client:", error);
     res.status(500).json({ error: error.message });
@@ -1740,7 +1747,7 @@ app.post("/api/send-message", async (req, res) => {
 
     const client = clients.get(accountId);
     if (!client) {
-      return res.status(404).json({ error: "Client not found or not initialized" });
+      return res.status(404).json({ error: "Client not found on this worker", workerId: WORKER_ID });
     }
 
     const queue = messageQueues.get(accountId);
@@ -1773,7 +1780,7 @@ app.post("/api/send-message", async (req, res) => {
       }
     });
 
-    res.json({ success: true, message: "Message queued" });
+    res.json({ success: true, message: "Message queued", workerId: WORKER_ID });
   } catch (error) {
     console.error("[Send API] Error:", error.message || error);
     res.status(500).json({ error: error.message });
@@ -1977,7 +1984,7 @@ setInterval(
 ); // Check every 5 minutes
 
 app.listen(PORT, async () => {
-  console.log(`WhatsApp server running on port ${PORT}`);
+  console.log(`🚀 WhatsApp Worker ${WORKER_ID} running on port ${PORT}`);
 
   // Verify Supabase access on startup
   await verifySupabaseAccess();

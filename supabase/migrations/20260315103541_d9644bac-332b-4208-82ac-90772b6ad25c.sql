@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_accounts ADD COLUMN IF NOT EXISTS worker_id text DEFAULT NULL;

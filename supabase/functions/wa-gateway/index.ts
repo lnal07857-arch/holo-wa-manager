@@ -10,6 +10,38 @@ const RAW_SERVER_URL = (Deno.env.get('VPS_SERVER_URL') || Deno.env.get('RAILWAY_
 // Ensure protocol and remove any trailing slashes to avoid paths like //api/...
 const WITH_PROTOCOL = RAW_SERVER_URL && RAW_SERVER_URL.startsWith('http') ? RAW_SERVER_URL : (RAW_SERVER_URL ? `https://${RAW_SERVER_URL}` : '');
 const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
+
+// Helper: Build headers with worker routing
+function workerHeaders(workerId?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (workerId) {
+    headers['X-Worker-ID'] = workerId;
+    console.log(`[Worker Routing] Routing to ${workerId}`);
+  }
+  return headers;
+}
+
+// Helper: Get worker_id for an account from DB
+async function getWorkerIdForAccount(supa: any, accountId: string): Promise<string | null> {
+  const { data } = await supa
+    .from('whatsapp_accounts')
+    .select('worker_id')
+    .eq('id', accountId)
+    .maybeSingle();
+  return data?.worker_id || null;
+}
+
+// Helper: Save worker_id from server response
+async function saveWorkerId(supa: any, accountId: string, workerId: string) {
+  if (workerId) {
+    await supa
+      .from('whatsapp_accounts')
+      .update({ worker_id: workerId })
+      .eq('id', accountId);
+    console.log(`[Worker Routing] Saved worker_id=${workerId} for account ${accountId}`);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -186,6 +218,15 @@ serve(async (req) => {
 
         const data = await response.json();
         console.log(`[Initialize] Success:`, data);
+        
+        // Save worker_id from server response
+        if (data?.workerId) {
+          const supabaseUrl2 = Deno.env.get('SUPABASE_URL');
+          const supabaseKey2 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          const supa2 = createClient(supabaseUrl2 || '', supabaseKey2 || '');
+          await saveWorkerId(supa2, accountId, data.workerId);
+        }
+        
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -243,20 +284,22 @@ serve(async (req) => {
           throw new Error('Phone and message are required');
         }
 
-        // Optional: Check if VPN/Proxy is configured (nicht erzwungen)
+        // Get worker_id and account data for routing
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
-          .select('proxy_server, user_id')
+          .select('proxy_server, user_id, worker_id')
           .eq('id', accountId)
           .maybeSingle();
 
         if (!accountData) {
           throw new Error('Account not found');
         }
+
+        const workerId = accountData.worker_id;
 
         let proxyConfig = null;
         if (accountData.proxy_server) {
@@ -266,11 +309,9 @@ serve(async (req) => {
           } catch (e) {
             console.warn('⚠️ [Send Message] Invalid proxy config, proceeding without proxy');
           }
-        } else {
-          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
-        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message`);
+        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message (worker: ${workerId || 'any'})`);
 
         const requestBody: any = {
           accountId,
@@ -284,7 +325,7 @@ serve(async (req) => {
 
         const response = await fetch(`${BASE_URL}/api/send-message`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: workerHeaders(workerId),
           body: JSON.stringify(requestBody),
         });
 
@@ -332,9 +373,17 @@ serve(async (req) => {
       case 'status': {
         // Status abrufen - wenn accountId vorhanden, dann Account-Status, sonst Server-Status
         if (accountId) {
-          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId}`);
+          // Get worker_id for routing
+          const supabaseUrl = Deno.env.get('SUPABASE_URL');
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+          const supa = createClient(supabaseUrl || '', supabaseKey || '');
+          const workerId = await getWorkerIdForAccount(supa, accountId);
           
-          const response = await fetch(`${BASE_URL}/api/status/${accountId}`);
+          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId} (worker: ${workerId || 'any'})`);
+          
+          const response = await fetch(`${BASE_URL}/api/status/${accountId}`, {
+            headers: workerHeaders(workerId),
+          });
 
           if (!response.ok) {
             const error = await response.text();
@@ -373,13 +422,18 @@ serve(async (req) => {
       }
 
       case 'disconnect': {
-        // Client-Instanz beenden und aufräumen
-        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect`);
+        // Get worker_id for routing
+        const supabaseUrl4 = Deno.env.get('SUPABASE_URL');
+        const supabaseKey4 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa4 = createClient(supabaseUrl4 || '', supabaseKey4 || '');
+        const workerId4 = await getWorkerIdForAccount(supa4, accountId);
+        
+        console.log(`[Disconnect] Calling server at: ${BASE_URL}/api/disconnect (worker: ${workerId4 || 'any'})`);
         console.log(`[Disconnect] AccountId: ${accountId}`);
         
         const response = await fetch(`${BASE_URL}/api/disconnect`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: workerHeaders(workerId4),
           body: JSON.stringify({ accountId }),
         });
 
@@ -392,6 +446,10 @@ serve(async (req) => {
         }
 
         const data = await response.json();
+        
+        // Clear worker_id on disconnect
+        await supa4.from('whatsapp_accounts').update({ worker_id: null }).eq('id', accountId);
+        
         console.log(`[Disconnect] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -439,10 +497,12 @@ serve(async (req) => {
           throw new Error('Account nicht gefunden oder keine Berechtigung.');
         }
 
+        // Route disconnect to correct worker
+        const deleteWorkerId = await getWorkerIdForAccount(adminClient, accountId);
         try {
           await fetch(`${BASE_URL}/api/disconnect`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: workerHeaders(deleteWorkerId),
             body: JSON.stringify({ accountId }),
           });
         } catch (disconnectError) {
