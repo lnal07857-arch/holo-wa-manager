@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_accounts ALTER COLUMN phone_number SET DEFAULT 'wird erkannt...';

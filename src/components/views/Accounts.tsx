@@ -150,7 +150,6 @@ const Accounts = () => {
   };
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [initializingAccount, setInitializingAccount] = useState<string | null>(null);
@@ -478,8 +477,7 @@ const Accounts = () => {
     try {
       console.log('[Account Create] Starting account creation...');
       const result = await createAccount.mutateAsync({
-        account_name: accountName,
-        phone_number: phoneNumber
+        account_name: accountName || undefined
       });
       console.log('[Account Create] Account created:', result);
 
@@ -489,7 +487,6 @@ const Accounts = () => {
         await initializeWhatsApp(result.id);
       }
       setAccountName("");
-      setPhoneNumber("");
     } catch (error: any) {
       console.error('[Create Account Error]', error);
       toast.error(error.message || 'Fehler beim Erstellen des Accounts');
@@ -532,7 +529,6 @@ const Accounts = () => {
       setQrCode(null);
       setLoadingQR(false);
       setAccountName("");
-      setPhoneNumber("");
     }
   }, [open]);
 
@@ -636,27 +632,20 @@ const Accounts = () => {
             
             {!initializingAccount ? <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="accountName">Account-Name</Label>
-                  <Input id="accountName" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="z.B. Kundenservice" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">Telefonnummer</Label>
-                  <Input 
-                    id="phoneNumber" 
-                    value={phoneNumber} 
-                    onChange={e => setPhoneNumber(e.target.value)} 
-                    placeholder="z.B. +49 151 12345678" 
-                    required 
-                  />
-                   <p className="text-xs text-muted-foreground">
-                     Format: +49 151 12345678
-                   </p>
+                  <Label htmlFor="accountName">Account-Name (optional)</Label>
+                  <Input id="accountName" value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="z.B. Kundenservice" />
+                  <p className="text-xs text-muted-foreground">
+                    Name und Rufnummer werden automatisch nach dem QR-Scan erkannt
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loadingQR}>
                   {loadingQR ? <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Initialisiere...
-                    </> : 'WhatsApp verbinden'}
+                    </> : <>
+                      <Smartphone className="w-4 h-4 mr-2" />
+                      WhatsApp verbinden
+                    </>}
                 </Button>
               </form> : <div className="space-y-4">
                 <Alert>
