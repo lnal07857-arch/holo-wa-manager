@@ -246,15 +246,86 @@ export const useMessages = () => {
       }, 300);
     };
 
-    // Subscribe to realtime updates - don't show loading state on updates
+    // Subscribe to realtime updates - handle INSERT inline, others via refetch
     const messagesChannel = supabase
       .channel(`messages-changes-${user.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
-          console.log('[Realtime] Message change detected:', payload.eventType);
-          debouncedFetch();
+          console.log('[Realtime] New message received:', payload.new?.direction);
+          const msg = payload.new as any;
+          if (!msg) return;
+
+          // Skip warmup messages
+          if (msg.is_warmup) return;
+
+          const newMessage: Message = {
+            id: msg.id,
+            account_id: msg.account_id,
+            contact_phone: msg.contact_phone,
+            contact_name: msg.contact_name,
+            message_text: msg.message_text,
+            direction: msg.direction as "incoming" | "outgoing",
+            sent_at: msg.sent_at,
+            is_read: msg.is_read,
+            is_warmup: msg.is_warmup || false,
+            media_url: msg.media_url,
+            media_type: msg.media_type,
+            media_mimetype: msg.media_mimetype,
+          };
+
+          // Update messages state
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMessage.id)) return prev;
+            return [newMessage, ...prev];
+          });
+
+          // Update chat groups inline
+          setChatGroups(prev => {
+            const key = `${msg.contact_phone}_${msg.account_id}`;
+            const idx = prev.findIndex(g => `${g.contact_phone}_${g.account_id}` === key);
+
+            if (idx !== -1) {
+              const updated = [...prev];
+              const group = { ...updated[idx] };
+              // Avoid duplicate
+              if (group.messages.some(m => m.id === newMessage.id)) return prev;
+              group.messages = [...group.messages, newMessage];
+              group.last_message = msg.message_text;
+              group.last_message_time = msg.sent_at;
+              if (msg.direction === "incoming" && !msg.is_read) {
+                group.unread_count = (group.unread_count || 0) + 1;
+              }
+              updated[idx] = group;
+              return updated;
+            }
+
+            // New chat group – do a full refetch to get account name etc.
+            debouncedFetch();
+            return prev;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          console.log('[Realtime] Message updated');
+          const msg = payload.new as any;
+          if (!msg) return;
+
+          // Update is_read status inline
+          setChatGroups(prev => prev.map(group => {
+            if (group.account_id !== msg.account_id) return group;
+            const hasMsg = group.messages.some(m => m.id === msg.id);
+            if (!hasMsg) return group;
+            return {
+              ...group,
+              messages: group.messages.map(m => m.id === msg.id ? { ...m, is_read: msg.is_read } : m),
+              unread_count: group.messages.filter(m => m.id !== msg.id && m.direction === "incoming" && !m.is_read).length + (msg.direction === "incoming" && !msg.is_read ? 1 : 0),
+            };
+          }));
         }
       )
       .subscribe((status) => {
