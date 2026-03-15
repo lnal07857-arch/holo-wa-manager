@@ -213,13 +213,6 @@ async function syncAllMessages(client, accountId, supa) {
           continue;
         }
 
-        // Check if this is a warmup chat and skip it
-        if (warmupPhones.has(chatPhone)) {
-          console.log(`[Sync] Skipping warmup chat: ${chat.name || chatPhone}`);
-          totalWarmupSkipped++;
-          continue;
-        }
-
         totalProcessed++;
         console.log(`[Sync] Processing chat ${totalProcessed}: ${chat.name || chatPhone}`);
 
