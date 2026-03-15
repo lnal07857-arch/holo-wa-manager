@@ -1984,7 +1984,7 @@ setInterval(
 ); // Check every 5 minutes
 
 app.listen(PORT, async () => {
-  console.log(`WhatsApp server running on port ${PORT}`);
+  console.log(`🚀 WhatsApp Worker ${WORKER_ID} running on port ${PORT}`);
 
   // Verify Supabase access on startup
   await verifySupabaseAccess();
