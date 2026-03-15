@@ -807,50 +807,11 @@ const SortableAccountCard = ({
                   Getrennt
                 </Badge>
               )}
-              {/* VPN Status Badge */}
-              {account.active_config_id ? (
-                <Badge variant="outline" className="gap-1 text-green-700 border-green-700 bg-green-50">
-                  <Shield className="w-3 h-3" />
-                  VPN aktiv
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600 bg-orange-50">
-                  <AlertTriangle className="w-3 h-3" />
-                  Kein VPN
-                </Badge>
-              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-            {/* Mullvad Account Assignment */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Server className="w-3 h-3" />
-                Mullvad Account
-              </Label>
-              <Select
-                value={account.mullvad_account_id || "none"}
-                onValueChange={(value) => {
-                  if (value === "none") return;
-                  handleMullvadAssignment(value);
-                }}
-                disabled={assigningMullvad || mullvadAccounts.length === 0}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder={mullvadAccounts.length === 0 ? "Keine Mullvad Accounts" : "Mullvad Account wählen..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Kein Mullvad Account</SelectItem>
-                  {mullvadAccounts.map((mullvadAccount) => (
-                    <SelectItem key={mullvadAccount.id} value={mullvadAccount.id}>
-                      {mullvadAccount.account_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="flex gap-2">
               <Button 
