@@ -277,28 +277,89 @@ async function connectWhatsApp(accountId) {
     });
   });
 
-  // Incoming message → save to DB
-  client.on('message', async (msg) => {
+  // ALL messages (incoming + outgoing from phone) → save to DB
+  client.on('message_create', async (msg) => {
     try {
-      const phoneNumber = msg.from.replace('@c.us', '').replace('@g.us', '');
+      // Skip status broadcasts and group messages
+      if (msg.isStatus || msg.from === 'status@broadcast') return;
+      
+      const direction = msg.fromMe ? 'outgoing' : 'incoming';
+      const peerJid = msg.fromMe ? msg.to : msg.from;
+      const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
+      
+      // Skip group messages
+      if (peerJid.includes('@g.us')) return;
+      
       let contactName = null;
       try {
-        const contact = await msg.getContact();
+        const contact = msg.fromMe
+          ? await client.getContactById(msg.to)
+          : await msg.getContact();
         contactName = contact?.pushname || contact?.name || null;
       } catch (e) { /* ignore */ }
 
-      await supabase.from('messages').insert({
+      // Handle media
+      let mediaUrl = null;
+      let mediaType = null;
+      let mediaMimetype = null;
+      if (msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            mediaType = media.mimetype?.split('/')[0] || 'document';
+            mediaMimetype = media.mimetype || null;
+            mediaUrl = `data:${media.mimetype};base64,${media.data}`;
+            // Truncate very large media to avoid DB issues
+            if (mediaUrl.length > 5000000) {
+              console.log(`[Media] Skipping large media (${Math.round(mediaUrl.length / 1024)}KB)`);
+              mediaUrl = null;
+            }
+          }
+        } catch (e) {
+          console.warn('[Media] Download failed:', e.message);
+        }
+      }
+
+      const messageText = msg.body || (msg.hasMedia ? `[${mediaType || 'media'}]` : '');
+      if (!messageText && !mediaUrl) return;
+
+      // Deduplicate: check if this exact message already exists (from sync or previous insert)
+      const sentAt = msg.timestamp 
+        ? new Date(msg.timestamp * 1000).toISOString() 
+        : new Date().toISOString();
+      
+      const { data: existing } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_phone', phoneNumber)
+        .eq('direction', direction)
+        .eq('sent_at', sentAt)
+        .maybeSingle();
+      
+      if (existing) return; // Already saved (e.g. from sync)
+
+      const { error } = await supabase.from('messages').insert({
         account_id: accountId,
         contact_phone: phoneNumber,
         contact_name: contactName,
-        message_text: msg.body,
-        direction: 'incoming',
-        sent_at: new Date().toISOString(),
-        is_read: false,
+        message_text: messageText,
+        direction,
+        sent_at: sentAt,
+        is_read: msg.fromMe ? true : false,
         is_warmup: false,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        media_mimetype: mediaMimetype,
       });
+      
+      if (error) {
+        console.error('❌ DB insert error:', error.message);
+      } else {
+        console.log(`${direction === 'incoming' ? '📥' : '📤'} ${direction} message saved from ${phoneNumber}`);
+      }
     } catch (e) {
-      console.error('❌ Error saving incoming message:', e.message);
+      console.error('❌ Error saving message:', e.message);
     }
   });
 
