@@ -1722,9 +1722,14 @@ app.post("/api/initialize", async (req, res) => {
     const url = supabaseUrl || process.env.SUPABASE_URL;
     const key = supabaseKey || process.env.SUPABASE_KEY;
 
-    console.log(`Initializing WhatsApp client for account: ${accountId}`);
+    console.log(`[${WORKER_ID}] Initializing WhatsApp client for account: ${accountId}`);
+    
+    // Save worker assignment immediately
+    const supa = createClient(url, key);
+    await supa.from('whatsapp_accounts').update({ worker_id: WORKER_ID }).eq('id', accountId);
+    
     const result = await initializeClient(accountId, userId || accountId, url, key);
-    res.json(result);
+    res.json({ ...result, workerId: WORKER_ID });
   } catch (error) {
     console.error("Error initializing client:", error);
     res.status(500).json({ error: error.message });
