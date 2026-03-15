@@ -358,7 +358,7 @@ async function syncAllMessages(client, accountId, supa) {
     }
 
     console.log(
-      `[Sync] Complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalWarmupSkipped} warmup chats excluded, ${totalProcessed} chats processed`,
+      `[Sync] Complete: ${totalSynced} new messages imported, ${totalSkipped} duplicates skipped, ${totalProcessed} chats processed`,
     );
   } catch (error) {
     console.error("[Sync] Error in syncAllMessages:", error);
