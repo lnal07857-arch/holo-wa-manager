@@ -529,7 +529,6 @@ const Accounts = () => {
       setQrCode(null);
       setLoadingQR(false);
       setAccountName("");
-      setPhoneNumber("");
     }
   }, [open]);
 
