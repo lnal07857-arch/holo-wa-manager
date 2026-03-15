@@ -1,5 +1,5 @@
 services:
-  # Account 1 with WireGuard (Germany)
+  # Worker 1-10 with WireGuard VPN
   whatsapp-account-1:
     build:
       context: .
@@ -22,7 +22,6 @@ services:
     networks:
       - wa-network
 
-  # Account 2 with WireGuard (Netherlands)
   whatsapp-account-2:
     build:
       context: .
@@ -45,7 +44,6 @@ services:
     networks:
       - wa-network
 
-  # Account 3 with WireGuard (Sweden)
   whatsapp-account-3:
     build:
       context: .
@@ -68,7 +66,6 @@ services:
     networks:
       - wa-network
 
-  # Account 4-20 with WireGuard
   whatsapp-account-4:
     build:
       context: .
@@ -223,227 +220,7 @@ services:
     networks:
       - wa-network
 
-  whatsapp-account-11:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-11
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-11.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-11:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3011
-      - ACCOUNT_INDEX=11
-    ports:
-      - "3011:3011"
-    networks:
-      - wa-network
-
-  whatsapp-account-12:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-12
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-12.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-12:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3012
-      - ACCOUNT_INDEX=12
-    ports:
-      - "3012:3012"
-    networks:
-      - wa-network
-
-  whatsapp-account-13:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-13
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-13.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-13:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3013
-      - ACCOUNT_INDEX=13
-    ports:
-      - "3013:3013"
-    networks:
-      - wa-network
-
-  whatsapp-account-14:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-14
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-14.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-14:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3014
-      - ACCOUNT_INDEX=14
-    ports:
-      - "3014:3014"
-    networks:
-      - wa-network
-
-  whatsapp-account-15:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-15
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-15.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-15:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3015
-      - ACCOUNT_INDEX=15
-    ports:
-      - "3015:3015"
-    networks:
-      - wa-network
-
-  whatsapp-account-16:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-16
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-16.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-16:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3016
-      - ACCOUNT_INDEX=16
-    ports:
-      - "3016:3016"
-    networks:
-      - wa-network
-
-  whatsapp-account-17:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-17
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-17.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-17:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3017
-      - ACCOUNT_INDEX=17
-    ports:
-      - "3017:3017"
-    networks:
-      - wa-network
-
-  whatsapp-account-18:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-18
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-18.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-18:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3018
-      - ACCOUNT_INDEX=18
-    ports:
-      - "3018:3018"
-    networks:
-      - wa-network
-
-  whatsapp-account-19:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-19
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-19.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-19:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3019
-      - ACCOUNT_INDEX=19
-    ports:
-      - "3019:3019"
-    networks:
-      - wa-network
-
-  whatsapp-account-20:
-    build:
-      context: .
-      dockerfile: Dockerfile.wireguard
-    container_name: wa-account-20
-    restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    volumes:
-      - ./wireguard-configs/account-20.conf:/etc/wireguard/wg0.conf:ro
-      - wa-sessions-20:/app/.wwebjs_auth
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3020
-      - ACCOUNT_INDEX=20
-    ports:
-      - "3020:3020"
-    networks:
-      - wa-network
-
-  # Nginx reverse proxy (load balancer)
+  # Nginx Load Balancer with X-Worker-ID routing
   nginx:
     image: nginx:alpine
     container_name: wa-nginx
@@ -463,16 +240,6 @@ services:
       - whatsapp-account-8
       - whatsapp-account-9
       - whatsapp-account-10
-      - whatsapp-account-11
-      - whatsapp-account-12
-      - whatsapp-account-13
-      - whatsapp-account-14
-      - whatsapp-account-15
-      - whatsapp-account-16
-      - whatsapp-account-17
-      - whatsapp-account-18
-      - whatsapp-account-19
-      - whatsapp-account-20
     networks:
       - wa-network
 
@@ -487,16 +254,6 @@ volumes:
   wa-sessions-8:
   wa-sessions-9:
   wa-sessions-10:
-  wa-sessions-11:
-  wa-sessions-12:
-  wa-sessions-13:
-  wa-sessions-14:
-  wa-sessions-15:
-  wa-sessions-16:
-  wa-sessions-17:
-  wa-sessions-18:
-  wa-sessions-19:
-  wa-sessions-20:
 
 networks:
   wa-network:
