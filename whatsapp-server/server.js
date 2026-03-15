@@ -196,7 +196,6 @@ async function syncAllMessages(client, accountId, supa) {
 
     let totalSynced = 0;
     let totalSkipped = 0;
-    let totalWarmupSkipped = 0;
     let totalProcessed = 0;
 
     for (const chat of chats) {
