@@ -1438,7 +1438,7 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
     }).catch(e => console.error('Failed to update status after init error:', e));
   });
 
-  return { success: true, message: "Client initializing" };
+  return { success: true, message: "Client initializing", workerId: WORKER_ID };
 }
 
 // ---- SafeSendPresence (single robust implementation) ----
