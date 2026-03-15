@@ -17,6 +17,7 @@ export interface WhatsAppAccount {
   proxy_server: string | null;
   proxy_country: string | null;
   display_order: number;
+  worker_id: string | null;
 }
 
 export const useWhatsAppAccounts = () => {
