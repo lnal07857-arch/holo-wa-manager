@@ -554,6 +554,11 @@ app.post('/disconnect', async (req, res) => {
   }
 });
 
+app.post('/api/disconnect', (req, res) => {
+  req.url = '/disconnect';
+  app.handle(req, res);
+});
+
 // POST /sync-messages — Manual sync trigger
 app.post('/sync-messages', async (req, res) => {
   try {
