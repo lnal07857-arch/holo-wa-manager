@@ -10,6 +10,38 @@ const RAW_SERVER_URL = (Deno.env.get('VPS_SERVER_URL') || Deno.env.get('RAILWAY_
 // Ensure protocol and remove any trailing slashes to avoid paths like //api/...
 const WITH_PROTOCOL = RAW_SERVER_URL && RAW_SERVER_URL.startsWith('http') ? RAW_SERVER_URL : (RAW_SERVER_URL ? `https://${RAW_SERVER_URL}` : '');
 const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
+
+// Helper: Build headers with worker routing
+function workerHeaders(workerId?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (workerId) {
+    headers['X-Worker-ID'] = workerId;
+    console.log(`[Worker Routing] Routing to ${workerId}`);
+  }
+  return headers;
+}
+
+// Helper: Get worker_id for an account from DB
+async function getWorkerIdForAccount(supa: any, accountId: string): Promise<string | null> {
+  const { data } = await supa
+    .from('whatsapp_accounts')
+    .select('worker_id')
+    .eq('id', accountId)
+    .maybeSingle();
+  return data?.worker_id || null;
+}
+
+// Helper: Save worker_id from server response
+async function saveWorkerId(supa: any, accountId: string, workerId: string) {
+  if (workerId) {
+    await supa
+      .from('whatsapp_accounts')
+      .update({ worker_id: workerId })
+      .eq('id', accountId);
+    console.log(`[Worker Routing] Saved worker_id=${workerId} for account ${accountId}`);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
