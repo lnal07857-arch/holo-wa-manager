@@ -264,12 +264,37 @@ async function connectWhatsApp(accountId) {
   client.on('ready', async () => {
     console.log(`✅ WhatsApp connected [${accountId}]`);
     connectionStatus = 'connected';
-    await updateAccount(accountId, {
+    
+    // Auto-detect phone number and push name
+    const phoneNumber = waClient?.info?.wid?.user || null;
+    const pushName = waClient?.info?.pushname || null;
+    
+    const updateData: any = {
       status: 'connected',
       qr_code: null,
       worker_id: WORKER_ID,
       last_connected_at: new Date().toISOString()
-    });
+    };
+    
+    if (phoneNumber) {
+      updateData.phone_number = '+' + phoneNumber;
+      console.log(`📱 Auto-detected phone: +${phoneNumber}`);
+    }
+    if (pushName) {
+      // Only update account_name if it's still the default placeholder
+      const { data: currentAccount } = await supabase
+        .from('whatsapp_accounts')
+        .select('account_name')
+        .eq('id', accountId)
+        .single();
+      
+      if (!currentAccount?.account_name || currentAccount.account_name === 'Neues Konto') {
+        updateData.account_name = pushName;
+        console.log(`👤 Auto-detected name: ${pushName}`);
+      }
+    }
+    
+    await updateAccount(accountId, updateData);
 
     // Background sync
     syncMessages(client, accountId).catch(e => {
