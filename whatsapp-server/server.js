@@ -1747,7 +1747,7 @@ app.post("/api/send-message", async (req, res) => {
 
     const client = clients.get(accountId);
     if (!client) {
-      return res.status(404).json({ error: "Client not found or not initialized" });
+      return res.status(404).json({ error: "Client not found on this worker", workerId: WORKER_ID });
     }
 
     const queue = messageQueues.get(accountId);
