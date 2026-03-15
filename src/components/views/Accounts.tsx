@@ -771,27 +771,6 @@ const SortableAccountCard = ({
     isDragging,
   } = useSortable({ id: account.id });
 
-  const { accounts: mullvadAccounts } = useMullvadAccounts();
-  const [assigningMullvad, setAssigningMullvad] = useState(false);
-
-  const handleMullvadAssignment = async (mullvadAccountId: string) => {
-    setAssigningMullvad(true);
-    try {
-      const { error } = await supabase
-        .from("whatsapp_accounts")
-        .update({ mullvad_account_id: mullvadAccountId })
-        .eq("id", account.id);
-
-      if (error) throw error;
-
-      toast.success("Mullvad Account zugewiesen");
-      refetchAccounts();
-    } catch (error: any) {
-      toast.error(`Fehler: ${error.message}`);
-    } finally {
-      setAssigningMullvad(false);
-    }
-  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
