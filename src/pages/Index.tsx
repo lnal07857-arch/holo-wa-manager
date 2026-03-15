@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LogOut, Menu, MessageSquare, Users, FileText, Send, Shield } from "lucide-react";
+import { LogOut, Menu, MessageSquare, Users, FileText, Send } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import bgImage from "@/assets/whatsapp-business-bg.png";
