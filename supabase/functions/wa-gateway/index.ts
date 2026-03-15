@@ -275,20 +275,22 @@ serve(async (req) => {
           throw new Error('Phone and message are required');
         }
 
-        // Optional: Check if VPN/Proxy is configured (nicht erzwungen)
+        // Get worker_id and account data for routing
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
-          .select('proxy_server, user_id')
+          .select('proxy_server, user_id, worker_id')
           .eq('id', accountId)
           .maybeSingle();
 
         if (!accountData) {
           throw new Error('Account not found');
         }
+
+        const workerId = accountData.worker_id;
 
         let proxyConfig = null;
         if (accountData.proxy_server) {
@@ -298,11 +300,9 @@ serve(async (req) => {
           } catch (e) {
             console.warn('⚠️ [Send Message] Invalid proxy config, proceeding without proxy');
           }
-        } else {
-          console.log('ℹ️ [Send Message] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
-        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message`);
+        console.log(`[Send Message] Calling server at: ${BASE_URL}/api/send-message (worker: ${workerId || 'any'})`);
 
         const requestBody: any = {
           accountId,
