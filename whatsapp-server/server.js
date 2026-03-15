@@ -582,6 +582,61 @@ app.post('/api/sync-messages', (req, res) => {
   app.handle(req, res);
 });
 
+// POST /send-bulk
+app.post('/send-bulk', async (req, res) => {
+  try {
+    const { accountId, contacts } = req.body;
+
+    if (!contacts || !Array.isArray(contacts)) {
+      return res.status(400).json({ error: 'contacts array is required' });
+    }
+
+    if (!waClient || connectionStatus !== 'connected') {
+      return res.status(503).json({ error: 'Not connected', workerId: WORKER_ID });
+    }
+
+    if (accountId && accountId !== currentAccountId) {
+      return res.status(404).json({ error: 'Account not on this worker', workerId: WORKER_ID });
+    }
+
+    let sent = 0, failed = 0;
+    for (const contact of contacts) {
+      try {
+        const phone = (contact.phone || contact.phoneNumber || '').replace(/[^0-9]/g, '');
+        const text = contact.message || contact.text || '';
+        if (!phone || !text) { failed++; continue; }
+
+        const formatted = `${phone}@c.us`;
+        await messageQueue.add(async () => {
+          await waClient.sendMessage(formatted, text);
+          await supabase.from('messages').insert({
+            account_id: currentAccountId,
+            contact_phone: phone,
+            message_text: text,
+            direction: 'outgoing',
+            sent_at: new Date().toISOString(),
+            is_read: true,
+            is_warmup: false,
+          });
+        });
+        sent++;
+      } catch (e) {
+        failed++;
+        console.error(`[Bulk] Failed for ${contact.phone}:`, e.message);
+      }
+    }
+
+    res.json({ success: true, workerId: WORKER_ID, sent, failed, total: contacts.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message, workerId: WORKER_ID });
+  }
+});
+
+app.post('/api/send-bulk', (req, res) => {
+  req.url = '/send-bulk';
+  app.handle(req, res);
+});
+
 // Debug endpoint
 app.get('/api/debug/supabase', async (req, res) => {
   try {
