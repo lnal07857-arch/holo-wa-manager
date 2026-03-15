@@ -15,6 +15,8 @@ puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ACCOUNT_INDEX = process.env.ACCOUNT_INDEX || '0';
+const WORKER_ID = `worker-${ACCOUNT_INDEX.padStart(2, '0')}`;
 
 app.use(cors());
 app.use(express.json());
