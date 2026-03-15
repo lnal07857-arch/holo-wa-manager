@@ -316,7 +316,7 @@ serve(async (req) => {
 
         const response = await fetch(`${BASE_URL}/api/send-message`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: workerHeaders(workerId),
           body: JSON.stringify(requestBody),
         });
 
