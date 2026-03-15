@@ -1199,47 +1199,6 @@ async function initializeClient(accountId, userId, supabaseUrl, supabaseKey) {
       // Clean phone number (remove @c.us / @g.us)
       const phoneNumber = peerJid.replace("@c.us", "").replace("@g.us", "");
 
-      // Check if this message is from a warmup contact - if so, skip saving to messages table
-      // We need to fetch warmup settings to check
-      const { data: accountData } = await supa
-        .from("whatsapp_accounts")
-        .select("user_id")
-        .eq("id", accountId)
-        .maybeSingle();
-
-      let isWarmupMessage = false;
-      if (accountData?.user_id) {
-        const { data: warmupSettings } = await supa
-          .from("warmup_settings")
-          .select("all_pairs")
-          .eq("user_id", accountData.user_id)
-          .maybeSingle();
-
-        if (warmupSettings?.all_pairs) {
-          const pairs = Array.isArray(warmupSettings.all_pairs) ? warmupSettings.all_pairs : [];
-          const cleanPhone = phoneNumber.replace(/\D/g, "");
-
-          for (const pair of pairs) {
-            const phone1 = pair.phone1 ? pair.phone1.replace(/\D/g, "") : "";
-            const phone2 = pair.phone2 ? pair.phone2.replace(/\D/g, "") : "";
-
-            if (
-              (pair.account1 === accountId && phone2 === cleanPhone) ||
-              (pair.account2 === accountId && phone1 === cleanPhone)
-            ) {
-              isWarmupMessage = true;
-              console.log("[Message] Skipping warmup message from:", phoneNumber);
-              break;
-            }
-          }
-        }
-      }
-
-      // Skip saving warmup messages to the messages table entirely
-      if (isWarmupMessage) {
-        return;
-      }
-
       // Prefer WhatsApp timestamp if available
       const sentAt = msg.timestamp ? new Date(msg.timestamp * 1000).toISOString() : new Date().toISOString();
 
