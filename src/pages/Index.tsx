@@ -5,12 +5,11 @@ import Accounts from "@/components/views/Accounts";
 import Chats from "@/components/views/Chats";
 import Templates from "@/components/views/Templates";
 import BulkSender from "@/components/views/BulkSender";
-import { VpnProxies } from "@/components/views/VpnProxies";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LogOut, Menu, MessageSquare, Users, FileText, Send, Shield } from "lucide-react";
+import { LogOut, Menu, MessageSquare, Users, FileText, Send } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import bgImage from "@/assets/whatsapp-business-bg.png";
@@ -54,8 +53,6 @@ const Index = () => {
         return <Templates />;
       case "bulk":
         return <BulkSender />;
-      case "vpn-proxies":
-        return <VpnProxies />;
       default:
         return <Accounts />;
     }
@@ -65,7 +62,6 @@ const Index = () => {
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
     { id: "bulk", label: "Bulk Sender", icon: Send },
-    { id: "vpn-proxies", label: "VPN & Fingerprint", icon: Shield },
   ];
 
   return (

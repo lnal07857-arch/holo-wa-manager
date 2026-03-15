@@ -1,4 +1,4 @@
-import { MessageSquare, Users, FileText, Send, Shield } from "lucide-react";
+import { MessageSquare, Users, FileText, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,6 @@ const Sidebar = ({ activeView, onViewChange, unreadCount = 0, collapsible = "off
     { id: "chats", label: "Chats", icon: MessageSquare },
     { id: "templates", label: "Vorlagen", icon: FileText },
     { id: "bulk", label: "Bulk Sender", icon: Send },
-    { id: "vpn-proxies", label: "VPN & Proxies", icon: Shield },
   ];
 
   return (
