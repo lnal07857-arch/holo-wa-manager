@@ -497,10 +497,12 @@ serve(async (req) => {
           throw new Error('Account nicht gefunden oder keine Berechtigung.');
         }
 
+        // Route disconnect to correct worker
+        const deleteWorkerId = await getWorkerIdForAccount(adminClient, accountId);
         try {
           await fetch(`${BASE_URL}/api/disconnect`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: workerHeaders(deleteWorkerId),
             body: JSON.stringify({ accountId }),
           });
         } catch (disconnectError) {
