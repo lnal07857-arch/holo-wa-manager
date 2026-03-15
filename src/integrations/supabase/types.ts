@@ -404,7 +404,7 @@ export type Database = {
           last_connected_at?: string | null
           last_failover_at?: string | null
           mullvad_account_id?: string | null
-          phone_number: string
+          phone_number?: string
           proxy_country?: string | null
           proxy_server?: string | null
           qr_code?: string | null
