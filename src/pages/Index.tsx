@@ -5,7 +5,7 @@ import Accounts from "@/components/views/Accounts";
 import Chats from "@/components/views/Chats";
 import Templates from "@/components/views/Templates";
 import BulkSender from "@/components/views/BulkSender";
-import { VpnProxies } from "@/components/views/VpnProxies";
+import { useAuth } from "@/hooks/useAuth";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Button } from "@/components/ui/button";
