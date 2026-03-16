@@ -497,16 +497,20 @@ serve(async (req) => {
           throw new Error('Account nicht gefunden oder keine Berechtigung.');
         }
 
-        // Route disconnect to correct worker
+        // Route disconnect to correct worker (with 5s timeout to avoid hanging)
         const deleteWorkerId = await getWorkerIdForAccount(adminClient, accountId);
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
           await fetch(`${BASE_URL}/api/disconnect`, {
             method: 'POST',
             headers: workerHeaders(deleteWorkerId),
             body: JSON.stringify({ accountId }),
+            signal: controller.signal,
           });
+          clearTimeout(timeoutId);
         } catch (disconnectError) {
-          console.warn('[Delete Account] Disconnect warning:', disconnectError);
+          console.warn('[Delete Account] Disconnect warning (timeout or unreachable):', disconnectError);
         }
 
         const [messagesDelete, campaignsDelete] = await Promise.all([
