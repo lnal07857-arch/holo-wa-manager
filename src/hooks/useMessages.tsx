@@ -263,6 +263,13 @@ export const useMessages = () => {
           // Skip warmup messages
           if (msg.is_warmup) return;
 
+          // Skip chats between own accounts (same filter as initial fetch)
+          const cleanContactPhone = (msg.contact_phone || '').replace(/\D/g, '');
+          if (ownPhoneNumbers.has(cleanContactPhone)) {
+            console.log('[Realtime] Skipping own-account message');
+            return;
+          }
+
           const newMessage: Message = {
             id: msg.id,
             account_id: msg.account_id,
@@ -294,7 +301,9 @@ export const useMessages = () => {
               const group = { ...updated[idx] };
               // Avoid duplicate
               if (group.messages.some(m => m.id === newMessage.id)) return prev;
-              group.messages = [...group.messages, newMessage];
+              group.messages = [...group.messages, newMessage].sort(
+                (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+              );
               group.last_message = msg.message_text;
               group.last_message_time = msg.sent_at;
               if (msg.direction === "incoming" && !msg.is_read) {
