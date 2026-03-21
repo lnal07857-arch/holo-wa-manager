@@ -275,11 +275,18 @@ const BulkSender = () => {
                     Neue ({newChatGroups.length})
                   </Button>
                   <Button
-                    variant={chatFilterMode === 'active' ? 'default' : 'outline'}
+                    variant={chatFilterMode === 'open' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setChatFilterMode('active'); setSelectedChatKeys(new Set()); }}
+                    onClick={() => { setChatFilterMode('open'); setSelectedChatKeys(new Set()); }}
                   >
-                    Aktuelle ({activeChatGroups.length})
+                    Offene ({openChatGroups.length})
+                  </Button>
+                  <Button
+                    variant={chatFilterMode === 'closed' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('closed'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Geschlossene ({closedChatGroups.length})
                   </Button>
                   <Button
                     variant={chatFilterMode === 'all' ? 'default' : 'outline'}
