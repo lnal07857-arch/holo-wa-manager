@@ -663,10 +663,20 @@ const BulkSender = () => {
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
-                  // Intelligente Account-Rotation: Nur verbundene Accounts, dynamisch aktualisiert
-                  let activeAccountIds = accounts
-                    .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
-                    .map(acc => acc.id);
+                  
+                  // For chat mode: use the account from each chat. For CSV: rotate selected accounts.
+                  let activeAccountIds: string[];
+                  if (sourceMode === 'chats') {
+                    // Get unique account IDs from selected chats
+                    const chatAccountIds = new Set(chatContacts.map(c => (c as any)._accountId).filter(Boolean));
+                    activeAccountIds = accounts
+                      .filter(acc => acc.status === 'connected' && chatAccountIds.has(acc.id))
+                      .map(acc => acc.id);
+                  } else {
+                    activeAccountIds = accounts
+                      .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
+                      .map(acc => acc.id);
+                  }
                   const failedAccountIds = new Set<string>();
 
                   if (activeAccountIds.length === 0) {
@@ -675,20 +685,20 @@ const BulkSender = () => {
                     return;
                   }
 
-                  // Filter bereits kontaktierte Personen wenn aktiviert
-                  let contactsToSend = contacts;
+                  // Filter bereits kontaktierte Personen wenn aktiviert (only for CSV mode)
+                  let contactsToSend = effectiveContacts;
                   let excludedCount = 0;
                   
-                  if (excludeContacted) {
-                    const phoneNumbers = contacts.map(c => sanitizePhone(String(c.phone || "")));
+                  if (excludeContacted && sourceMode === 'csv') {
+                    const phoneNumbers = effectiveContacts.map(c => sanitizePhone(String(c.phone || "")));
                     const { data: existingMessages } = await supabase
                       .from("messages")
                       .select("contact_phone")
                       .in("contact_phone", phoneNumbers);
                     
                     const contactedPhones = new Set(existingMessages?.map(m => m.contact_phone) || []);
-                    contactsToSend = contacts.filter(c => !contactedPhones.has(sanitizePhone(String(c.phone || ""))));
-                    excludedCount = contacts.length - contactsToSend.length;
+                    contactsToSend = effectiveContacts.filter(c => !contactedPhones.has(sanitizePhone(String(c.phone || ""))));
+                    excludedCount = effectiveContacts.length - contactsToSend.length;
                     
                     if (excludedCount > 0) {
                       setSendStats(prev => ({ ...prev, skipped: excludedCount }));
