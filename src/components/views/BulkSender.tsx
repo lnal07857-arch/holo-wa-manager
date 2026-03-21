@@ -193,37 +193,122 @@ const BulkSender = () => {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>1. CSV/Excel-Datei hochladen</CardTitle>
-            <CardDescription>Laden Sie eine Datei mit Ihren Kontakten hoch</CardDescription>
+            <CardTitle>1. Empfänger auswählen</CardTitle>
+            <CardDescription>CSV/Excel hochladen oder bestehende Chats auswählen</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div 
-              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-sm font-medium mb-1">
-                {uploadedFile ? uploadedFile : "Datei hier ablegen oder klicken"}
-              </p>
-              <p className="text-xs text-muted-foreground">CSV oder Excel (max. 10MB)</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileUpload}
-              />
-            </div>
-            {uploadedFile && contacts.length > 0 && (
-              <Alert>
-                <FileText className="h-4 w-4" />
-                <AlertDescription>
-                  Datei erfolgreich hochgeladen: {uploadedFile}
-                  <br />
-                  <span className="text-xs text-muted-foreground">{contacts.length} Kontakte gefunden</span>
-                </AlertDescription>
-              </Alert>
-            )}
+            <Tabs value={sourceMode} onValueChange={(v) => setSourceMode(v as 'csv' | 'chats')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="csv" className="gap-1.5">
+                  <Upload className="w-3.5 h-3.5" />
+                  CSV/Excel
+                </TabsTrigger>
+                <TabsTrigger value="chats" className="gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Bestehende Chats
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="csv" className="space-y-3 mt-3">
+                <div 
+                  className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-sm font-medium mb-1">
+                    {uploadedFile ? uploadedFile : "Datei hier ablegen oder klicken"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">CSV oder Excel (max. 10MB)</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                {uploadedFile && contacts.length > 0 && (
+                  <Alert>
+                    <FileText className="h-4 w-4" />
+                    <AlertDescription>
+                      {uploadedFile}: <strong>{contacts.length}</strong> Kontakte geladen
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </TabsContent>
+              <TabsContent value="chats" className="space-y-3 mt-3">
+                <Input
+                  placeholder="Chats suchen..."
+                  value={chatSearchQuery}
+                  onChange={(e) => setChatSearchQuery(e.target.value)}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {selectedChatKeys.size} von {chatGroups.length} Chats ausgewählt
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const allKeys = new Set(filteredChatGroups.map(g => `${g.contact_phone}_${g.account_id}`));
+                        setSelectedChatKeys(allKeys);
+                      }}
+                    >
+                      Alle
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedChatKeys(new Set())}
+                    >
+                      Keine
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-[220px] border rounded-md">
+                  <div className="p-2 space-y-1">
+                    {filteredChatGroups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Keine Chats vorhanden</p>
+                    ) : (
+                      filteredChatGroups.map(group => {
+                        const key = `${group.contact_phone}_${group.account_id}`;
+                        const accName = accounts.find(a => a.id === group.account_id)?.account_name || '';
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                            onClick={() => {
+                              setSelectedChatKeys(prev => {
+                                const next = new Set(prev);
+                                next.has(key) ? next.delete(key) : next.add(key);
+                                return next;
+                              });
+                            }}
+                          >
+                            <Checkbox checked={selectedChatKeys.has(key)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {group.contact_name || group.contact_phone}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{group.contact_phone}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] shrink-0">{accName}</Badge>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+                {selectedChatKeys.size > 0 && (
+                  <Alert>
+                    <Users className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{selectedChatKeys.size}</strong> Chat(s) als Empfänger ausgewählt
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
