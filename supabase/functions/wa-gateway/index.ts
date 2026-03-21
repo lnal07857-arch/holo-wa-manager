@@ -559,6 +559,8 @@ serve(async (req) => {
         
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        const supa = createClient(supabaseUrl || '', supabaseKey || '');
+        const workerId = await getWorkerIdForAccount(supa, accountId);
 
         // Try multiple possible endpoints for backward compatibility
         const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = [
@@ -571,10 +573,10 @@ serve(async (req) => {
         let lastErrorText = '';
         for (const c of candidates) {
           try {
-            console.log(`[Sync Messages] Trying ${c.method} ${c.url}`);
+            console.log(`[Sync Messages] Trying ${c.method} ${c.url} (worker: ${workerId || 'any'})`);
             const response = await fetch(c.url, {
               method: c.method,
-              headers: { 'Content-Type': 'application/json' },
+              headers: workerHeaders(workerId),
               body: c.method === 'POST' ? JSON.stringify(c.body) : undefined,
             });
 
