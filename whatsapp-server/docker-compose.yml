@@ -1,10 +1,9 @@
 services:
-  # Worker 1-10 with WireGuard VPN
-  whatsapp-account-1:
+  worker-01:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-1
+    container_name: whatsapp-worker-01
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -15,18 +14,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3001
+      - PORT=3000
       - ACCOUNT_INDEX=1
-    ports:
-      - "3001:3001"
     networks:
       - wa-network
 
-  whatsapp-account-2:
+  worker-02:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-2
+    container_name: whatsapp-worker-02
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -37,18 +34,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3002
+      - PORT=3000
       - ACCOUNT_INDEX=2
-    ports:
-      - "3002:3002"
     networks:
       - wa-network
 
-  whatsapp-account-3:
+  worker-03:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-3
+    container_name: whatsapp-worker-03
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -59,18 +54,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3003
+      - PORT=3000
       - ACCOUNT_INDEX=3
-    ports:
-      - "3003:3003"
     networks:
       - wa-network
 
-  whatsapp-account-4:
+  worker-04:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-4
+    container_name: whatsapp-worker-04
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -81,18 +74,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3004
+      - PORT=3000
       - ACCOUNT_INDEX=4
-    ports:
-      - "3004:3004"
     networks:
       - wa-network
 
-  whatsapp-account-5:
+  worker-05:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-5
+    container_name: whatsapp-worker-05
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -103,18 +94,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3005
+      - PORT=3000
       - ACCOUNT_INDEX=5
-    ports:
-      - "3005:3005"
     networks:
       - wa-network
 
-  whatsapp-account-6:
+  worker-06:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-6
+    container_name: whatsapp-worker-06
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -125,18 +114,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3006
+      - PORT=3000
       - ACCOUNT_INDEX=6
-    ports:
-      - "3006:3006"
     networks:
       - wa-network
 
-  whatsapp-account-7:
+  worker-07:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-7
+    container_name: whatsapp-worker-07
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -147,18 +134,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3007
+      - PORT=3000
       - ACCOUNT_INDEX=7
-    ports:
-      - "3007:3007"
     networks:
       - wa-network
 
-  whatsapp-account-8:
+  worker-08:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-8
+    container_name: whatsapp-worker-08
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -169,18 +154,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3008
+      - PORT=3000
       - ACCOUNT_INDEX=8
-    ports:
-      - "3008:3008"
     networks:
       - wa-network
 
-  whatsapp-account-9:
+  worker-09:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-9
+    container_name: whatsapp-worker-09
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -191,18 +174,16 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3009
+      - PORT=3000
       - ACCOUNT_INDEX=9
-    ports:
-      - "3009:3009"
     networks:
       - wa-network
 
-  whatsapp-account-10:
+  worker-10:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: wa-account-10
+    container_name: whatsapp-worker-10
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -213,14 +194,11 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - PORT=3010
+      - PORT=3000
       - ACCOUNT_INDEX=10
-    ports:
-      - "3010:3010"
     networks:
       - wa-network
 
-  # Nginx Load Balancer with X-Worker-ID routing
   nginx:
     image: nginx:alpine
     container_name: wa-nginx
@@ -230,16 +208,16 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - whatsapp-account-1
-      - whatsapp-account-2
-      - whatsapp-account-3
-      - whatsapp-account-4
-      - whatsapp-account-5
-      - whatsapp-account-6
-      - whatsapp-account-7
-      - whatsapp-account-8
-      - whatsapp-account-9
-      - whatsapp-account-10
+      - worker-01
+      - worker-02
+      - worker-03
+      - worker-04
+      - worker-05
+      - worker-06
+      - worker-07
+      - worker-08
+      - worker-09
+      - worker-10
     networks:
       - wa-network
 
