@@ -948,7 +948,7 @@ const BulkSender = () => {
               }}
             >
               <Send className="w-4 h-4" />
-              Versand starten ({contacts.length} Empfänger)
+              Versand starten ({effectiveContacts.length} Empfänger)
             </Button>
           ) : (
             <div className="space-y-4">
