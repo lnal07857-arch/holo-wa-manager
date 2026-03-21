@@ -959,7 +959,7 @@ const BulkSender = () => {
                 </div>
                 <Progress value={progress} />
                 <p className="text-xs text-muted-foreground text-center">
-                  {Math.round((progress / 100) * contacts.length)} von {contacts.length} Nachrichten verarbeitet
+                  {Math.round((progress / 100) * effectiveContacts.length)} von {effectiveContacts.length} Nachrichten verarbeitet
                 </p>
               </div>
               
