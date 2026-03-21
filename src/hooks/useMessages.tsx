@@ -86,6 +86,9 @@ export const useMessages = () => {
   useEffect(() => {
     if (!user) return;
 
+    // Track own phone numbers for filtering (shared between fetch and realtime)
+    let ownPhoneNumbers = new Set<string>();
+
     const fetchMessages = async (showLoadingState = true) => {
       try {
         if (showLoadingState) {
