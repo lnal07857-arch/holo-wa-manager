@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle, Smartphone } from "lucide-react";
+import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle, Smartphone, Users, MessageSquare } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,9 +12,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +38,7 @@ interface SendResult {
 const BulkSender = () => {
   const { accounts } = useWhatsAppAccounts();
   const { templates } = useTemplates();
+  const { chatGroups } = useMessagesContext();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [sending, setSending] = useState(false);
@@ -48,6 +51,14 @@ const BulkSender = () => {
   const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Source mode: 'csv' or 'chats'
+  const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
+  const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  // Freetext message (alternative to template)
+  const [useFreetextMessage, setUseFreetextMessage] = useState(false);
+  const [freetextMessage, setFreetextMessage] = useState("");
+  
   // Statistiken für Versand
   const [sendStats, setSendStats] = useState({
     successful: 0,
@@ -56,6 +67,26 @@ const BulkSender = () => {
   });
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
+
+  // Build contacts from selected chats
+  const chatContacts: Contact[] = Array.from(selectedChatKeys).map(key => {
+    const group = chatGroups.find(g => `${g.contact_phone}_${g.account_id}` === key);
+    return {
+      name: group?.contact_name || '',
+      phone: group?.contact_phone || '',
+      _accountId: group?.account_id || '',
+    };
+  }).filter(c => c.phone);
+
+  // Effective contacts based on source mode
+  const effectiveContacts = sourceMode === 'chats' ? chatContacts : contacts;
+
+  // Filter chats by search
+  const filteredChatGroups = chatGroups.filter(g => {
+    const q = chatSearchQuery.toLowerCase();
+    if (!q) return true;
+    return (g.contact_name || '').toLowerCase().includes(q) || g.contact_phone.includes(q);
+  });
 
   // Keine automatische Auswahl - User muss manuell Accounts wählen
 
@@ -162,37 +193,122 @@ const BulkSender = () => {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>1. CSV/Excel-Datei hochladen</CardTitle>
-            <CardDescription>Laden Sie eine Datei mit Ihren Kontakten hoch</CardDescription>
+            <CardTitle>1. Empfänger auswählen</CardTitle>
+            <CardDescription>CSV/Excel hochladen oder bestehende Chats auswählen</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div 
-              className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-sm font-medium mb-1">
-                {uploadedFile ? uploadedFile : "Datei hier ablegen oder klicken"}
-              </p>
-              <p className="text-xs text-muted-foreground">CSV oder Excel (max. 10MB)</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileUpload}
-              />
-            </div>
-            {uploadedFile && contacts.length > 0 && (
-              <Alert>
-                <FileText className="h-4 w-4" />
-                <AlertDescription>
-                  Datei erfolgreich hochgeladen: {uploadedFile}
-                  <br />
-                  <span className="text-xs text-muted-foreground">{contacts.length} Kontakte gefunden</span>
-                </AlertDescription>
-              </Alert>
-            )}
+            <Tabs value={sourceMode} onValueChange={(v) => setSourceMode(v as 'csv' | 'chats')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="csv" className="gap-1.5">
+                  <Upload className="w-3.5 h-3.5" />
+                  CSV/Excel
+                </TabsTrigger>
+                <TabsTrigger value="chats" className="gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Bestehende Chats
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="csv" className="space-y-3 mt-3">
+                <div 
+                  className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-sm font-medium mb-1">
+                    {uploadedFile ? uploadedFile : "Datei hier ablegen oder klicken"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">CSV oder Excel (max. 10MB)</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                {uploadedFile && contacts.length > 0 && (
+                  <Alert>
+                    <FileText className="h-4 w-4" />
+                    <AlertDescription>
+                      {uploadedFile}: <strong>{contacts.length}</strong> Kontakte geladen
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </TabsContent>
+              <TabsContent value="chats" className="space-y-3 mt-3">
+                <Input
+                  placeholder="Chats suchen..."
+                  value={chatSearchQuery}
+                  onChange={(e) => setChatSearchQuery(e.target.value)}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {selectedChatKeys.size} von {chatGroups.length} Chats ausgewählt
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const allKeys = new Set(filteredChatGroups.map(g => `${g.contact_phone}_${g.account_id}`));
+                        setSelectedChatKeys(allKeys);
+                      }}
+                    >
+                      Alle
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedChatKeys(new Set())}
+                    >
+                      Keine
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="h-[220px] border rounded-md">
+                  <div className="p-2 space-y-1">
+                    {filteredChatGroups.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Keine Chats vorhanden</p>
+                    ) : (
+                      filteredChatGroups.map(group => {
+                        const key = `${group.contact_phone}_${group.account_id}`;
+                        const accName = accounts.find(a => a.id === group.account_id)?.account_name || '';
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                            onClick={() => {
+                              setSelectedChatKeys(prev => {
+                                const next = new Set(prev);
+                                next.has(key) ? next.delete(key) : next.add(key);
+                                return next;
+                              });
+                            }}
+                          >
+                            <Checkbox checked={selectedChatKeys.has(key)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {group.contact_name || group.contact_phone}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{group.contact_phone}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] shrink-0">{accName}</Badge>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+                {selectedChatKeys.size > 0 && (
+                  <Alert>
+                    <Users className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{selectedChatKeys.size}</strong> Chat(s) als Empfänger ausgewählt
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
@@ -253,74 +369,101 @@ const BulkSender = () => {
                 </div>
               )}
             </div>
+
+            {/* Message source: Template or Freetext */}
             <div className="space-y-2">
-              <Label>Nachrichtenvorlagen</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    {selectedTemplates.length > 0
-                      ? `${selectedTemplates.length} Vorlage(n) ausgewählt`
-                      : "Vorlagen auswählen..."}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <div className="max-h-64 overflow-auto p-2">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
-                        onClick={() => toggleTemplate(template.id)}
-                      >
-                        <Checkbox checked={selectedTemplates.includes(template.id)} />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{template.template_name}</p>
-                          <p className="text-xs text-muted-foreground">{template.category}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {selectedTemplates.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedTemplates.map((id) => {
-                    const template = templates.find((t) => t.id === id);
-                    return (
-                      <Badge key={id} variant="secondary" className="gap-1">
-                        {template?.template_name}
-                        <X
-                          className="w-3 h-3 cursor-pointer"
-                          onClick={() => toggleTemplate(id)}
-                        />
-                      </Badge>
-                    );
-                  })}
+              <div className="flex items-center justify-between">
+                <Label>Nachricht</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Freitext</span>
+                  <Switch checked={useFreetextMessage} onCheckedChange={(v) => setUseFreetextMessage(v)} />
                 </div>
+              </div>
+              
+              {useFreetextMessage ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={freetextMessage}
+                    onChange={(e) => setFreetextMessage(e.target.value)}
+                    placeholder="Ihre Nachricht hier eingeben... (Platzhalter wie {{name}} werden ersetzt)"
+                    className="min-h-[100px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Verfügbare Platzhalter: {"{{name}}"}, {"{{phone}}"} und weitere Spalten aus der CSV
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        {selectedTemplates.length > 0
+                          ? `${selectedTemplates.length} Vorlage(n) ausgewählt`
+                          : "Vorlagen auswählen..."}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <div className="max-h-64 overflow-auto p-2">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                            onClick={() => toggleTemplate(template.id)}
+                          >
+                            <Checkbox checked={selectedTemplates.includes(template.id)} />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{template.template_name}</p>
+                              <p className="text-xs text-muted-foreground">{template.category}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedTemplates.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTemplates.map((id) => {
+                        const template = templates.find((t) => t.id === id);
+                        return (
+                          <Badge key={id} variant="secondary" className="gap-1">
+                            {template?.template_name}
+                            <X
+                              className="w-3 h-3 cursor-pointer"
+                              onClick={() => toggleTemplate(id)}
+                            />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="preview">Rotation-Info</Label>
+              <Label>Info</Label>
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  {selectedAccounts.length > 0 && selectedTemplates.length > 0 ? (
-                    <>
-                      Die Nachrichten werden rotierend über{" "}
-                      <strong>{accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length}</strong>{" "}
-                      verbundene Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
-                      {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length > 0 && (
-                        <>
-                          <br />
-                          <span className="text-destructive font-medium mt-1 block">
-                            Warnung: {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length}{" "}
-                            getrennte Account(s) werden übersprungen.
-                          </span>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    "Wählen Sie mindestens einen Account und eine Vorlage aus."
-                  )}
+                  {(() => {
+                    const hasMessage = useFreetextMessage ? freetextMessage.trim().length > 0 : selectedTemplates.length > 0;
+                    const hasRecipients = effectiveContacts.length > 0;
+                    const connectedCount = sourceMode === 'chats' 
+                      ? accounts.filter(a => a.status === 'connected').length
+                      : accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length;
+                    
+                    if (!hasRecipients) return "Wählen Sie Empfänger aus (CSV oder bestehende Chats).";
+                    if (!hasMessage) return useFreetextMessage ? "Geben Sie eine Nachricht ein." : "Wählen Sie mindestens eine Vorlage aus.";
+                    if (sourceMode === 'csv' && selectedAccounts.length === 0) return "Wählen Sie mindestens einen Account aus.";
+                    
+                    return (
+                      <>
+                        <strong>{effectiveContacts.length}</strong> Empfänger über{" "}
+                        <strong>{connectedCount}</strong> verbundene Account(s).
+                        {sourceMode === 'chats' && " Nachrichten werden über den jeweiligen Chat-Account gesendet."}
+                      </>
+                    );
+                  })()}
                 </AlertDescription>
               </Alert>
             </div>
@@ -503,7 +646,12 @@ const BulkSender = () => {
             <Button
               size="lg"
               className="w-full gap-2"
-              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0 || sending}
+              disabled={
+                sending || 
+                effectiveContacts.length === 0 || 
+                (useFreetextMessage ? !freetextMessage.trim() : selectedTemplates.length === 0) ||
+                (sourceMode === 'csv' && selectedAccounts.length === 0)
+              }
               onClick={async () => {
                 try {
                   console.log("[BulkSender] Starting send process...");
@@ -515,10 +663,20 @@ const BulkSender = () => {
                   toast.info("Versand wird gestartet...");
 
                   const selectedTemplateObjects = templates.filter((t) => selectedTemplates.includes(t.id));
-                  // Intelligente Account-Rotation: Nur verbundene Accounts, dynamisch aktualisiert
-                  let activeAccountIds = accounts
-                    .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
-                    .map(acc => acc.id);
+                  
+                  // For chat mode: use the account from each chat. For CSV: rotate selected accounts.
+                  let activeAccountIds: string[];
+                  if (sourceMode === 'chats') {
+                    // Get unique account IDs from selected chats
+                    const chatAccountIds = new Set(chatContacts.map(c => (c as any)._accountId).filter(Boolean));
+                    activeAccountIds = accounts
+                      .filter(acc => acc.status === 'connected' && chatAccountIds.has(acc.id))
+                      .map(acc => acc.id);
+                  } else {
+                    activeAccountIds = accounts
+                      .filter(acc => acc.status === 'connected' && selectedAccounts.includes(acc.id))
+                      .map(acc => acc.id);
+                  }
                   const failedAccountIds = new Set<string>();
 
                   if (activeAccountIds.length === 0) {
@@ -527,20 +685,20 @@ const BulkSender = () => {
                     return;
                   }
 
-                  // Filter bereits kontaktierte Personen wenn aktiviert
-                  let contactsToSend = contacts;
+                  // Filter bereits kontaktierte Personen wenn aktiviert (only for CSV mode)
+                  let contactsToSend = effectiveContacts;
                   let excludedCount = 0;
                   
-                  if (excludeContacted) {
-                    const phoneNumbers = contacts.map(c => sanitizePhone(String(c.phone || "")));
+                  if (excludeContacted && sourceMode === 'csv') {
+                    const phoneNumbers = effectiveContacts.map(c => sanitizePhone(String(c.phone || "")));
                     const { data: existingMessages } = await supabase
                       .from("messages")
                       .select("contact_phone")
                       .in("contact_phone", phoneNumbers);
                     
                     const contactedPhones = new Set(existingMessages?.map(m => m.contact_phone) || []);
-                    contactsToSend = contacts.filter(c => !contactedPhones.has(sanitizePhone(String(c.phone || ""))));
-                    excludedCount = contacts.length - contactsToSend.length;
+                    contactsToSend = effectiveContacts.filter(c => !contactedPhones.has(sanitizePhone(String(c.phone || ""))));
+                    excludedCount = effectiveContacts.length - contactsToSend.length;
                     
                     if (excludedCount > 0) {
                       setSendStats(prev => ({ ...prev, skipped: excludedCount }));
@@ -572,16 +730,22 @@ const BulkSender = () => {
                       break;
                     }
 
-                    const accountId = activeAccountIds[rotationIndex % activeAccountIds.length];
+                    // For chat mode: use the original chat's account. For CSV: rotate.
+                    const accountId = sourceMode === 'chats' && (contact as any)._accountId
+                      ? (contact as any)._accountId
+                      : activeAccountIds[rotationIndex % activeAccountIds.length];
                     rotationIndex++;
                     const accountName = accounts.find(acc => acc.id === accountId)?.account_name || 'Unbekannt';
 
-                    const template = (textRotation && selectedTemplateObjects.length > 0)
-                      ? selectedTemplateObjects[i % selectedTemplateObjects.length]
-                      : selectedTemplateObjects[0];
-
-                    const templateText = template?.template_text || "";
-                    const message_text = replacePlaceholders(templateText, contact);
+                    let message_text: string;
+                    if (useFreetextMessage) {
+                      message_text = replacePlaceholders(freetextMessage, contact);
+                    } else {
+                      const template = (textRotation && selectedTemplateObjects.length > 0)
+                        ? selectedTemplateObjects[i % selectedTemplateObjects.length]
+                        : selectedTemplateObjects[0];
+                      message_text = replacePlaceholders(template?.template_text || "", contact);
+                    }
                     const contact_name = contact.name || null;
 
                     if (!contact_phone) {
@@ -784,7 +948,7 @@ const BulkSender = () => {
               }}
             >
               <Send className="w-4 h-4" />
-              Versand starten ({contacts.length} Empfänger)
+              Versand starten ({effectiveContacts.length} Empfänger)
             </Button>
           ) : (
             <div className="space-y-4">
@@ -795,7 +959,7 @@ const BulkSender = () => {
                 </div>
                 <Progress value={progress} />
                 <p className="text-xs text-muted-foreground text-center">
-                  {Math.round((progress / 100) * contacts.length)} von {contacts.length} Nachrichten verarbeitet
+                  {Math.round((progress / 100) * effectiveContacts.length)} von {effectiveContacts.length} Nachrichten verarbeitet
                 </p>
               </div>
               
