@@ -55,7 +55,7 @@ const BulkSender = () => {
   const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
   const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'unanswered'>('unanswered');
+  const [chatFilterMode, setChatFilterMode] = useState<'new' | 'active' | 'all'>('new');
   // Freetext message (alternative to template)
   const [useFreetextMessage, setUseFreetextMessage] = useState(false);
   const [freetextMessage, setFreetextMessage] = useState("");
@@ -69,11 +69,18 @@ const BulkSender = () => {
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
 
-  // Determine unanswered chats (incoming messages exist, but NO outgoing message ever)
-  const unansweredChatGroups = chatGroups.filter(g => {
+  // "Neue" — nie beantwortet (incoming exists, no outgoing)
+  const newChatGroups = chatGroups.filter(g => {
     const hasIncoming = g.messages.some(m => m.direction === 'incoming');
     const hasOutgoing = g.messages.some(m => m.direction === 'outgoing');
     return hasIncoming && !hasOutgoing;
+  });
+
+  // "Aktuelle" — letzte Nachricht ist incoming (Kunde wartet auf Antwort)
+  const activeChatGroups = chatGroups.filter(g => {
+    if (g.messages.length === 0) return false;
+    const sorted = [...g.messages].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+    return sorted[0].direction === 'incoming';
   });
 
   // Build contacts from selected chats
@@ -90,7 +97,9 @@ const BulkSender = () => {
   const effectiveContacts = sourceMode === 'chats' ? chatContacts : contacts;
 
   // Filter chats by search and filter mode
-  const visibleChatGroups = (chatFilterMode === 'unanswered' ? unansweredChatGroups : chatGroups);
+  const visibleChatGroups = chatFilterMode === 'new' ? newChatGroups 
+    : chatFilterMode === 'active' ? activeChatGroups 
+    : chatGroups;
   const filteredChatGroups = visibleChatGroups.filter(g => {
     const q = chatSearchQuery.toLowerCase();
     if (!q) return true;
@@ -245,20 +254,27 @@ const BulkSender = () => {
                 )}
               </TabsContent>
               <TabsContent value="chats" className="space-y-3 mt-3">
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 flex-wrap">
                   <Button
-                    variant={chatFilterMode === 'unanswered' ? 'default' : 'outline'}
+                    variant={chatFilterMode === 'new' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setChatFilterMode('unanswered'); setSelectedChatKeys(new Set()); }}
+                    onClick={() => { setChatFilterMode('new'); setSelectedChatKeys(new Set()); }}
                   >
-                    Unbeantwortete ({unansweredChatGroups.length})
+                    Neue ({newChatGroups.length})
+                  </Button>
+                  <Button
+                    variant={chatFilterMode === 'active' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('active'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Aktuelle ({activeChatGroups.length})
                   </Button>
                   <Button
                     variant={chatFilterMode === 'all' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => { setChatFilterMode('all'); setSelectedChatKeys(new Set()); }}
                   >
-                    Alle Chats ({chatGroups.length})
+                    Alle ({chatGroups.length})
                   </Button>
                 </div>
                 <Input
