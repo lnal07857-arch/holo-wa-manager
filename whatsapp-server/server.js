@@ -37,7 +37,7 @@ console.log(`✅ Worker ${WORKER_ID} | Port ${PORT} | Supabase: ${supabaseUrl}`)
 // ═══════════════════════════════════════════════════════════════
 let waClient = null;
 let currentAccountId = null;
-let connectionStatus = 'disconnected'; // disconnected | initializing | qr_generated | connected
+let connectionStatus = 'disconnected'; // disconnected | initializing | pending | connected
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -114,7 +114,7 @@ async function resetWorkerAccounts() {
       .from('whatsapp_accounts')
       .update({ status: 'disconnected', qr_code: null, updated_at: new Date().toISOString() })
       .eq('worker_id', WORKER_ID)
-      .in('status', ['connected', 'initializing', 'qr_generated']);
+      .in('status', ['connected', 'initializing', 'pending']);
 
     if (error) {
       console.error('❌ Startup reset failed:', error.message);
@@ -252,10 +252,10 @@ async function connectWhatsApp(accountId) {
   client.on('qr', async (qr) => {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
-    connectionStatus = 'qr_generated';
+    connectionStatus = 'pending';
     await updateAccount(accountId, {
       qr_code: qr,
-      status: 'qr_generated',
+      status: 'pending',
       worker_id: WORKER_ID
     });
   });
