@@ -18,6 +18,8 @@ export interface WhatsAppAccount {
   proxy_country: string | null;
   display_order: number;
   worker_id: string | null;
+  auto_welcome_enabled: boolean;
+  auto_welcome_message: string | null;
 }
 
 export const useWhatsAppAccounts = () => {

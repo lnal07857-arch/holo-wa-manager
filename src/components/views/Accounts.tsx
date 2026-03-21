@@ -3,8 +3,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -800,7 +802,6 @@ const SortableAccountCard = ({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
@@ -838,9 +839,104 @@ const SortableAccountCard = ({
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
+
+            <AutoWelcomeSection account={account} refetchAccounts={refetchAccounts} />
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+};
+
+const AutoWelcomeSection = ({ account, refetchAccounts }: { account: any; refetchAccounts: () => void }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [enabled, setEnabled] = useState(account.auto_welcome_enabled || false);
+  const [message, setMessage] = useState(account.auto_welcome_message || '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setEnabled(account.auto_welcome_enabled || false);
+    setMessage(account.auto_welcome_message || '');
+  }, [account.auto_welcome_enabled, account.auto_welcome_message]);
+
+  const handleToggle = async (checked: boolean) => {
+    setEnabled(checked);
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .update({ auto_welcome_enabled: checked })
+        .eq('id', account.id);
+      if (error) throw error;
+      refetchAccounts();
+    } catch (err: any) {
+      toast.error('Fehler beim Speichern');
+      setEnabled(!checked);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMessage = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .update({ auto_welcome_message: message })
+        .eq('id', account.id);
+      if (error) throw error;
+      toast.success('Willkommenstext gespeichert');
+      refetchAccounts();
+    } catch (err: any) {
+      toast.error('Fehler beim Speichern');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-md mt-1">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <MessageSquare className="w-3.5 h-3.5" />
+          Auto-Willkommen
+          {enabled && <span className="w-2 h-2 rounded-full bg-green-500" />}
+        </span>
+        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Automatische Begrüßung</Label>
+            <Switch checked={enabled} onCheckedChange={handleToggle} disabled={saving} />
+          </div>
+          {enabled && (
+            <>
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Hallo! Vielen Dank für Ihre Nachricht. Wie kann ich Ihnen helfen?"
+                className="text-sm min-h-[80px]"
+              />
+              <Button
+                size="sm"
+                onClick={handleSaveMessage}
+                disabled={saving || message === (account.auto_welcome_message || '')}
+                className="w-full"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Willkommenstext speichern
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Wird nur beim allerersten Kontakt gesendet — nicht bei wiederkehrenden Nutzern.
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -377,6 +377,8 @@ export type Database = {
         Row: {
           account_name: string
           active_config_id: string | null
+          auto_welcome_enabled: boolean
+          auto_welcome_message: string | null
           created_at: string
           display_order: number | null
           failover_count: number | null
@@ -397,6 +399,8 @@ export type Database = {
         Insert: {
           account_name: string
           active_config_id?: string | null
+          auto_welcome_enabled?: boolean
+          auto_welcome_message?: string | null
           created_at?: string
           display_order?: number | null
           failover_count?: number | null
@@ -417,6 +421,8 @@ export type Database = {
         Update: {
           account_name?: string
           active_config_id?: string | null
+          auto_welcome_enabled?: boolean
+          auto_welcome_message?: string | null
           created_at?: string
           display_order?: number | null
           failover_count?: number | null
