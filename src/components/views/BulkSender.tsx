@@ -245,6 +245,22 @@ const BulkSender = () => {
                 )}
               </TabsContent>
               <TabsContent value="chats" className="space-y-3 mt-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant={chatFilterMode === 'unanswered' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('unanswered'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Unbeantwortete ({unansweredChatGroups.length})
+                  </Button>
+                  <Button
+                    variant={chatFilterMode === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('all'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Alle Chats ({chatGroups.length})
+                  </Button>
+                </div>
                 <Input
                   placeholder="Chats suchen..."
                   value={chatSearchQuery}
@@ -252,7 +268,7 @@ const BulkSender = () => {
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {selectedChatKeys.size} von {chatGroups.length} Chats ausgewählt
+                    {selectedChatKeys.size} von {filteredChatGroups.length} Chats ausgewählt
                   </span>
                   <div className="flex gap-2">
                     <Button
