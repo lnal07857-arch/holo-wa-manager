@@ -369,74 +369,101 @@ const BulkSender = () => {
                 </div>
               )}
             </div>
+
+            {/* Message source: Template or Freetext */}
             <div className="space-y-2">
-              <Label>Nachrichtenvorlagen</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    {selectedTemplates.length > 0
-                      ? `${selectedTemplates.length} Vorlage(n) ausgewählt`
-                      : "Vorlagen auswählen..."}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <div className="max-h-64 overflow-auto p-2">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
-                        onClick={() => toggleTemplate(template.id)}
-                      >
-                        <Checkbox checked={selectedTemplates.includes(template.id)} />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{template.template_name}</p>
-                          <p className="text-xs text-muted-foreground">{template.category}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {selectedTemplates.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedTemplates.map((id) => {
-                    const template = templates.find((t) => t.id === id);
-                    return (
-                      <Badge key={id} variant="secondary" className="gap-1">
-                        {template?.template_name}
-                        <X
-                          className="w-3 h-3 cursor-pointer"
-                          onClick={() => toggleTemplate(id)}
-                        />
-                      </Badge>
-                    );
-                  })}
+              <div className="flex items-center justify-between">
+                <Label>Nachricht</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Freitext</span>
+                  <Switch checked={useFreetextMessage} onCheckedChange={(v) => setUseFreetextMessage(v)} />
                 </div>
+              </div>
+              
+              {useFreetextMessage ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={freetextMessage}
+                    onChange={(e) => setFreetextMessage(e.target.value)}
+                    placeholder="Ihre Nachricht hier eingeben... (Platzhalter wie {{name}} werden ersetzt)"
+                    className="min-h-[100px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Verfügbare Platzhalter: {"{{name}}"}, {"{{phone}}"} und weitere Spalten aus der CSV
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        {selectedTemplates.length > 0
+                          ? `${selectedTemplates.length} Vorlage(n) ausgewählt`
+                          : "Vorlagen auswählen..."}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <div className="max-h-64 overflow-auto p-2">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                            onClick={() => toggleTemplate(template.id)}
+                          >
+                            <Checkbox checked={selectedTemplates.includes(template.id)} />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{template.template_name}</p>
+                              <p className="text-xs text-muted-foreground">{template.category}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedTemplates.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTemplates.map((id) => {
+                        const template = templates.find((t) => t.id === id);
+                        return (
+                          <Badge key={id} variant="secondary" className="gap-1">
+                            {template?.template_name}
+                            <X
+                              className="w-3 h-3 cursor-pointer"
+                              onClick={() => toggleTemplate(id)}
+                            />
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="preview">Rotation-Info</Label>
+              <Label>Info</Label>
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  {selectedAccounts.length > 0 && selectedTemplates.length > 0 ? (
-                    <>
-                      Die Nachrichten werden rotierend über{" "}
-                      <strong>{accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length}</strong>{" "}
-                      verbundene Account(s) und <strong>{selectedTemplates.length}</strong> Vorlage(n) versendet.
-                      {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length > 0 && (
-                        <>
-                          <br />
-                          <span className="text-destructive font-medium mt-1 block">
-                            Warnung: {accounts.filter(a => a.status !== 'connected' && selectedAccounts.includes(a.id)).length}{" "}
-                            getrennte Account(s) werden übersprungen.
-                          </span>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    "Wählen Sie mindestens einen Account und eine Vorlage aus."
-                  )}
+                  {(() => {
+                    const hasMessage = useFreetextMessage ? freetextMessage.trim().length > 0 : selectedTemplates.length > 0;
+                    const hasRecipients = effectiveContacts.length > 0;
+                    const connectedCount = sourceMode === 'chats' 
+                      ? accounts.filter(a => a.status === 'connected').length
+                      : accounts.filter(a => a.status === 'connected' && selectedAccounts.includes(a.id)).length;
+                    
+                    if (!hasRecipients) return "Wählen Sie Empfänger aus (CSV oder bestehende Chats).";
+                    if (!hasMessage) return useFreetextMessage ? "Geben Sie eine Nachricht ein." : "Wählen Sie mindestens eine Vorlage aus.";
+                    if (sourceMode === 'csv' && selectedAccounts.length === 0) return "Wählen Sie mindestens einen Account aus.";
+                    
+                    return (
+                      <>
+                        <strong>{effectiveContacts.length}</strong> Empfänger über{" "}
+                        <strong>{connectedCount}</strong> verbundene Account(s).
+                        {sourceMode === 'chats' && " Nachrichten werden über den jeweiligen Chat-Account gesendet."}
+                      </>
+                    );
+                  })()}
                 </AlertDescription>
               </Alert>
             </div>
