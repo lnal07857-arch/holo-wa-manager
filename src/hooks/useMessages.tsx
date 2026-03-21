@@ -100,7 +100,7 @@ export const useMessages = () => {
           .from("whatsapp_accounts")
           .select("phone_number");
         
-        const ownPhoneNumbers = new Set(
+        ownPhoneNumbers = new Set(
           (userAccounts || []).map(acc => acc.phone_number.replace(/\D/g, ''))
         );
         
