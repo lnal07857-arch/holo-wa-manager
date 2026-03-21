@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle, Smartphone } from "lucide-react";
+import { Upload, Send, FileText, AlertCircle, X, CheckCircle2, XCircle, MinusCircle, Smartphone, Users, MessageSquare } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,9 +12,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useMessagesContext } from "@/contexts/MessagesContext";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +38,7 @@ interface SendResult {
 const BulkSender = () => {
   const { accounts } = useWhatsAppAccounts();
   const { templates } = useTemplates();
+  const { chatGroups } = useMessagesContext();
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [sending, setSending] = useState(false);
@@ -48,6 +51,14 @@ const BulkSender = () => {
   const [excludeContacted, setExcludeContacted] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Source mode: 'csv' or 'chats'
+  const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
+  const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  // Freetext message (alternative to template)
+  const [useFreetextMessage, setUseFreetextMessage] = useState(false);
+  const [freetextMessage, setFreetextMessage] = useState("");
+  
   // Statistiken für Versand
   const [sendStats, setSendStats] = useState({
     successful: 0,
@@ -56,6 +67,26 @@ const BulkSender = () => {
   });
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
+
+  // Build contacts from selected chats
+  const chatContacts: Contact[] = Array.from(selectedChatKeys).map(key => {
+    const group = chatGroups.find(g => `${g.contact_phone}_${g.account_id}` === key);
+    return {
+      name: group?.contact_name || '',
+      phone: group?.contact_phone || '',
+      _accountId: group?.account_id || '',
+    };
+  }).filter(c => c.phone);
+
+  // Effective contacts based on source mode
+  const effectiveContacts = sourceMode === 'chats' ? chatContacts : contacts;
+
+  // Filter chats by search
+  const filteredChatGroups = chatGroups.filter(g => {
+    const q = chatSearchQuery.toLowerCase();
+    if (!q) return true;
+    return (g.contact_name || '').toLowerCase().includes(q) || g.contact_phone.includes(q);
+  });
 
   // Keine automatische Auswahl - User muss manuell Accounts wählen
 
