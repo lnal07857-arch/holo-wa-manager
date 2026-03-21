@@ -55,6 +55,7 @@ const BulkSender = () => {
   const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
   const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
   const [chatSearchQuery, setChatSearchQuery] = useState("");
+  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'unanswered'>('unanswered');
   // Freetext message (alternative to template)
   const [useFreetextMessage, setUseFreetextMessage] = useState(false);
   const [freetextMessage, setFreetextMessage] = useState("");
@@ -67,6 +68,13 @@ const BulkSender = () => {
   });
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
+
+  // Determine unanswered chats (incoming messages exist, but NO outgoing message ever)
+  const unansweredChatGroups = chatGroups.filter(g => {
+    const hasIncoming = g.messages.some(m => m.direction === 'incoming');
+    const hasOutgoing = g.messages.some(m => m.direction === 'outgoing');
+    return hasIncoming && !hasOutgoing;
+  });
 
   // Build contacts from selected chats
   const chatContacts: Contact[] = Array.from(selectedChatKeys).map(key => {
@@ -81,8 +89,9 @@ const BulkSender = () => {
   // Effective contacts based on source mode
   const effectiveContacts = sourceMode === 'chats' ? chatContacts : contacts;
 
-  // Filter chats by search
-  const filteredChatGroups = chatGroups.filter(g => {
+  // Filter chats by search and filter mode
+  const visibleChatGroups = (chatFilterMode === 'unanswered' ? unansweredChatGroups : chatGroups);
+  const filteredChatGroups = visibleChatGroups.filter(g => {
     const q = chatSearchQuery.toLowerCase();
     if (!q) return true;
     return (g.contact_name || '').toLowerCase().includes(q) || g.contact_phone.includes(q);
@@ -236,6 +245,22 @@ const BulkSender = () => {
                 )}
               </TabsContent>
               <TabsContent value="chats" className="space-y-3 mt-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant={chatFilterMode === 'unanswered' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('unanswered'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Unbeantwortete ({unansweredChatGroups.length})
+                  </Button>
+                  <Button
+                    variant={chatFilterMode === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('all'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Alle Chats ({chatGroups.length})
+                  </Button>
+                </div>
                 <Input
                   placeholder="Chats suchen..."
                   value={chatSearchQuery}
@@ -243,7 +268,7 @@ const BulkSender = () => {
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {selectedChatKeys.size} von {chatGroups.length} Chats ausgewählt
+                    {selectedChatKeys.size} von {filteredChatGroups.length} Chats ausgewählt
                   </span>
                   <div className="flex gap-2">
                     <Button
