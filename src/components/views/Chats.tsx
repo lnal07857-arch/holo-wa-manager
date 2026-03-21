@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText, Trash2 } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText, Trash2, HandMetal } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -802,6 +803,28 @@ const Chats = () => {
                     >
                       <Paperclip className="w-4 h-4" />
                     </Button>
+                    {(() => {
+                      const acc = accounts.find(a => a.id === selectedChat.account_id);
+                      return acc?.auto_welcome_message ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setMessageInput(acc.auto_welcome_message!)}
+                                disabled={getAccountStatus(selectedChat.account_id) === "disconnected"}
+                              >
+                                <HandMetal className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="max-w-[200px] text-xs">Willkommenstext einfügen</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null;
+                    })()}
                     <Input
                       placeholder={
                         getAccountStatus(selectedChat.account_id) === "disconnected"

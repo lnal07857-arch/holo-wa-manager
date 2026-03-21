@@ -850,32 +850,12 @@ const SortableAccountCard = ({
 
 const AutoWelcomeSection = ({ account, refetchAccounts }: { account: any; refetchAccounts: () => void }) => {
   const [expanded, setExpanded] = useState(false);
-  const [enabled, setEnabled] = useState(account.auto_welcome_enabled || false);
   const [message, setMessage] = useState(account.auto_welcome_message || '');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setEnabled(account.auto_welcome_enabled || false);
     setMessage(account.auto_welcome_message || '');
-  }, [account.auto_welcome_enabled, account.auto_welcome_message]);
-
-  const handleToggle = async (checked: boolean) => {
-    setEnabled(checked);
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('whatsapp_accounts')
-        .update({ auto_welcome_enabled: checked })
-        .eq('id', account.id);
-      if (error) throw error;
-      refetchAccounts();
-    } catch (err: any) {
-      toast.error('Fehler beim Speichern');
-      setEnabled(!checked);
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [account.auto_welcome_message]);
 
   const handleSaveMessage = async () => {
     setSaving(true);
@@ -902,39 +882,31 @@ const AutoWelcomeSection = ({ account, refetchAccounts }: { account: any; refetc
       >
         <span className="flex items-center gap-2">
           <MessageSquare className="w-3.5 h-3.5" />
-          Auto-Willkommen
-          {enabled && <span className="w-2 h-2 rounded-full bg-green-500" />}
+          Willkommenstext
+          {account.auto_welcome_message && <span className="w-2 h-2 rounded-full bg-green-500" />}
         </span>
         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
       {expanded && (
         <div className="px-3 pb-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm">Automatische Begrüßung</Label>
-            <Switch checked={enabled} onCheckedChange={handleToggle} disabled={saving} />
-          </div>
-          {enabled && (
-            <>
-              <Textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Hallo! Vielen Dank für Ihre Nachricht. Wie kann ich Ihnen helfen?"
-                className="text-sm min-h-[80px]"
-              />
-              <Button
-                size="sm"
-                onClick={handleSaveMessage}
-                disabled={saving || message === (account.auto_welcome_message || '')}
-                className="w-full"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Willkommenstext speichern
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Wird nur beim allerersten Kontakt gesendet — nicht bei wiederkehrenden Nutzern.
-              </p>
-            </>
-          )}
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Hallo! Vielen Dank für Ihre Nachricht. Wie kann ich Ihnen helfen?"
+            className="text-sm min-h-[80px]"
+          />
+          <Button
+            size="sm"
+            onClick={handleSaveMessage}
+            disabled={saving || message === (account.auto_welcome_message || '')}
+            className="w-full"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Text speichern
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Dieser Text kann im Chat per Button an Kontakte gesendet werden.
+          </p>
         </div>
       )}
     </div>
