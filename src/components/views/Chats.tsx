@@ -803,6 +803,28 @@ const Chats = () => {
                     >
                       <Paperclip className="w-4 h-4" />
                     </Button>
+                    {(() => {
+                      const acc = accounts.find(a => a.id === selectedChat.account_id);
+                      return acc?.auto_welcome_message ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setMessageInput(acc.auto_welcome_message!)}
+                                disabled={getAccountStatus(selectedChat.account_id) === "disconnected"}
+                              >
+                                <HandMetal className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="max-w-[200px] text-xs">Willkommenstext einfügen</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null;
+                    })()}
                     <Input
                       placeholder={
                         getAccountStatus(selectedChat.account_id) === "disconnected"
