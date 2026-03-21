@@ -646,7 +646,12 @@ const BulkSender = () => {
             <Button
               size="lg"
               className="w-full gap-2"
-              disabled={selectedAccounts.length === 0 || selectedTemplates.length === 0 || contacts.length === 0 || sending}
+              disabled={
+                sending || 
+                effectiveContacts.length === 0 || 
+                (useFreetextMessage ? !freetextMessage.trim() : selectedTemplates.length === 0) ||
+                (sourceMode === 'csv' && selectedAccounts.length === 0)
+              }
               onClick={async () => {
                 try {
                   console.log("[BulkSender] Starting send process...");
