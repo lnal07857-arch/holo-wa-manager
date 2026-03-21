@@ -44,18 +44,35 @@ export const useWhatsAppAccounts = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Find next available worker_id
+      const { data: existingAccounts } = await supabase
+        .from("whatsapp_accounts")
+        .select("worker_id")
+        .eq("user_id", user.id);
+
+      const usedWorkers = new Set((existingAccounts || []).map(a => a.worker_id).filter(Boolean));
+      let assignedWorker = 'worker-01';
+      for (let i = 1; i <= 10; i++) {
+        const wid = `worker-${String(i).padStart(2, '0')}`;
+        if (!usedWorkers.has(wid)) {
+          assignedWorker = wid;
+          break;
+        }
+      }
+
       const { data, error } = await supabase
         .from("whatsapp_accounts")
         .insert({
           user_id: user.id,
           account_name: account.account_name || 'Neues Konto',
+          worker_id: assignedWorker,
         })
         .select()
         .single();
 
       if (error) throw error;
       
-      console.log('[Account Create] Account created - phone will be auto-detected after QR scan');
+      console.log(`[Account Create] Assigned to ${assignedWorker}`);
       
       return data;
     },

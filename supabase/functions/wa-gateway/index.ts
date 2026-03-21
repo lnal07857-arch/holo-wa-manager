@@ -121,6 +121,9 @@ serve(async (req) => {
           console.log('ℹ️ [Initialize] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
+        // Get worker_id for routing
+        const workerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
+
         const attemptInitialize = async () => {
           const requestBody: any = {
             accountId,
@@ -135,7 +138,7 @@ serve(async (req) => {
 
           return await fetch(`${BASE_URL}/api/initialize`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: workerHeaders(workerId),
             body: JSON.stringify(requestBody),
           });
         };
