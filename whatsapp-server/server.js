@@ -382,45 +382,6 @@ async function connectWhatsApp(accountId) {
         console.error('❌ DB insert error:', error.message);
       } else {
         console.log(`${direction === 'incoming' ? '📥' : '📤'} ${direction} message saved from ${phoneNumber}`);
-        
-        // Auto-Welcome: Only for incoming messages from others
-        if (direction === 'incoming') {
-          try {
-            // Check if auto_welcome is enabled for this account
-            const { data: accData } = await supabase
-              .from('whatsapp_accounts')
-              .select('auto_welcome_enabled, auto_welcome_message')
-              .eq('id', accountId)
-              .single();
-            
-            if (accData?.auto_welcome_enabled && accData?.auto_welcome_message) {
-              // Check if this is the FIRST message ever from this phone number for this account
-              const { count } = await supabase
-                .from('messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('account_id', accountId)
-                .eq('contact_phone', phoneNumber);
-              
-              if (count === 1) {
-                console.log(`🎉 First contact from ${phoneNumber} — sending welcome message`);
-                
-                // Natural delay (1-3 seconds)
-                const delay = 1000 + Math.random() * 2000;
-                setTimeout(async () => {
-                  try {
-                    const chatId = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
-                    await client.sendMessage(chatId, accData.auto_welcome_message);
-                    console.log(`✅ Welcome message sent to ${phoneNumber}`);
-                  } catch (sendErr) {
-                    console.error(`❌ Welcome message send failed:`, sendErr.message);
-                  }
-                }, delay);
-              }
-            }
-          } catch (welcomeErr) {
-            console.error('❌ Auto-welcome check error:', welcomeErr.message);
-          }
-        }
       }
     } catch (e) {
       console.error('❌ Error saving message:', e.message);
