@@ -55,7 +55,7 @@ const BulkSender = () => {
   const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
   const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [chatFilterMode, setChatFilterMode] = useState<'all' | 'unanswered'>('unanswered');
+  const [chatFilterMode, setChatFilterMode] = useState<'new' | 'active' | 'all'>('new');
   // Freetext message (alternative to template)
   const [useFreetextMessage, setUseFreetextMessage] = useState(false);
   const [freetextMessage, setFreetextMessage] = useState("");
@@ -69,11 +69,18 @@ const BulkSender = () => {
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
 
-  // Determine unanswered chats (incoming messages exist, but NO outgoing message ever)
-  const unansweredChatGroups = chatGroups.filter(g => {
+  // "Neue" — nie beantwortet (incoming exists, no outgoing)
+  const newChatGroups = chatGroups.filter(g => {
     const hasIncoming = g.messages.some(m => m.direction === 'incoming');
     const hasOutgoing = g.messages.some(m => m.direction === 'outgoing');
     return hasIncoming && !hasOutgoing;
+  });
+
+  // "Aktuelle" — letzte Nachricht ist incoming (Kunde wartet auf Antwort)
+  const activeChatGroups = chatGroups.filter(g => {
+    if (g.messages.length === 0) return false;
+    const sorted = [...g.messages].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+    return sorted[0].direction === 'incoming';
   });
 
   // Build contacts from selected chats
@@ -90,7 +97,9 @@ const BulkSender = () => {
   const effectiveContacts = sourceMode === 'chats' ? chatContacts : contacts;
 
   // Filter chats by search and filter mode
-  const visibleChatGroups = (chatFilterMode === 'unanswered' ? unansweredChatGroups : chatGroups);
+  const visibleChatGroups = chatFilterMode === 'new' ? newChatGroups 
+    : chatFilterMode === 'active' ? activeChatGroups 
+    : chatGroups;
   const filteredChatGroups = visibleChatGroups.filter(g => {
     const q = chatSearchQuery.toLowerCase();
     if (!q) return true;
