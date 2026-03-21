@@ -55,7 +55,7 @@ const BulkSender = () => {
   const [sourceMode, setSourceMode] = useState<'csv' | 'chats'>('csv');
   const [selectedChatKeys, setSelectedChatKeys] = useState<Set<string>>(new Set());
   const [chatSearchQuery, setChatSearchQuery] = useState("");
-  const [chatFilterMode, setChatFilterMode] = useState<'new' | 'active' | 'all'>('new');
+  const [chatFilterMode, setChatFilterMode] = useState<'new' | 'open' | 'closed' | 'all'>('new');
   // Freetext message (alternative to template)
   const [useFreetextMessage, setUseFreetextMessage] = useState(false);
   const [freetextMessage, setFreetextMessage] = useState("");
@@ -69,6 +69,13 @@ const BulkSender = () => {
   
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
 
+  // Helper: get last message direction
+  const getLastDirection = (g: typeof chatGroups[0]) => {
+    if (g.messages.length === 0) return null;
+    const sorted = [...g.messages].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+    return sorted[0].direction;
+  };
+
   // "Neue" — nie beantwortet (incoming exists, no outgoing)
   const newChatGroups = chatGroups.filter(g => {
     const hasIncoming = g.messages.some(m => m.direction === 'incoming');
@@ -76,11 +83,15 @@ const BulkSender = () => {
     return hasIncoming && !hasOutgoing;
   });
 
-  // "Aktuelle" — letzte Nachricht ist incoming (Kunde wartet auf Antwort)
-  const activeChatGroups = chatGroups.filter(g => {
-    if (g.messages.length === 0) return false;
-    const sorted = [...g.messages].sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
-    return sorted[0].direction === 'incoming';
+  // "Offen" — letzte Nachricht ist incoming (Kunde wartet auf Antwort, du hattest aber schon geantwortet)
+  const openChatGroups = chatGroups.filter(g => {
+    const hasOutgoing = g.messages.some(m => m.direction === 'outgoing');
+    return hasOutgoing && getLastDirection(g) === 'incoming';
+  });
+
+  // "Geschlossen" — letzte Nachricht ist outgoing (du hast zuletzt geantwortet)
+  const closedChatGroups = chatGroups.filter(g => {
+    return getLastDirection(g) === 'outgoing';
   });
 
   // Build contacts from selected chats
@@ -98,7 +109,8 @@ const BulkSender = () => {
 
   // Filter chats by search and filter mode
   const visibleChatGroups = chatFilterMode === 'new' ? newChatGroups 
-    : chatFilterMode === 'active' ? activeChatGroups 
+    : chatFilterMode === 'open' ? openChatGroups
+    : chatFilterMode === 'closed' ? closedChatGroups
     : chatGroups;
   const filteredChatGroups = visibleChatGroups.filter(g => {
     const q = chatSearchQuery.toLowerCase();
