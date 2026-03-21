@@ -802,7 +802,6 @@ const SortableAccountCard = ({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-
             <div className="flex gap-2">
               <Button 
                 variant="outline" 
@@ -840,6 +839,8 @@ const SortableAccountCard = ({
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
+
+            <AutoWelcomeSection account={account} refetchAccounts={refetchAccounts} />
           </div>
         </CardContent>
       </Card>
