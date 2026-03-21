@@ -730,16 +730,22 @@ const BulkSender = () => {
                       break;
                     }
 
-                    const accountId = activeAccountIds[rotationIndex % activeAccountIds.length];
+                    // For chat mode: use the original chat's account. For CSV: rotate.
+                    const accountId = sourceMode === 'chats' && (contact as any)._accountId
+                      ? (contact as any)._accountId
+                      : activeAccountIds[rotationIndex % activeAccountIds.length];
                     rotationIndex++;
                     const accountName = accounts.find(acc => acc.id === accountId)?.account_name || 'Unbekannt';
 
-                    const template = (textRotation && selectedTemplateObjects.length > 0)
-                      ? selectedTemplateObjects[i % selectedTemplateObjects.length]
-                      : selectedTemplateObjects[0];
-
-                    const templateText = template?.template_text || "";
-                    const message_text = replacePlaceholders(templateText, contact);
+                    let message_text: string;
+                    if (useFreetextMessage) {
+                      message_text = replacePlaceholders(freetextMessage, contact);
+                    } else {
+                      const template = (textRotation && selectedTemplateObjects.length > 0)
+                        ? selectedTemplateObjects[i % selectedTemplateObjects.length]
+                        : selectedTemplateObjects[0];
+                      message_text = replacePlaceholders(template?.template_text || "", contact);
+                    }
                     const contact_name = contact.name || null;
 
                     if (!contact_phone) {
