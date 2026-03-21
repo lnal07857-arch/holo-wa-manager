@@ -254,20 +254,27 @@ const BulkSender = () => {
                 )}
               </TabsContent>
               <TabsContent value="chats" className="space-y-3 mt-3">
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 flex-wrap">
                   <Button
-                    variant={chatFilterMode === 'unanswered' ? 'default' : 'outline'}
+                    variant={chatFilterMode === 'new' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setChatFilterMode('unanswered'); setSelectedChatKeys(new Set()); }}
+                    onClick={() => { setChatFilterMode('new'); setSelectedChatKeys(new Set()); }}
                   >
-                    Unbeantwortete ({unansweredChatGroups.length})
+                    Neue ({newChatGroups.length})
+                  </Button>
+                  <Button
+                    variant={chatFilterMode === 'active' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setChatFilterMode('active'); setSelectedChatKeys(new Set()); }}
+                  >
+                    Aktuelle ({activeChatGroups.length})
                   </Button>
                   <Button
                     variant={chatFilterMode === 'all' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => { setChatFilterMode('all'); setSelectedChatKeys(new Set()); }}
                   >
-                    Alle Chats ({chatGroups.length})
+                    Alle ({chatGroups.length})
                   </Button>
                 </div>
                 <Input
