@@ -832,7 +832,7 @@ const SortableAccountCard = ({
                   <CheckCircle className="w-3 h-3" />
                   Verbunden
                 </Badge>
-              ) : account.status === "pending" || account.status === "qr_generated" ? (
+              ) : account.status === "pending" || account.status === "qr_generated" || account.status === "qr_required" ? (
                 <Badge variant="outline" className="gap-1 text-amber-600 border-amber-400">
                   <AlertTriangle className="w-3 h-3" />
                   Session abgelaufen
@@ -864,9 +864,9 @@ const SortableAccountCard = ({
                 )}
               </Button>
               <Button 
-                variant={account.status === "pending" || account.status === "qr_generated" ? "default" : "outline"}
+                variant={account.status === "pending" || account.status === "qr_generated" || account.status === "qr_required" ? "default" : "outline"}
                 size="sm" 
-                className={`flex-1 ${account.status === "pending" || account.status === "qr_generated" ? "gap-1" : ""}`}
+                className={`flex-1 ${["pending", "qr_generated", "qr_required"].includes(account.status) ? "gap-1" : ""}`}
                 onClick={() => {
                   setQrCode(null);
                   setInitializingAccount(account.id);
@@ -874,7 +874,7 @@ const SortableAccountCard = ({
                   initializeWhatsApp(account.id);
                 }}
               >
-                {account.status === "pending" || account.status === "qr_generated" ? (
+                {["pending", "qr_generated", "qr_required"].includes(account.status) ? (
                   <>
                     <RefreshCw className="w-4 h-4" />
                     Verbindung erneuern
