@@ -46,10 +46,13 @@ let currentAccountId = null;
 let connectionStatus = 'disconnected'; // disconnected | initializing | qr_required | connected
 let syncInProgress = false;
 let syncStartedAt = null;
+let runtimeHealthInterval = null;
+let runtimeHealthCheckInFlight = false;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SYNC_MESSAGE_LIMIT = Math.max(10, Number(process.env.SYNC_MESSAGE_LIMIT || 60));
 const SYNC_CHAT_PAUSE_MS = Math.max(0, Number(process.env.SYNC_CHAT_PAUSE_MS || 120));
+const RUNTIME_HEALTHCHECK_MS = Math.max(5000, Number(process.env.RUNTIME_HEALTHCHECK_MS || 15000));
 
 // ═══════════════════════════════════════════════════════════════
 // MESSAGE QUEUE (Rate Limiting: 50/hour, 2-5s delay)
