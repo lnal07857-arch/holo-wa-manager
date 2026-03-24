@@ -46,10 +46,13 @@ let currentAccountId = null;
 let connectionStatus = 'disconnected'; // disconnected | initializing | qr_required | connected
 let syncInProgress = false;
 let syncStartedAt = null;
+let runtimeHealthInterval = null;
+let runtimeHealthCheckInFlight = false;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SYNC_MESSAGE_LIMIT = Math.max(10, Number(process.env.SYNC_MESSAGE_LIMIT || 60));
 const SYNC_CHAT_PAUSE_MS = Math.max(0, Number(process.env.SYNC_CHAT_PAUSE_MS || 120));
+const RUNTIME_HEALTHCHECK_MS = Math.max(5000, Number(process.env.RUNTIME_HEALTHCHECK_MS || 15000));
 
 // ═══════════════════════════════════════════════════════════════
 // MESSAGE QUEUE (Rate Limiting: 50/hour, 2-5s delay)
@@ -297,7 +300,16 @@ async function syncMessages(client, accountId) {
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP CLIENT
 // ═══════════════════════════════════════════════════════════════
+function stopRuntimeHealthWatchdog() {
+  if (runtimeHealthInterval) {
+    clearInterval(runtimeHealthInterval);
+    runtimeHealthInterval = null;
+  }
+  runtimeHealthCheckInFlight = false;
+}
+
 function destroyClient() {
+  stopRuntimeHealthWatchdog();
   if (waClient) {
     try { waClient.destroy(); } catch (e) { /* ignore */ }
     waClient = null;
@@ -309,7 +321,7 @@ function destroyClient() {
 async function isClientActuallyConnected(client) {
   if (!client) return false;
   try {
-    // Check 1: Runtime state from Puppeteer
+    // Check 1: Runtime state from WhatsApp
     const state = await client.getState();
     if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
 
@@ -319,11 +331,44 @@ async function isClientActuallyConnected(client) {
       return false;
     }
 
+    // Check 3: Browser page must still be alive
+    if (client.pupPage?.isClosed?.()) {
+      console.warn('[StatusCheck] Puppeteer page is closed → disconnected');
+      return false;
+    }
+
     return true;
   } catch (e) {
     console.warn('[StatusCheck] Error checking connection:', e.message);
     return false;
   }
+}
+
+function startRuntimeHealthWatchdog(client, accountId) {
+  stopRuntimeHealthWatchdog();
+
+  runtimeHealthInterval = setInterval(async () => {
+    if (runtimeHealthCheckInFlight) return;
+    if (!waClient || waClient !== client) return;
+    if (!currentAccountId || currentAccountId !== accountId) return;
+
+    runtimeHealthCheckInFlight = true;
+    try {
+      const runtimeConnected = await isClientActuallyConnected(client);
+      if (!runtimeConnected) {
+        console.warn(`[Watchdog] Connection lost for ${accountId}. Marking disconnected.`);
+        connectionStatus = 'disconnected';
+        await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+        try { await client.destroy(); } catch (_) {}
+        if (waClient === client) waClient = null;
+        stopRuntimeHealthWatchdog();
+      }
+    } catch (e) {
+      console.warn('[Watchdog] Health check error:', e.message);
+    } finally {
+      runtimeHealthCheckInFlight = false;
+    }
+  }, RUNTIME_HEALTHCHECK_MS);
 }
 
 async function getRuntimeStatus() {
@@ -454,6 +499,9 @@ async function connectWhatsApp(accountId) {
     }
     
     await updateAccount(accountId, updateData);
+
+    // Keep runtime status honest even if WhatsApp stops sending disconnected events
+    startRuntimeHealthWatchdog(client, accountId);
 
     // Background sync
     syncMessages(client, accountId).catch(e => {
@@ -590,7 +638,9 @@ async function connectWhatsApp(accountId) {
   // Disconnected
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
+    stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
+    currentAccountId = null;
     await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
@@ -598,7 +648,9 @@ async function connectWhatsApp(accountId) {
   // Auth failure
   client.on('auth_failure', async (msg) => {
     console.error(`🔒 Auth failure [${accountId}]: ${msg}`);
+    stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
+    currentAccountId = null;
     await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
