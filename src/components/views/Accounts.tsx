@@ -38,6 +38,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { isConnectedStatus, normalizeGatewayAccountStatus } from "@/lib/whatsapp-status";
 const Accounts = () => {
   const {
     accounts,
@@ -88,7 +89,7 @@ const Accounts = () => {
           }
           
           // Update DB based on actual server status
-          const newStatus = data?.connected ? 'connected' : 'disconnected';
+          const newStatus = normalizeGatewayAccountStatus(data as any, account.status || 'disconnected');
           if (account.status !== newStatus) {
             await supabase
               .from('whatsapp_accounts')
@@ -352,7 +353,7 @@ const Accounts = () => {
                 body: { action: 'status', accountId }
               });
 
-              if (statusData?.connected) {
+              if (isConnectedStatus(statusData as any)) {
                 setInitializingAccount(null);
                 setLoadingQR(false);
                 toast.success('Account ist bereits verbunden.');

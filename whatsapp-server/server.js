@@ -42,6 +42,8 @@ let syncInProgress = false;
 let syncStartedAt = null;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const SYNC_MESSAGE_LIMIT = Math.max(10, Number(process.env.SYNC_MESSAGE_LIMIT || 60));
+const SYNC_CHAT_PAUSE_MS = Math.max(0, Number(process.env.SYNC_CHAT_PAUSE_MS || 120));
 
 // ═══════════════════════════════════════════════════════════════
 // MESSAGE QUEUE (Rate Limiting: 50/hour, 2-5s delay)
@@ -147,6 +149,15 @@ async function syncMessages(client, accountId) {
 
     for (const chat of chats) {
       try {
+        if (connectionStatus !== 'connected') {
+          console.warn('[Sync] Aborted: client is no longer connected');
+          break;
+        }
+
+        if (chat.isGroup || chat.id?._serialized?.endsWith('@g.us')) {
+          continue;
+        }
+
         let chatPhone = '';
         if (chat.id?.user) {
           chatPhone = chat.id.user.replace(/\D/g, '');
@@ -155,9 +166,19 @@ async function syncMessages(client, accountId) {
         }
         if (!chatPhone) continue;
 
-        const messages = await chat.fetchMessages({ limit: 100 });
+        const messages = await chat.fetchMessages({ limit: SYNC_MESSAGE_LIMIT });
         const recent = messages.filter(m => m.timestamp >= thirtyDaysAgo);
         if (recent.length === 0) continue;
+
+        let chatContactName = chat.name || null;
+        if (!chatContactName) {
+          try {
+            const chatContact = await chat.getContact();
+            chatContactName = chatContact?.pushname || chatContact?.name || null;
+          } catch (e) {
+            chatContactName = null;
+          }
+        }
 
         // Determine unread messages
         const incoming = recent.filter(m => !m.fromMe);
@@ -175,14 +196,6 @@ async function syncMessages(client, accountId) {
             const direction = msg.fromMe ? 'outgoing' : 'incoming';
             const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
             const messageTime = new Date(msg.timestamp * 1000).toISOString();
-
-            let contactName = null;
-            try {
-              const contact = msg.fromMe
-                ? await client.getContactById(msg.to)
-                : await msg.getContact();
-              contactName = contact?.pushname || contact?.name || null;
-            } catch (e) { /* ignore */ }
 
             const isRead = msg.fromMe || !unreadIds.has(msg.id?._serialized);
 
@@ -202,7 +215,7 @@ async function syncMessages(client, accountId) {
             const { error } = await supabase.from('messages').insert({
               account_id: accountId,
               contact_phone: phoneNumber,
-              contact_name: contactName,
+              contact_name: chatContactName,
               message_text: msg.body,
               direction,
               sent_at: messageTime,
@@ -213,6 +226,10 @@ async function syncMessages(client, accountId) {
             if (!error) synced++;
             await sleep(50);
           } catch (e) { /* skip message */ }
+        }
+
+        if (SYNC_CHAT_PAUSE_MS > 0) {
+          await sleep(SYNC_CHAT_PAUSE_MS);
         }
       } catch (e) { /* skip chat */ }
     }

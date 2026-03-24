@@ -427,7 +427,19 @@ serve(async (req) => {
             }
 
             const data = await response.json();
-            const returnedWorkerId = data?.workerId || null;
+            const normalizedData = {
+              ...data,
+              connected:
+                typeof data?.connected === 'boolean'
+                  ? data.connected
+                  : data?.status === 'connected',
+              status:
+                typeof data?.status === 'string'
+                  ? data.status
+                  : (typeof data?.connected === 'boolean' ? (data.connected ? 'connected' : 'disconnected') : 'disconnected'),
+            };
+
+            const returnedWorkerId = normalizedData?.workerId || null;
             const workerMismatch = !!workerId && !!returnedWorkerId && returnedWorkerId !== workerId;
             if (workerMismatch) {
               lastError = `Worker mismatch: expected ${workerId}, got ${returnedWorkerId}`;
@@ -438,14 +450,14 @@ serve(async (req) => {
               throw new Error(lastError);
             }
 
-            const isNotFound = data?.status === 'not_found' || data?.error === 'Client not found';
+            const isNotFound = normalizedData?.status === 'not_found' || normalizedData?.error === 'Client not found';
             if (!workerId && isNotFound && !isLastCandidate) {
               console.warn(`[Account Status] ${base} returned not_found, trying fallback endpoint...`);
               continue;
             }
 
-            console.log(`[Account Status] Success:`, data);
-            return new Response(JSON.stringify(data), {
+            console.log(`[Account Status] Success:`, normalizedData);
+            return new Response(JSON.stringify(normalizedData), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
