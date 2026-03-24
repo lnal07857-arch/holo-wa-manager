@@ -99,6 +99,31 @@ serve(async (req) => {
         console.log(`[Initialize] Calling server at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
+        // Pre-flight: Check if worker has a stale session, disconnect it first
+        const preWorkerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
+        if (preWorkerId) {
+          try {
+            const preStatusResp = await fetch(`${BASE_URL}/api/status/${accountId}`, {
+              headers: workerHeaders(preWorkerId),
+            });
+            if (preStatusResp.ok) {
+              const preStatus = await preStatusResp.json();
+              // If worker reports the account exists but isn't connected, force cleanup
+              if (preStatus && preStatus.status !== 'connected' && preStatus.status !== 'not_found') {
+                console.log(`[Initialize] Stale session detected (status: ${preStatus.status}). Disconnecting first...`);
+                try {
+                  await fetch(`${BASE_URL}/api/disconnect`, {
+                    method: 'POST',
+                    headers: workerHeaders(preWorkerId),
+                    body: JSON.stringify({ accountId }),
+                  });
+                  await new Promise(r => setTimeout(r, 500));
+                } catch (_) { /* best effort */ }
+              }
+            }
+          } catch (_) { /* pre-flight check failed, continue anyway */ }
+        }
+
         // Get WireGuard config from active_config_id
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
