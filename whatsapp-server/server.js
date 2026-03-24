@@ -500,6 +500,9 @@ async function connectWhatsApp(accountId) {
     
     await updateAccount(accountId, updateData);
 
+    // Keep runtime status honest even if WhatsApp stops sending disconnected events
+    startRuntimeHealthWatchdog(client, accountId);
+
     // Background sync
     syncMessages(client, accountId).catch(e => {
       console.error('[Sync] Background sync error:', e.message);
