@@ -335,6 +335,16 @@ async function getRuntimeStatus() {
     return 'connected';
   }
 
+  // Ghost session detected: client exists but not truly connected
+  if (connectionStatus === 'connected') {
+    console.warn('[getRuntimeStatus] Ghost session detected → setting qr_required');
+    connectionStatus = 'qr_required';
+    if (currentAccountId) {
+      updateAccount(currentAccountId, { status: 'pending', qr_code: null }).catch(() => {});
+    }
+    return 'qr_required';
+  }
+
   if (connectionStatus === 'qr_required' || connectionStatus === 'pending') {
     return 'qr_required';
   }
