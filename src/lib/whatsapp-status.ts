@@ -9,6 +9,7 @@ const KNOWN_STATUSES = new Set([
   "initializing",
   "pending",
   "qr_generated",
+  "qr_required",
   "not_found",
 ]);
 

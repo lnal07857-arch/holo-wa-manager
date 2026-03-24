@@ -73,7 +73,7 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
           );
 
           const newStatus =
-            realStatus === "qr_generated" || realStatus === "pending"
+            realStatus === "qr_generated" || realStatus === "qr_required" || realStatus === "pending"
               ? "pending"
               : "disconnected";
 

@@ -874,7 +874,7 @@ const SortableAccountCard = ({
                   initializeWhatsApp(account.id);
                 }}
               >
-                {account.status === "pending" || account.status === "qr_generated" ? (
+                {["pending", "qr_generated", "qr_required"].includes(account.status) ? (
                   <>
                     <RefreshCw className="w-4 h-4" />
                     Verbindung erneuern
