@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText, Trash2, HandMetal } from "lucide-react";
+import { Search, Send, Paperclip, Phone, Video, ChevronLeft, ChevronRight, Star, StarOff, Users, UserCheck, FileText, Trash2, HandMetal, Check, CheckCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
