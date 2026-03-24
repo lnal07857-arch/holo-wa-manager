@@ -50,6 +50,10 @@ const Accounts = () => {
   } = useWhatsAppAccounts();
   const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
 
+  // 30s status polling to detect stale sessions
+  useStatusPolling(accounts, !isLoading && accounts.length > 0);
+  const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
