@@ -398,6 +398,7 @@ export type Database = {
           updated_at: string
           user_id: string
           worker_id: string | null
+          worker_slot: number | null
         }
         Insert: {
           account_name: string
@@ -420,6 +421,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           worker_id?: string | null
+          worker_slot?: number | null
         }
         Update: {
           account_name?: string
@@ -442,6 +444,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           worker_id?: string | null
+          worker_slot?: number | null
         }
         Relationships: [
           {
@@ -550,6 +553,35 @@ export type Database = {
             columns: ["config_id"]
             isOneToOne: true
             referencedRelation: "wireguard_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_slots: {
+        Row: {
+          account_id: string | null
+          is_occupied: boolean
+          last_used_at: string | null
+          slot_number: number
+        }
+        Insert: {
+          account_id?: string | null
+          is_occupied?: boolean
+          last_used_at?: string | null
+          slot_number: number
+        }
+        Update: {
+          account_id?: string | null
+          is_occupied?: boolean
+          last_used_at?: string | null
+          slot_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_slots_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_accounts"
             referencedColumns: ["id"]
           },
         ]

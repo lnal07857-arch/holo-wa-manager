@@ -18,6 +18,7 @@ export interface WhatsAppAccount {
   proxy_country: string | null;
   display_order: number;
   worker_id: string | null;
+  worker_slot: number | null;
   auto_welcome_enabled: boolean;
   auto_welcome_message: string | null;
 }
@@ -46,21 +47,21 @@ export const useWhatsAppAccounts = () => {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Find next available worker_id
-      const { data: existingAccounts } = await supabase
-        .from("whatsapp_accounts")
-        .select("worker_id")
-        .eq("user_id", user.id);
+      // Find next free worker slot via the worker_slots table
+      const { data: freeSlots } = await supabase
+        .from("worker_slots" as any)
+        .select("slot_number")
+        .eq("is_occupied", false)
+        .order("slot_number", { ascending: true })
+        .limit(1);
 
-      const usedWorkers = new Set((existingAccounts || []).map(a => a.worker_id).filter(Boolean));
-      let assignedWorker = 'worker-01';
-      for (let i = 1; i <= 10; i++) {
-        const wid = `worker-${String(i).padStart(2, '0')}`;
-        if (!usedWorkers.has(wid)) {
-          assignedWorker = wid;
-          break;
-        }
+      const slotList = freeSlots as any[] | null;
+      if (!slotList || slotList.length === 0) {
+        throw new Error("Keine freien Worker-Slots verfügbar (max. 10 Accounts)");
       }
+
+      const assignedSlot = slotList[0].slot_number as number;
+      const assignedWorker = `worker-${String(assignedSlot).padStart(2, '0')}`;
 
       const { data, error } = await supabase
         .from("whatsapp_accounts")
@@ -68,14 +69,21 @@ export const useWhatsAppAccounts = () => {
           user_id: user.id,
           account_name: account.account_name || 'Neues Konto',
           worker_id: assignedWorker,
+          worker_slot: assignedSlot,
         })
         .select()
         .single();
 
       if (error) throw error;
-      
-      console.log(`[Account Create] Assigned to ${assignedWorker}`);
-      
+
+      // Mark slot as occupied
+      await supabase
+        .from("worker_slots" as any)
+        .update({ is_occupied: true, account_id: data.id, last_used_at: new Date().toISOString() } as any)
+        .eq("slot_number", assignedSlot);
+
+      console.log(`[Account Create] Assigned to Slot ${assignedSlot} (${assignedWorker})`);
+
       return data;
     },
     onSuccess: () => {
@@ -88,6 +96,10 @@ export const useWhatsAppAccounts = () => {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
+      // Get worker_slot before deleting so we can free it
+      const account = accounts.find(a => a.id === accountId);
+      const slot = account?.worker_slot;
+
       const { data, error } = await supabase.functions.invoke('wa-gateway', {
         body: { action: 'delete-account', accountId }
       });
@@ -95,6 +107,14 @@ export const useWhatsAppAccounts = () => {
       if (error) throw new Error(error.message || 'Löschen fehlgeschlagen');
       if ((data as { error?: string })?.error) {
         throw new Error((data as { error: string }).error);
+      }
+
+      // Free the worker slot
+      if (slot) {
+        await supabase
+          .from("worker_slots" as any)
+          .update({ is_occupied: false, account_id: null } as any)
+          .eq("slot_number", slot);
       }
     },
     onSuccess: () => {
@@ -119,11 +139,8 @@ export const useWhatsAppAccounts = () => {
         },
         (payload: any) => {
           console.log('[Account Status Change]', payload);
-          
-          // Invalidate queries to refetch data
           queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
-          
-          // Show toast for connection loss from a connected state
+
           if (payload.old.status === 'connected' && payload.new.status !== 'connected') {
             const status = payload.new.status as string;
             const msg = status === 'pending'
@@ -135,8 +152,7 @@ export const useWhatsAppAccounts = () => {
                 : 'Bitte verbinden Sie den Account erneut.',
             });
           }
-          
-          // Show toast for successful connections
+
           if (payload.new.status === 'connected' && payload.old.status !== 'connected') {
             toast.success(`WhatsApp erfolgreich verbunden: ${payload.new.account_name}`);
           }

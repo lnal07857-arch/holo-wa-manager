@@ -789,6 +789,12 @@ const SortableAccountCard = ({
                   <Smartphone className="w-3 h-3" />
                   {account.phone_number}
                 </CardDescription>
+                {account.worker_slot && (
+                  <CardDescription className="flex items-center gap-1 text-xs">
+                    <Server className="w-3 h-3" />
+                    Slot {account.worker_slot} (Worker-{String(account.worker_slot).padStart(2, '0')})
+                  </CardDescription>
+                )}
               </div>
             </div>
             <div className="flex flex-col gap-1 items-end">
