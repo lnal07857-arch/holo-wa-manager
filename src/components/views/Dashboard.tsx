@@ -2,9 +2,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, MessageSquare, Send, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useStatusPolling } from "@/hooks/useStatusPolling";
 
 const Dashboard = () => {
   const { accounts, isLoading } = useWhatsAppAccounts();
+
+  // Keep dashboard status in sync with real worker state
+  useStatusPolling(accounts, !isLoading && accounts.length > 0);
 
   const connectedAccounts = accounts.filter((a) => a.status === "connected").length;
 

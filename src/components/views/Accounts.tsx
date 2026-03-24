@@ -117,18 +117,28 @@ const Accounts = () => {
             continue;
           }
           
-          // Update DB based on actual server status
-          const newStatus = normalizeGatewayAccountStatus(data as any, account.status || 'disconnected');
-          if (account.status !== newStatus) {
-            await supabase
+          // Update DB based on actual server status (map runtime-only states to DB-safe states)
+          const runtimeStatus = normalizeGatewayAccountStatus(data as any, account.status || 'disconnected');
+          const dbStatus = runtimeStatus === 'not_found'
+            ? 'disconnected'
+            : (runtimeStatus === 'qr_required' || runtimeStatus === 'qr_generated'
+              ? 'pending'
+              : runtimeStatus);
+
+          if (account.status !== dbStatus) {
+            const { error: updateError } = await supabase
               .from('whatsapp_accounts')
               .update({ 
-                status: newStatus,
-                qr_code: newStatus === 'disconnected' ? null : account.qr_code
+                status: dbStatus,
+                qr_code: dbStatus === 'disconnected' ? null : account.qr_code
               })
               .eq('id', account.id);
-            
-            console.log(`[Status Updated] ${account.account_name}: ${account.status} → ${newStatus}`);
+
+            if (updateError) {
+              console.error(`[Status Update Failed] ${account.account_name}:`, updateError.message);
+            } else {
+              console.log(`[Status Updated] ${account.account_name}: ${account.status} → ${dbStatus} (runtime: ${runtimeStatus})`);
+            }
           }
         } catch (err) {
           console.error(`Failed to validate ${account.account_name}:`, err);
