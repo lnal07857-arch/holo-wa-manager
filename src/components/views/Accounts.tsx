@@ -832,7 +832,7 @@ const SortableAccountCard = ({
                   <CheckCircle className="w-3 h-3" />
                   Verbunden
                 </Badge>
-              ) : account.status === "pending" || account.status === "qr_generated" ? (
+              ) : account.status === "pending" || account.status === "qr_generated" || account.status === "qr_required" ? (
                 <Badge variant="outline" className="gap-1 text-amber-600 border-amber-400">
                   <AlertTriangle className="w-3 h-3" />
                   Session abgelaufen
