@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server, MessageSquare, ChevronDown, ChevronUp, RefreshCw, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useStatusPolling } from "@/hooks/useStatusPolling";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -48,6 +49,9 @@ const Accounts = () => {
     refetch
   } = useWhatsAppAccounts();
   const [sortedAccounts, setSortedAccounts] = useState<any[]>([]);
+
+  // 30s status polling to detect stale sessions
+  useStatusPolling(accounts, !isLoading && accounts.length > 0);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -803,6 +807,11 @@ const SortableAccountCard = ({
                   <CheckCircle className="w-3 h-3" />
                   Verbunden
                 </Badge>
+              ) : account.status === "pending" || account.status === "qr_generated" ? (
+                <Badge variant="outline" className="gap-1 text-amber-600 border-amber-400">
+                  <AlertTriangle className="w-3 h-3" />
+                  Session abgelaufen
+                </Badge>
               ) : (
                 <Badge variant="destructive" className="gap-1">
                   <XCircle className="w-3 h-3" />
@@ -830,9 +839,9 @@ const SortableAccountCard = ({
                 )}
               </Button>
               <Button 
-                variant="outline" 
+                variant={account.status === "pending" || account.status === "qr_generated" ? "default" : "outline"}
                 size="sm" 
-                className="flex-1" 
+                className={`flex-1 ${account.status === "pending" || account.status === "qr_generated" ? "gap-1" : ""}`}
                 onClick={() => {
                   setQrCode(null);
                   setInitializingAccount(account.id);
@@ -840,7 +849,12 @@ const SortableAccountCard = ({
                   initializeWhatsApp(account.id);
                 }}
               >
-                {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
+                {account.status === "pending" || account.status === "qr_generated" ? (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Verbindung erneuern
+                  </>
+                ) : account.status === "connected" ? "Neu verbinden" : "Verbinden"}
               </Button>
               <Button 
                 variant="outline" 

@@ -68,8 +68,8 @@ const Dashboard = () => {
                       <p className="text-sm text-muted-foreground">{account.phone_number}</p>
                     </div>
                   </div>
-                  <Badge variant={account.status === "connected" ? "default" : "secondary"} className={account.status === "connected" ? "bg-green-600" : ""}>
-                    {account.status === "connected" ? "Verbunden" : "Getrennt"}
+                  <Badge variant={account.status === "connected" ? "default" : account.status === "pending" ? "outline" : "secondary"} className={account.status === "connected" ? "bg-green-600" : account.status === "pending" ? "text-amber-600 border-amber-400" : ""}>
+                    {account.status === "connected" ? "Verbunden" : account.status === "pending" ? "Session abgelaufen" : "Getrennt"}
                   </Badge>
                 </div>
               ))}
