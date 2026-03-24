@@ -388,6 +388,46 @@ async function connectWhatsApp(accountId) {
     }
   });
 
+  // Message ACK (delivery/read receipts)
+  client.on('message_ack', async (msg, ack) => {
+    try {
+      // ack values: 0=PENDING, 1=SERVER, 2=DEVICE, 3=READ, 4=PLAYED
+      if (!msg.fromMe) return; // Only track outgoing messages
+      
+      const peerJid = msg.to;
+      const phoneNumber = peerJid.replace('@c.us', '').replace('@g.us', '');
+      if (peerJid.includes('@g.us')) return;
+      
+      const sentAt = msg.timestamp 
+        ? new Date(msg.timestamp * 1000).toISOString() 
+        : null;
+      
+      if (!sentAt) return;
+      
+      // Find and update the message in DB
+      const { data: existingMsg } = await supabase
+        .from('messages')
+        .select('id, ack_status')
+        .eq('account_id', accountId)
+        .eq('contact_phone', phoneNumber)
+        .eq('direction', 'outgoing')
+        .eq('sent_at', sentAt)
+        .maybeSingle();
+      
+      if (existingMsg && ack > (existingMsg.ack_status || 0)) {
+        await supabase
+          .from('messages')
+          .update({ ack_status: ack })
+          .eq('id', existingMsg.id);
+        
+        const ackLabels = ['PENDING', 'SERVER', 'DELIVERED', 'READ', 'PLAYED'];
+        console.log(`✓ ACK ${ackLabels[ack] || ack} for msg to ${phoneNumber}`);
+      }
+    } catch (e) {
+      console.error('❌ ACK handler error:', e.message);
+    }
+  });
+
   // Disconnected
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
