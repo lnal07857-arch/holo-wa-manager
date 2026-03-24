@@ -300,7 +300,16 @@ async function syncMessages(client, accountId) {
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP CLIENT
 // ═══════════════════════════════════════════════════════════════
+function stopRuntimeHealthWatchdog() {
+  if (runtimeHealthInterval) {
+    clearInterval(runtimeHealthInterval);
+    runtimeHealthInterval = null;
+  }
+  runtimeHealthCheckInFlight = false;
+}
+
 function destroyClient() {
+  stopRuntimeHealthWatchdog();
   if (waClient) {
     try { waClient.destroy(); } catch (e) { /* ignore */ }
     waClient = null;
@@ -312,7 +321,7 @@ function destroyClient() {
 async function isClientActuallyConnected(client) {
   if (!client) return false;
   try {
-    // Check 1: Runtime state from Puppeteer
+    // Check 1: Runtime state from WhatsApp
     const state = await client.getState();
     if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
 
@@ -322,11 +331,44 @@ async function isClientActuallyConnected(client) {
       return false;
     }
 
+    // Check 3: Browser page must still be alive
+    if (client.pupPage?.isClosed?.()) {
+      console.warn('[StatusCheck] Puppeteer page is closed → disconnected');
+      return false;
+    }
+
     return true;
   } catch (e) {
     console.warn('[StatusCheck] Error checking connection:', e.message);
     return false;
   }
+}
+
+function startRuntimeHealthWatchdog(client, accountId) {
+  stopRuntimeHealthWatchdog();
+
+  runtimeHealthInterval = setInterval(async () => {
+    if (runtimeHealthCheckInFlight) return;
+    if (!waClient || waClient !== client) return;
+    if (!currentAccountId || currentAccountId !== accountId) return;
+
+    runtimeHealthCheckInFlight = true;
+    try {
+      const runtimeConnected = await isClientActuallyConnected(client);
+      if (!runtimeConnected) {
+        console.warn(`[Watchdog] Connection lost for ${accountId}. Marking disconnected.`);
+        connectionStatus = 'disconnected';
+        await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+        try { await client.destroy(); } catch (_) {}
+        if (waClient === client) waClient = null;
+        stopRuntimeHealthWatchdog();
+      }
+    } catch (e) {
+      console.warn('[Watchdog] Health check error:', e.message);
+    } finally {
+      runtimeHealthCheckInFlight = false;
+    }
+  }, RUNTIME_HEALTHCHECK_MS);
 }
 
 async function getRuntimeStatus() {
