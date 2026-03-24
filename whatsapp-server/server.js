@@ -638,7 +638,9 @@ async function connectWhatsApp(accountId) {
   // Disconnected
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
+    stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
+    currentAccountId = null;
     await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
@@ -646,7 +648,9 @@ async function connectWhatsApp(accountId) {
   // Auth failure
   client.on('auth_failure', async (msg) => {
     console.error(`🔒 Auth failure [${accountId}]: ${msg}`);
+    stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
+    currentAccountId = null;
     await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
