@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Smartphone, CheckCircle, XCircle, Trash2, Loader2, Power, PowerOff, GripVertical, Server, MessageSquare, ChevronDown, ChevronUp, RefreshCw, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useStatusPolling } from "@/hooks/useStatusPolling";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
