@@ -24,6 +24,13 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
 
     for (const account of accounts) {
       try {
+        // Skip accounts without a slot — try slot recovery first
+        if (!account.worker_slot) {
+          console.log(`[StatusPoll] ${account.account_name}: No slot assigned. Attempting recovery...`);
+          await recoverSlot(account);
+          continue;
+        }
+
         const { data, error } = await supabase.functions.invoke("wa-gateway", {
           body: { action: "status", accountId: account.id },
         });
@@ -34,6 +41,24 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
           data as any,
           "disconnected"
         );
+
+        // Recover workerSlot from gateway response if missing in DB
+        const gatewaySlot = (data as any)?.workerSlot;
+        if (gatewaySlot && !account.worker_slot) {
+          console.log(`[StatusPoll] Recovering slot ${gatewaySlot} for ${account.account_name}`);
+          await supabase
+            .from("whatsapp_accounts")
+            .update({ worker_slot: gatewaySlot, worker_id: `worker-${String(gatewaySlot).padStart(2, '0')}` })
+            .eq("id", account.id);
+
+          // Mark slot as occupied
+          await supabase
+            .from("worker_slots" as any)
+            .update({ is_occupied: true, account_id: account.id, last_used_at: new Date().toISOString() } as any)
+            .eq("slot_number", gatewaySlot);
+
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
+        }
 
         const dbStatus = account.status;
         const prevNotified = previousStatuses.current.get(account.id);
@@ -99,6 +124,77 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
       }
     }
   }, [accounts, queryClient]);
+
+  /**
+   * Tries to find the account on any worker (slots 1-10) and assigns the slot.
+   */
+  const recoverSlot = useCallback(async (account: AccountForPolling) => {
+    for (let slot = 1; slot <= 10; slot++) {
+      try {
+        const { data, error } = await supabase.functions.invoke("wa-gateway", {
+          body: { action: "status", accountId: account.id },
+        });
+
+        // The gateway without a slot tries the default URL — check if it found the account
+        if (!error && data && (data as any).status !== "not_found") {
+          const foundSlot = (data as any).workerSlot || slot;
+          console.log(`[SlotRecovery] Found ${account.account_name} on slot ${foundSlot}`);
+
+          await supabase
+            .from("whatsapp_accounts")
+            .update({
+              worker_slot: foundSlot,
+              worker_id: `worker-${String(foundSlot).padStart(2, '0')}`,
+            })
+            .eq("id", account.id);
+
+          await supabase
+            .from("worker_slots" as any)
+            .update({ is_occupied: true, account_id: account.id, last_used_at: new Date().toISOString() } as any)
+            .eq("slot_number", foundSlot);
+
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
+          return;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    // No slot found — assign next free slot so user can connect
+    try {
+      const { data: freeSlots } = await supabase
+        .from("worker_slots" as any)
+        .select("slot_number")
+        .eq("is_occupied", false)
+        .order("slot_number", { ascending: true })
+        .limit(1);
+
+      const slotList = freeSlots as any[] | null;
+      if (slotList && slotList.length > 0) {
+        const freeSlot = slotList[0].slot_number as number;
+        console.log(`[SlotRecovery] Assigning free slot ${freeSlot} to ${account.account_name}`);
+
+        await supabase
+          .from("whatsapp_accounts")
+          .update({
+            worker_slot: freeSlot,
+            worker_id: `worker-${String(freeSlot).padStart(2, '0')}`,
+          })
+          .eq("id", account.id);
+
+        await supabase
+          .from("worker_slots" as any)
+          .update({ is_occupied: true, account_id: account.id, last_used_at: new Date().toISOString() } as any)
+          .eq("slot_number", freeSlot);
+
+        toast.info(`Slot ${freeSlot} wurde ${account.account_name} zugewiesen`);
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
+      }
+    } catch {
+      // silent
+    }
+  }, [queryClient]);
 
   useEffect(() => {
     if (!enabled || !accounts.length) return;
