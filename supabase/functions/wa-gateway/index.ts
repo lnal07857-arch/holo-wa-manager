@@ -99,6 +99,31 @@ serve(async (req) => {
         console.log(`[Initialize] Calling server at: ${BASE_URL}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
+        // Pre-flight: Check if worker has a stale session, disconnect it first
+        const preWorkerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
+        if (preWorkerId) {
+          try {
+            const preStatusResp = await fetch(`${BASE_URL}/api/status/${accountId}`, {
+              headers: workerHeaders(preWorkerId),
+            });
+            if (preStatusResp.ok) {
+              const preStatus = await preStatusResp.json();
+              // If worker reports the account exists but isn't connected, force cleanup
+              if (preStatus && preStatus.status !== 'connected' && preStatus.status !== 'not_found') {
+                console.log(`[Initialize] Stale session detected (status: ${preStatus.status}). Disconnecting first...`);
+                try {
+                  await fetch(`${BASE_URL}/api/disconnect`, {
+                    method: 'POST',
+                    headers: workerHeaders(preWorkerId),
+                    body: JSON.stringify({ accountId }),
+                  });
+                  await new Promise(r => setTimeout(r, 500));
+                } catch (_) { /* best effort */ }
+              }
+            }
+          } catch (_) { /* pre-flight check failed, continue anyway */ }
+        }
+
         // Get WireGuard config from active_config_id
         const { data: accountData } = await supa
           .from('whatsapp_accounts')
@@ -623,6 +648,119 @@ serve(async (req) => {
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
         const workerId = await getWorkerIdForAccount(supa, accountId);
         const baseCandidates = buildWorkerAwareBaseUrlCandidates(BASE_URL, workerId);
+
+        // Pre-flight: Check if worker actually has the account in memory
+        let workerReady = false;
+        for (const base of baseCandidates) {
+          try {
+            const statusResp = await fetch(`${base}/api/status/${accountId}`, {
+              headers: workerHeaders(workerId),
+            });
+            if (statusResp.ok) {
+              const statusData = await statusResp.json();
+              if (statusData?.connected === true || statusData?.status === 'connected') {
+                workerReady = true;
+                console.log(`[Sync Messages] Pre-flight: Account is live on worker`);
+                break;
+              }
+              console.warn(`[Sync Messages] Pre-flight: Worker reports status=${statusData?.status}, not connected`);
+            }
+          } catch (e) {
+            console.warn(`[Sync Messages] Pre-flight status check failed:`, e);
+          }
+        }
+
+        if (!workerReady) {
+          console.warn(`[Sync Messages] Account not live on worker. Auto-initializing...`);
+          
+          // Fetch account data for initialize
+          const { data: syncAccountData } = await supa
+            .from('whatsapp_accounts')
+            .select('active_config_id, user_id, worker_id')
+            .eq('id', accountId)
+            .maybeSingle();
+
+          if (!syncAccountData) {
+            return new Response(JSON.stringify({ error: 'Account not found in database' }), {
+              status: 404,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Try to initialize the account on the worker
+          try {
+            const initBody: any = {
+              accountId,
+              userId: accountId,
+              supabaseUrl,
+              supabaseKey,
+            };
+
+            const initResp = await fetch(`${baseCandidates[0]}/api/initialize`, {
+              method: 'POST',
+              headers: workerHeaders(workerId),
+              body: JSON.stringify(initBody),
+            });
+
+            if (initResp.ok) {
+              const initData = await initResp.json();
+              console.log(`[Sync Messages] Auto-initialize response:`, initData);
+
+              // Wait for connection to establish (max 30s, poll every 2s)
+              let connected = false;
+              for (let i = 0; i < 15; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                try {
+                  const checkResp = await fetch(`${baseCandidates[0]}/api/status/${accountId}`, {
+                    headers: workerHeaders(workerId),
+                  });
+                  if (checkResp.ok) {
+                    const checkData = await checkResp.json();
+                    if (checkData?.connected === true || checkData?.status === 'connected') {
+                      connected = true;
+                      console.log(`[Sync Messages] Auto-reconnect successful after ${(i+1)*2}s`);
+                      break;
+                    }
+                    // If QR is needed, we can't auto-reconnect
+                    if (checkData?.status === 'qr_generated' || checkData?.status === 'pending') {
+                      console.warn(`[Sync Messages] QR scan required - cannot auto-reconnect`);
+                      return new Response(JSON.stringify({ 
+                        error: 'QR_SCAN_REQUIRED',
+                        message: 'Account benötigt erneuten QR-Scan. Bitte verbinden Sie den Account zuerst über die Account-Verwaltung.'
+                      }), {
+                        status: 409,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                      });
+                    }
+                  }
+                } catch (_) { /* continue polling */ }
+              }
+
+              if (!connected) {
+                return new Response(JSON.stringify({ 
+                  error: 'RECONNECT_TIMEOUT',
+                  message: 'Auto-Reconnect fehlgeschlagen. Bitte verbinden Sie den Account manuell.'
+                }), {
+                  status: 503,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+              }
+            } else {
+              const errText = await initResp.text();
+              console.error(`[Sync Messages] Auto-initialize failed: ${errText}`);
+              return new Response(JSON.stringify({ error: 'AUTO_RECONNECT_FAILED', details: errText }), {
+                status: 503,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+          } catch (initErr) {
+            console.error(`[Sync Messages] Auto-initialize error:`, initErr);
+            return new Response(JSON.stringify({ error: 'AUTO_RECONNECT_ERROR' }), {
+              status: 503,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
 
         // Try multiple base URLs + endpoint variants for backward compatibility
         const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = baseCandidates.flatMap((base) => [

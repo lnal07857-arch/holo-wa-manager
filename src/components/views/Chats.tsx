@@ -343,7 +343,7 @@ const Chats = () => {
       // Sync messages für alle verbundenen, nicht-Warmup Accounts
       for (const account of accountsToSync) {
         try {
-          const { error } = await supabase.functions.invoke("wa-gateway", {
+          const { data, error } = await supabase.functions.invoke("wa-gateway", {
             body: {
               action: "sync-messages",
               accountId: account.id,
@@ -352,6 +352,12 @@ const Chats = () => {
 
           if (error) {
             console.error(`Error syncing account ${account.account_name}:`, error);
+            errorCount++;
+          } else if (data?.error === 'QR_SCAN_REQUIRED') {
+            toast.warning(`${account.account_name}: QR-Scan erforderlich. Bitte zuerst verbinden.`);
+            errorCount++;
+          } else if (data?.error) {
+            console.error(`Sync error ${account.account_name}:`, data.error);
             errorCount++;
           } else {
             successCount++;
