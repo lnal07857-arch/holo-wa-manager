@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-01
+    container_name: wa-worker-01
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-02
+    container_name: wa-worker-02
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -43,7 +43,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-03
+    container_name: wa-worker-03
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -63,7 +63,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-04
+    container_name: wa-worker-04
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -83,7 +83,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-05
+    container_name: wa-worker-05
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -103,7 +103,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-06
+    container_name: wa-worker-06
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -123,7 +123,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-07
+    container_name: wa-worker-07
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -143,7 +143,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-08
+    container_name: wa-worker-08
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -163,7 +163,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-09
+    container_name: wa-worker-09
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -183,7 +183,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.wireguard
-    container_name: whatsapp-worker-10
+    container_name: wa-worker-10
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
