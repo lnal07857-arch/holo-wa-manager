@@ -5,6 +5,8 @@ import cors from 'cors';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import 'dotenv/config';
 
 // ═══════════════════════════════════════════════════════════════
@@ -14,6 +16,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ACCOUNT_INDEX = process.env.ACCOUNT_INDEX || '1';
 const WORKER_ID = process.env.WORKER_ID || `worker-${ACCOUNT_INDEX.padStart(2, '0')}`;
+const WORKER_SLOT = Number.isFinite(Number(process.env.WORKER_SLOT))
+  ? Math.max(1, Number(process.env.WORKER_SLOT))
+  : Math.max(1, Number(ACCOUNT_INDEX));
+const WA_DATA_DIR = process.env.WA_DATA_DIR || '/app/data';
 
 app.use(cors());
 app.use(express.json());
@@ -37,7 +43,7 @@ console.log(`✅ Worker ${WORKER_ID} | Port ${PORT} | Supabase: ${supabaseUrl}`)
 // ═══════════════════════════════════════════════════════════════
 let waClient = null;
 let currentAccountId = null;
-let connectionStatus = 'disconnected'; // disconnected | initializing | pending | connected
+let connectionStatus = 'disconnected'; // disconnected | initializing | qr_required | connected
 let syncInProgress = false;
 let syncStartedAt = null;
 
@@ -127,6 +133,49 @@ async function resetWorkerAccounts() {
     }
   } catch (e) {
     console.error('❌ Startup reset error:', e.message);
+  }
+}
+
+// Remove stale session folders while keeping current account + default folder
+async function cleanupOldAccounts(keepAccountId) {
+  try {
+    const entries = await fs.readdir(WA_DATA_DIR, { withFileTypes: true });
+    const keepNames = new Set([
+      'wa-001',
+      String(keepAccountId || ''),
+      `session-${String(keepAccountId || '')}`,
+      String(currentAccountId || ''),
+      `session-${String(currentAccountId || '')}`,
+    ]);
+
+    let removed = 0;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const dirName = entry.name;
+      const looksLikeSessionDir =
+        dirName.startsWith('session-') ||
+        dirName.startsWith('LocalAuth-') ||
+        dirName.startsWith('RemoteAuth-') ||
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dirName);
+
+      if (!looksLikeSessionDir) continue;
+      if (keepNames.has(dirName)) continue;
+
+      await fs.rm(path.join(WA_DATA_DIR, dirName), { recursive: true, force: true });
+      removed++;
+      console.log(`🧹 Removed stale session dir: ${dirName}`);
+    }
+
+    if (removed > 0) {
+      console.log(`🧹 cleanupOldAccounts done: removed ${removed} stale session dir(s)`);
+    }
+  } catch (e) {
+    if (e?.code === 'ENOENT') {
+      console.log(`ℹ️ WA_DATA_DIR not found (${WA_DATA_DIR}) - skipping cleanup`);
+      return;
+    }
+    console.warn(`⚠️ cleanupOldAccounts warning: ${e.message}`);
   }
 }
 
@@ -267,6 +316,26 @@ async function isClientActuallyConnected(client) {
   }
 }
 
+async function getRuntimeStatus() {
+  if (!waClient) return 'not_found';
+
+  const runtimeConnected = await isClientActuallyConnected(waClient);
+  if (runtimeConnected) {
+    connectionStatus = 'connected';
+    return 'connected';
+  }
+
+  if (connectionStatus === 'qr_required' || connectionStatus === 'pending') {
+    return 'qr_required';
+  }
+
+  if (connectionStatus === 'disconnected') {
+    return 'disconnected';
+  }
+
+  return 'initializing';
+}
+
 async function connectWhatsApp(accountId) {
   // Cleanup existing
   destroyClient();
@@ -275,7 +344,7 @@ async function connectWhatsApp(accountId) {
   currentAccountId = accountId;
 
   const client = new Client({
-    authStrategy: new LocalAuth({ clientId: accountId }),
+    authStrategy: new LocalAuth({ clientId: accountId, dataPath: WA_DATA_DIR }),
     puppeteer: {
       headless: true,
       args: [
@@ -294,10 +363,10 @@ async function connectWhatsApp(accountId) {
   client.on('qr', async (qr) => {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
-    connectionStatus = 'pending';
+    connectionStatus = 'qr_required';
     await updateAccount(accountId, {
       qr_code: qr,
-      status: 'pending',
+      status: 'qr_required',
       worker_id: WORKER_ID
     });
   });
@@ -552,6 +621,8 @@ app.post('/connect', async (req, res) => {
     }
 
     // Start connection in background
+    await cleanupOldAccounts(accountId);
+
     connectWhatsApp(accountId).catch(err => {
       console.error('❌ Connection error:', err.message);
       connectionStatus = 'disconnected';
@@ -637,29 +708,75 @@ app.post('/api/send-message', (req, res) => {
 
 // GET /status
 app.get('/status', (req, res) => {
-  res.json({
-    workerId: WORKER_ID,
-    accountId: currentAccountId,
-    connected: connectionStatus === 'connected',
-    status: connectionStatus,
-    syncInProgress,
-    syncStartedAt,
-    uptime: Math.round(process.uptime()),
+  (async () => {
+    const status = await getRuntimeStatus();
+    res.json({
+      workerId: WORKER_ID,
+      workerSlot: WORKER_SLOT,
+      accountId: currentAccountId,
+      connected: status === 'connected',
+      status,
+      syncInProgress,
+      syncStartedAt,
+      uptime: Math.round(process.uptime()),
+    });
+  })().catch(() => {
+    res.status(500).json({ workerId: WORKER_ID, workerSlot: WORKER_SLOT, error: 'status_check_failed' });
   });
 });
 
-app.get('/api/status/:accountId?', (req, res) => {
-  const { accountId } = req.params;
-  if (accountId && accountId !== currentAccountId) {
-    return res.json({ connected: false, workerId: WORKER_ID });
-  }
-  res.json({
-    workerId: WORKER_ID,
-    accountId: currentAccountId,
-    connected: connectionStatus === 'connected',
-    status: connectionStatus,
-    syncInProgress,
-    syncStartedAt,
+app.get('/api/status', (req, res) => {
+  (async () => {
+    const status = await getRuntimeStatus();
+    const accounts = currentAccountId
+      ? [{ accountId: currentAccountId, status, workerSlot: WORKER_SLOT }]
+      : [];
+
+    res.json({
+      workerId: WORKER_ID,
+      workerSlot: WORKER_SLOT,
+      accounts,
+      total: accounts.length,
+      syncInProgress,
+      syncStartedAt,
+    });
+  })().catch(() => {
+    res.status(500).json({ workerId: WORKER_ID, workerSlot: WORKER_SLOT, error: 'status_check_failed' });
+  });
+});
+
+app.get('/api/status/:accountId', (req, res) => {
+  (async () => {
+    const { accountId } = req.params;
+    const status = await getRuntimeStatus();
+
+    if (!currentAccountId || accountId !== currentAccountId) {
+      return res.json({
+        workerId: WORKER_ID,
+        workerSlot: WORKER_SLOT,
+        accountId,
+        connected: false,
+        status: 'not_found',
+      });
+    }
+
+    res.json({
+      workerId: WORKER_ID,
+      workerSlot: WORKER_SLOT,
+      accountId: currentAccountId,
+      connected: status === 'connected',
+      status,
+      syncInProgress,
+      syncStartedAt,
+    });
+  })().catch(() => {
+    res.status(500).json({
+      workerId: WORKER_ID,
+      workerSlot: WORKER_SLOT,
+      accountId: req.params.accountId,
+      connected: false,
+      status: 'error',
+    });
   });
 });
 
