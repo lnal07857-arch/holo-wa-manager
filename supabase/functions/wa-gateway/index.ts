@@ -11,6 +11,20 @@ const RAW_SERVER_URL = (Deno.env.get('VPS_SERVER_URL') || Deno.env.get('RAILWAY_
 const WITH_PROTOCOL = RAW_SERVER_URL && RAW_SERVER_URL.startsWith('http') ? RAW_SERVER_URL : (RAW_SERVER_URL ? `https://${RAW_SERVER_URL}` : '');
 const BASE_URL = WITH_PROTOCOL.replace(/\/+$/, '');
 
+function buildBaseUrlCandidates(primary: string): string[] {
+  if (!primary) return [];
+  const candidates = [primary];
+
+  // Resilient fallback for known VPS setups where one env points to :3001 but
+  // worker routing is actually exposed via Nginx on :3000 (or vice-versa)
+  if (primary.includes(':3001')) candidates.push(primary.replace(':3001', ':3000'));
+  if (primary.includes(':3000')) candidates.push(primary.replace(':3000', ':3001'));
+
+  return [...new Set(candidates)];
+}
+
+const BASE_URL_CANDIDATES = buildBaseUrlCandidates(BASE_URL);
+
 // Helper: Build headers with worker routing
 function workerHeaders(workerId?: string | null): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -382,23 +396,37 @@ serve(async (req) => {
           const supa = createClient(supabaseUrl || '', supabaseKey || '');
           const workerId = await getWorkerIdForAccount(supa, accountId);
           
-          console.log(`[Account Status] Calling server at: ${BASE_URL}/api/status/${accountId} (worker: ${workerId || 'any'})`);
-          
-          const response = await fetch(`${BASE_URL}/api/status/${accountId}`, {
-            headers: workerHeaders(workerId),
-          });
+          let lastError = '';
+          for (let i = 0; i < BASE_URL_CANDIDATES.length; i++) {
+            const base = BASE_URL_CANDIDATES[i];
+            const isLastCandidate = i === BASE_URL_CANDIDATES.length - 1;
+            console.log(`[Account Status] Calling server at: ${base}/api/status/${accountId} (worker: ${workerId || 'any'})`);
 
-          if (!response.ok) {
-            const error = await response.text();
-            console.error(`[Account Status] Server error: ${error}`);
-            throw new Error(`Server error: ${error}`);
+            const response = await fetch(`${base}/api/status/${accountId}`, {
+              headers: workerHeaders(workerId),
+            });
+
+            if (!response.ok) {
+              const error = await response.text();
+              lastError = error;
+              console.warn(`[Account Status] ${base} returned ${response.status}: ${error}`);
+              continue;
+            }
+
+            const data = await response.json();
+            const isNotFound = data?.status === 'not_found' || data?.error === 'Client not found';
+            if (isNotFound && !isLastCandidate) {
+              console.warn(`[Account Status] ${base} returned not_found, trying fallback endpoint...`);
+              continue;
+            }
+
+            console.log(`[Account Status] Success:`, data);
+            return new Response(JSON.stringify(data), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
           }
 
-          const data = await response.json();
-          console.log(`[Account Status] Success:`, data);
-          return new Response(JSON.stringify(data), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+          throw new Error(`Server error: ${lastError || 'STATUS_ENDPOINT_NOT_AVAILABLE'}`);
         } else {
           // Server-Status abrufen (ohne accountId)
           console.log(`[Server Status] Calling server at: ${BASE_URL}/api/status`);
@@ -562,13 +590,13 @@ serve(async (req) => {
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
         const workerId = await getWorkerIdForAccount(supa, accountId);
 
-        // Try multiple possible endpoints for backward compatibility
-        const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = [
-          { method: 'POST', url: `${BASE_URL}/api/sync-messages`, body: { accountId, supabaseUrl, supabaseKey } },
-          { method: 'POST', url: `${BASE_URL}/api/syncMessages`, body: { accountId, supabaseUrl, supabaseKey } },
-          { method: 'GET',  url: `${BASE_URL}/api/sync-messages?accountId=${accountId}` },
-          { method: 'POST', url: `${BASE_URL}/api/sync`, body: { accountId, supabaseUrl, supabaseKey } },
-        ];
+        // Try multiple base URLs + endpoint variants for backward compatibility
+        const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = BASE_URL_CANDIDATES.flatMap((base) => [
+          { method: 'POST' as const, url: `${base}/api/sync-messages`, body: { accountId, supabaseUrl, supabaseKey } },
+          { method: 'POST' as const, url: `${base}/api/syncMessages`, body: { accountId, supabaseUrl, supabaseKey } },
+          { method: 'GET' as const,  url: `${base}/api/sync-messages?accountId=${accountId}` },
+          { method: 'POST' as const, url: `${base}/api/sync`, body: { accountId, supabaseUrl, supabaseKey } },
+        ]);
 
         let lastErrorText = '';
         for (const c of candidates) {
@@ -583,6 +611,11 @@ serve(async (req) => {
             console.log(`[Sync Messages] Candidate response status: ${response.status}`);
             if (response.ok) {
               const data = await response.json();
+              const isNotFound = data?.status === 'not_found' || data?.error === 'Client not found';
+              if (isNotFound) {
+                console.warn(`[Sync Messages] Candidate returned not_found via ${c.url}, trying next...`);
+                continue;
+              }
               console.log(`[Sync Messages] Success via ${c.url}`);
               return new Response(JSON.stringify(data), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
