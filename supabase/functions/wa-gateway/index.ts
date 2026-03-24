@@ -23,16 +23,36 @@ function buildBaseUrlCandidates(primary: string): string[] {
   return [...new Set(candidates)];
 }
 
+function buildDirectWorkerBaseUrl(primary: string, workerId?: string | null): string | null {
+  if (!primary || !workerId) return null;
+  const match = workerId.match(/^worker-(\d{1,2})$/i);
+  if (!match) return null;
+
+  const workerNumber = Number(match[1]);
+  if (!Number.isFinite(workerNumber) || workerNumber < 1 || workerNumber > 10) return null;
+
+  try {
+    const directUrl = new URL(primary);
+    directUrl.port = String(3000 + workerNumber); // worker-01 => 3001, ... worker-10 => 3010
+    return directUrl.toString().replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
+
 function buildWorkerAwareBaseUrlCandidates(primary: string, workerId?: string | null): string[] {
   const defaults = buildBaseUrlCandidates(primary);
   if (!workerId) return defaults;
+
+  const directWorkerUrl = buildDirectWorkerBaseUrl(primary, workerId);
 
   // In worker mode, prefer Nginx routing (:3000) first to ensure X-Worker-ID is respected.
   const nginxFirst = defaults.find((url) => url.includes(':3000'))
     ?? (primary.includes(':3001') ? primary.replace(':3001', ':3000') : null);
 
-  if (!nginxFirst) return defaults;
-  return [...new Set([nginxFirst, ...defaults])];
+  if (!nginxFirst && !directWorkerUrl) return defaults;
+
+  return [...new Set([directWorkerUrl, nginxFirst, ...defaults].filter(Boolean) as string[])];
 }
 
 const BASE_URL_CANDIDATES = buildBaseUrlCandidates(BASE_URL);
@@ -96,15 +116,25 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
 
-        console.log(`[Initialize] Calling server at: ${BASE_URL}/api/initialize`);
+        // Load account before pre-flight checks
+        const { data: accountData } = await supa
+          .from('whatsapp_accounts')
+          .select('active_config_id, user_id, proxy_server, worker_id')
+          .eq('id', accountId)
+          .maybeSingle();
+
+        const workerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
+        const baseCandidates = buildWorkerAwareBaseUrlCandidates(BASE_URL, workerId);
+        const initializeBase = baseCandidates[0] || BASE_URL;
+
+        console.log(`[Initialize] Calling server at: ${initializeBase}/api/initialize`);
         console.log(`[Initialize] AccountId: ${accountId}`);
 
         // Pre-flight: Check if worker has a stale session, disconnect it first
-        const preWorkerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
-        if (preWorkerId) {
+        if (workerId) {
           try {
-            const preStatusResp = await fetch(`${BASE_URL}/api/status/${accountId}`, {
-              headers: workerHeaders(preWorkerId),
+            const preStatusResp = await fetch(`${initializeBase}/api/status/${accountId}`, {
+              headers: workerHeaders(workerId),
             });
             if (preStatusResp.ok) {
               const preStatus = await preStatusResp.json();
@@ -112,9 +142,9 @@ serve(async (req) => {
               if (preStatus && preStatus.status !== 'connected' && preStatus.status !== 'not_found') {
                 console.log(`[Initialize] Stale session detected (status: ${preStatus.status}). Disconnecting first...`);
                 try {
-                  await fetch(`${BASE_URL}/api/disconnect`, {
+                  await fetch(`${initializeBase}/api/disconnect`, {
                     method: 'POST',
-                    headers: workerHeaders(preWorkerId),
+                    headers: workerHeaders(workerId),
                     body: JSON.stringify({ accountId }),
                   });
                   await new Promise(r => setTimeout(r, 500));
@@ -123,13 +153,6 @@ serve(async (req) => {
             }
           } catch (_) { /* pre-flight check failed, continue anyway */ }
         }
-
-        // Get WireGuard config from active_config_id
-        const { data: accountData } = await supa
-          .from('whatsapp_accounts')
-          .select('active_config_id, user_id, proxy_server')
-          .eq('id', accountId)
-          .maybeSingle();
 
         // Clean up old proxy_server field if we're using active_config_id system
         if (accountData && accountData.proxy_server && !accountData.active_config_id) {
@@ -172,9 +195,6 @@ serve(async (req) => {
           console.log('ℹ️ [Initialize] No VPN configured, using direct connection (VPS/direct mode)');
         }
 
-        // Get worker_id for routing
-        const workerId = accountData?.worker_id || (await getWorkerIdForAccount(supa, accountId));
-
         const attemptInitialize = async () => {
           const requestBody: any = {
             accountId,
@@ -187,7 +207,7 @@ serve(async (req) => {
             requestBody.proxyConfig = proxyConfig;
           }
 
-          return await fetch(`${BASE_URL}/api/initialize`, {
+          return await fetch(`${initializeBase}/api/initialize`, {
             method: 'POST',
             headers: workerHeaders(workerId),
             body: JSON.stringify(requestBody),
