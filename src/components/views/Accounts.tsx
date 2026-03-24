@@ -537,7 +537,7 @@ const Accounts = () => {
 
   // Fallback-Polling, falls Realtime nicht verfügbar ist
   useEffect(() => {
-    if (!initializingAccount || qrCode) return;
+    if (!initializingAccount) return;
     let attempts = 0;
     const interval = setInterval(async () => {
       attempts++;
@@ -548,8 +548,13 @@ const Accounts = () => {
         } = await supabase.from('whatsapp_accounts').select('qr_code,status').eq('id', initializingAccount).single();
         if (!error && data) {
           if (data.qr_code) {
-            setQrCode(data.qr_code);
-            setLoadingQR(false); // QR-Code erhalten, Loading beenden
+            setQrCode(prev => {
+              if (prev !== data.qr_code) {
+                console.log('[QR Poll] New QR code received');
+                setLoadingQR(false);
+              }
+              return data.qr_code;
+            });
           }
           if (data.status === 'connected') {
             toast.success('WhatsApp erfolgreich verbunden!');
@@ -569,9 +574,9 @@ const Accounts = () => {
         setInitializingAccount(null);
         toast.error('Timeout: Kein QR-Code empfangen. Bitte versuchen Sie es erneut.');
       }
-    }, 2000);
+    }, 3000);
     return () => clearInterval(interval);
-  }, [initializingAccount, qrCode]);
+  }, [initializingAccount]);
   if (isLoading) {
     return <div>Lädt...</div>;
   }
