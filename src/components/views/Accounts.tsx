@@ -864,9 +864,9 @@ const SortableAccountCard = ({
                 )}
               </Button>
               <Button 
-                variant={account.status === "pending" || account.status === "qr_generated" ? "default" : "outline"}
+                variant={account.status === "pending" || account.status === "qr_generated" || account.status === "qr_required" ? "default" : "outline"}
                 size="sm" 
-                className={`flex-1 ${account.status === "pending" || account.status === "qr_generated" ? "gap-1" : ""}`}
+                className={`flex-1 ${["pending", "qr_generated", "qr_required"].includes(account.status) ? "gap-1" : ""}`}
                 onClick={() => {
                   setQrCode(null);
                   setInitializingAccount(account.id);
