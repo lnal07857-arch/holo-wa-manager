@@ -412,7 +412,7 @@ serve(async (req) => {
           let lastError = '';
           for (let i = 0; i < baseCandidates.length; i++) {
             const base = baseCandidates[i];
-            const isLastCandidate = i === BASE_URL_CANDIDATES.length - 1;
+            const isLastCandidate = i === baseCandidates.length - 1;
             console.log(`[Account Status] Calling server at: ${base}/api/status/${accountId} (worker: ${workerId || 'any'})`);
 
             const response = await fetch(`${base}/api/status/${accountId}`, {
