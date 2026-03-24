@@ -10,6 +10,7 @@ import { useTemplates } from "@/hooks/useTemplates";
 import { useMessagesContext } from "@/contexts/MessagesContext";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
 import { cn } from "@/lib/utils";
+import { isConnectedStatus } from "@/lib/whatsapp-status";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -315,7 +316,7 @@ const Chats = () => {
             const { data, error } = await supabase.functions.invoke("wa-gateway", {
               body: { action: "status", accountId: acc.id },
             });
-            const connected = !error && (data as any)?.connected === true;
+            const connected = !error && isConnectedStatus(data as any);
             return { acc, connected };
           } catch (e) {
             console.warn(`Statuscheck fehlgeschlagen für ${acc.account_name}:`, e);
