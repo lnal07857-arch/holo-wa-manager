@@ -309,9 +309,19 @@ function destroyClient() {
 async function isClientActuallyConnected(client) {
   if (!client) return false;
   try {
+    // Check 1: Runtime state from Puppeteer
     const state = await client.getState();
-    return String(state || '').toUpperCase() === 'CONNECTED';
+    if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
+
+    // Check 2: Verify WID exists (proves phone is actually linked)
+    if (!client.info || !client.info.wid || !client.info.wid.user) {
+      console.warn('[StatusCheck] getState()=CONNECTED but no WID → ghost session');
+      return false;
+    }
+
+    return true;
   } catch (e) {
+    console.warn('[StatusCheck] Error checking connection:', e.message);
     return false;
   }
 }
