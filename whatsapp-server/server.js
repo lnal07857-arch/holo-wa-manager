@@ -38,6 +38,8 @@ console.log(`✅ Worker ${WORKER_ID} | Port ${PORT} | Supabase: ${supabaseUrl}`)
 let waClient = null;
 let currentAccountId = null;
 let connectionStatus = 'disconnected'; // disconnected | initializing | pending | connected
+let syncInProgress = false;
+let syncStartedAt = null;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -128,6 +130,14 @@ async function resetWorkerAccounts() {
 
 // Sync messages from WhatsApp to Supabase
 async function syncMessages(client, accountId) {
+  if (syncInProgress) {
+    console.log(`[Sync] Skipped: already running since ${syncStartedAt || 'unknown'}`);
+    return { started: false, reason: 'already_running', startedAt: syncStartedAt };
+  }
+
+  syncInProgress = true;
+  syncStartedAt = new Date().toISOString();
+
   try {
     const chats = await client.getChats();
     console.log(`[Sync] ${chats.length} chats found`);
@@ -208,8 +218,13 @@ async function syncMessages(client, accountId) {
     }
 
     console.log(`[Sync] Done: ${synced} new, ${skipped} skipped`);
+    return { started: true, synced, skipped };
   } catch (e) {
     console.error('[Sync] Error:', e.message);
+    return { started: true, error: e.message };
+  } finally {
+    syncInProgress = false;
+    syncStartedAt = null;
   }
 }
 
@@ -576,6 +591,8 @@ app.get('/status', (req, res) => {
     accountId: currentAccountId,
     connected: connectionStatus === 'connected',
     status: connectionStatus,
+    syncInProgress,
+    syncStartedAt,
     uptime: Math.round(process.uptime()),
   });
 });
@@ -590,6 +607,8 @@ app.get('/api/status/:accountId?', (req, res) => {
     accountId: currentAccountId,
     connected: connectionStatus === 'connected',
     status: connectionStatus,
+    syncInProgress,
+    syncStartedAt,
   });
 });
 
@@ -627,8 +646,28 @@ app.post('/api/disconnect', (req, res) => {
 // POST /sync-messages — Manual sync trigger
 app.post('/sync-messages', async (req, res) => {
   try {
+    const { accountId } = req.body || {};
+
     if (!waClient || connectionStatus !== 'connected') {
       return res.status(503).json({ error: 'Not connected', workerId: WORKER_ID });
+    }
+
+    if (accountId && accountId !== currentAccountId) {
+      return res.status(404).json({
+        error: 'Account not on this worker',
+        workerId: WORKER_ID,
+        currentAccount: currentAccountId,
+      });
+    }
+
+    if (syncInProgress) {
+      return res.status(202).json({
+        success: true,
+        workerId: WORKER_ID,
+        syncInProgress: true,
+        startedAt: syncStartedAt,
+        message: 'Sync already running',
+      });
     }
 
     // Run sync in background
@@ -636,7 +675,13 @@ app.post('/sync-messages', async (req, res) => {
       console.error('[Sync] Error:', e.message);
     });
 
-    res.json({ success: true, workerId: WORKER_ID, message: 'Sync started' });
+    res.json({
+      success: true,
+      workerId: WORKER_ID,
+      syncInProgress: true,
+      startedAt: syncStartedAt,
+      message: 'Sync started',
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
