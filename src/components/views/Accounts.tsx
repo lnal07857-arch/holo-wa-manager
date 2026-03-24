@@ -53,7 +53,9 @@ const Accounts = () => {
   // 30s status polling to detect stale sessions
   useStatusPolling(accounts, !isLoading && accounts.length > 0);
 
-
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
