@@ -257,6 +257,16 @@ function destroyClient() {
   connectionStatus = 'disconnected';
 }
 
+async function isClientActuallyConnected(client) {
+  if (!client) return false;
+  try {
+    const state = await client.getState();
+    return String(state || '').toUpperCase() === 'CONNECTED';
+  } catch (e) {
+    return false;
+  }
+}
+
 async function connectWhatsApp(accountId) {
   // Cleanup existing
   destroyClient();
@@ -464,7 +474,7 @@ async function connectWhatsApp(accountId) {
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
     connectionStatus = 'disconnected';
-    await updateAccount(accountId, { status: 'disconnected', worker_id: null });
+    await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
 
@@ -472,7 +482,7 @@ async function connectWhatsApp(accountId) {
   client.on('auth_failure', async (msg) => {
     console.error(`🔒 Auth failure [${accountId}]: ${msg}`);
     connectionStatus = 'disconnected';
-    await updateAccount(accountId, { status: 'disconnected', qr_code: null });
+    await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
     waClient = null;
   });
 
@@ -503,9 +513,33 @@ app.post('/connect', async (req, res) => {
       return res.status(400).json({ error: 'accountId is required' });
     }
 
-    // Already connected to this account
-    if (waClient && currentAccountId === accountId && connectionStatus === 'connected') {
-      return res.json({ success: true, workerId: WORKER_ID, status: 'already_connected' });
+    // Validate existing runtime session (prevents stale "connected" states)
+    if (waClient && currentAccountId === accountId) {
+      const runtimeConnected = await isClientActuallyConnected(waClient);
+      if (runtimeConnected && connectionStatus === 'connected') {
+        return res.json({ success: true, workerId: WORKER_ID, status: 'already_connected' });
+      }
+
+      console.warn(`⚠️ Stale client for ${accountId}; rebuilding...`);
+      await updateAccount(accountId, {
+        status: 'disconnected',
+        qr_code: null,
+        worker_id: WORKER_ID,
+      });
+      destroyClient();
+    }
+
+    if (waClient && currentAccountId && currentAccountId !== accountId) {
+      const runtimeConnected = await isClientActuallyConnected(waClient);
+      if (!runtimeConnected) {
+        console.warn(`⚠️ Stale client for ${currentAccountId}; clearing worker state...`);
+        await updateAccount(currentAccountId, {
+          status: 'disconnected',
+          qr_code: null,
+          worker_id: WORKER_ID,
+        });
+        destroyClient();
+      }
     }
 
     // Worker busy with different account
@@ -642,7 +676,7 @@ app.post('/disconnect', async (req, res) => {
       await updateAccount(currentAccountId, {
         status: 'disconnected',
         qr_code: null,
-        worker_id: null,
+        worker_id: WORKER_ID,
       });
     }
 

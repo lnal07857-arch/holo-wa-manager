@@ -514,9 +514,6 @@ serve(async (req) => {
 
         const data = await response.json();
         
-        // Clear worker_id on disconnect
-        await supa4.from('whatsapp_accounts').update({ worker_id: null }).eq('id', accountId);
-        
         console.log(`[Disconnect] Success:`, data);
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
