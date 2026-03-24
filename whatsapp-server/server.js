@@ -309,9 +309,19 @@ function destroyClient() {
 async function isClientActuallyConnected(client) {
   if (!client) return false;
   try {
+    // Check 1: Runtime state from Puppeteer
     const state = await client.getState();
-    return String(state || '').toUpperCase() === 'CONNECTED';
+    if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
+
+    // Check 2: Verify WID exists (proves phone is actually linked)
+    if (!client.info || !client.info.wid || !client.info.wid.user) {
+      console.warn('[StatusCheck] getState()=CONNECTED but no WID → ghost session');
+      return false;
+    }
+
+    return true;
   } catch (e) {
+    console.warn('[StatusCheck] Error checking connection:', e.message);
     return false;
   }
 }
@@ -323,6 +333,16 @@ async function getRuntimeStatus() {
   if (runtimeConnected) {
     connectionStatus = 'connected';
     return 'connected';
+  }
+
+  // Ghost session detected: client exists but not truly connected
+  if (connectionStatus === 'connected') {
+    console.warn('[getRuntimeStatus] Ghost session detected → setting qr_required');
+    connectionStatus = 'qr_required';
+    if (currentAccountId) {
+      updateAccount(currentAccountId, { status: 'pending', qr_code: null }).catch(() => {});
+    }
+    return 'qr_required';
   }
 
   if (connectionStatus === 'qr_required' || connectionStatus === 'pending') {
