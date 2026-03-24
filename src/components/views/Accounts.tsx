@@ -81,6 +81,31 @@ const Accounts = () => {
     try {
       for (const account of sortedAccounts) {
         try {
+          // Auto-assign slot if missing
+          if (!account.worker_slot) {
+            console.log(`[Status Check] ${account.account_name}: No slot, assigning...`);
+            const { data: freeSlots } = await supabase
+              .from("worker_slots" as any)
+              .select("slot_number")
+              .eq("is_occupied", false)
+              .order("slot_number", { ascending: true })
+              .limit(1);
+            
+            const slotList = freeSlots as any[] | null;
+            if (slotList && slotList.length > 0) {
+              const freeSlot = slotList[0].slot_number as number;
+              await supabase
+                .from('whatsapp_accounts')
+                .update({ worker_slot: freeSlot, worker_id: `worker-${String(freeSlot).padStart(2, '0')}` })
+                .eq('id', account.id);
+              await supabase
+                .from("worker_slots" as any)
+                .update({ is_occupied: true, account_id: account.id, last_used_at: new Date().toISOString() } as any)
+                .eq("slot_number", freeSlot);
+              toast.info(`Slot ${freeSlot} zugewiesen an ${account.account_name}`);
+            }
+          }
+
           const { data, error } = await supabase.functions.invoke('wa-gateway', {
             body: { action: 'status', accountId: account.id }
           });
