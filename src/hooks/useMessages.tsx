@@ -330,14 +330,14 @@ export const useMessages = () => {
           const msg = payload.new as any;
           if (!msg) return;
 
-          // Update is_read status inline
+          // Update is_read and ack_status inline
           setChatGroups(prev => prev.map(group => {
             if (group.account_id !== msg.account_id) return group;
             const hasMsg = group.messages.some(m => m.id === msg.id);
             if (!hasMsg) return group;
             return {
               ...group,
-              messages: group.messages.map(m => m.id === msg.id ? { ...m, is_read: msg.is_read } : m),
+              messages: group.messages.map(m => m.id === msg.id ? { ...m, is_read: msg.is_read, ack_status: msg.ack_status ?? m.ack_status } : m),
               unread_count: group.messages.filter(m => m.id !== msg.id && m.direction === "incoming" && !m.is_read).length + (msg.direction === "incoming" && !msg.is_read ? 1 : 0),
             };
           }));

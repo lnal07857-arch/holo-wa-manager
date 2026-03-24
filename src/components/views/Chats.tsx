@@ -764,8 +764,26 @@ const Chats = () => {
                                     Mehr lesen
                                   </button>
                                 )}
-                                <span className="text-xs opacity-70 mt-2 block">
+                                <span className="text-xs opacity-70 mt-2 flex items-center gap-1 justify-end">
                                   {format(new Date(message.sent_at), "HH:mm", { locale: de })}
+                                  {message.direction === "outgoing" && (
+                                    (() => {
+                                      const ack = message.ack_status ?? 0;
+                                      if (ack >= 3) {
+                                        // Read - blue double check
+                                        return <CheckCheck className="w-3.5 h-3.5 text-blue-400" />;
+                                      } else if (ack >= 2) {
+                                        // Delivered - double check
+                                        return <CheckCheck className="w-3.5 h-3.5" />;
+                                      } else if (ack >= 1) {
+                                        // Sent to server - single check
+                                        return <Check className="w-3.5 h-3.5" />;
+                                      } else {
+                                        // Pending - clock/single dim check
+                                        return <Check className="w-3.5 h-3.5 opacity-50" />;
+                                      }
+                                    })()
+                                  )}
                                 </span>
                               </>
                             );
