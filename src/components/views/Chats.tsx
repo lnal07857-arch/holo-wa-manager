@@ -324,13 +324,13 @@ const Chats = () => {
         })
       );
 
-      // Behalte nur wirklich verbundene Accounts; fallback: DB-Status "connected"
+      // Behalte nur wirklich live verbundene Accounts
       const accountsToSync = checks
-        .filter(({ acc, connected }) => connected || acc.status === "connected")
+        .filter(({ connected }) => connected)
         .map(({ acc }) => acc);
 
       if (accountsToSync.length === 0) {
-        toast.error("Keine verbundenen Accounts gefunden");
+        toast.error("Keine live verbundenen Accounts gefunden");
         return;
       }
 
