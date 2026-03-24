@@ -839,9 +839,9 @@ const SortableAccountCard = ({
                 )}
               </Button>
               <Button 
-                variant="outline" 
+                variant={account.status === "pending" || account.status === "qr_generated" ? "default" : "outline"}
                 size="sm" 
-                className="flex-1" 
+                className={`flex-1 ${account.status === "pending" || account.status === "qr_generated" ? "gap-1" : ""}`}
                 onClick={() => {
                   setQrCode(null);
                   setInitializingAccount(account.id);
@@ -849,7 +849,12 @@ const SortableAccountCard = ({
                   initializeWhatsApp(account.id);
                 }}
               >
-                {account.status === "connected" ? "Neu verbinden" : "Verbinden"}
+                {account.status === "pending" || account.status === "qr_generated" ? (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Verbindung erneuern
+                  </>
+                ) : account.status === "connected" ? "Neu verbinden" : "Verbinden"}
               </Button>
               <Button 
                 variant="outline" 
