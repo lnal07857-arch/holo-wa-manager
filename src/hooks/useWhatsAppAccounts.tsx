@@ -8,7 +8,7 @@ export interface WhatsAppAccount {
   user_id: string;
   account_name: string;
   phone_number: string;
-  status: "connected" | "disconnected" | "connecting";
+  status: "connected" | "disconnected" | "connecting" | "pending" | "qr_generated";
   qr_code: string | null;
   session_data: any;
   last_connected_at: string | null;
