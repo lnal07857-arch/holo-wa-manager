@@ -1,5 +1,5 @@
 # Dockerfile with WireGuard support for VPS deployment
-FROM ghcr.io/puppeteer/puppeteer:22
+FROM ghcr.io/puppeteer/puppeteer:23
 
 # Install WireGuard and networking tools
 USER root
