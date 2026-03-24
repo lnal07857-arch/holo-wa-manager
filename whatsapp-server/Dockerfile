@@ -20,7 +20,7 @@ RUN npm install --omit=dev --no-audit --no-fund --verbose
 
 # Step 3: Verify whatsapp-web.js installation and install Puppeteer Chrome
 RUN npm ls whatsapp-web.js || npm install whatsapp-web.js@^1.23.0 --no-audit --no-fund --verbose && \
-    node_modules/.bin/puppeteer browsers install chrome || npx --yes puppeteer@22.10.0 browsers install chrome
+    node_modules/.bin/puppeteer browsers install chrome || npx --yes puppeteer@23 browsers install chrome
 
 # Step 4: Copy rest of the code
 COPY whatsapp-server/. ./
