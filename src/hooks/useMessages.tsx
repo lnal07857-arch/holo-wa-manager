@@ -138,6 +138,7 @@ export const useMessages = () => {
           media_url: msg.media_url,
           media_type: msg.media_type,
           media_mimetype: msg.media_mimetype,
+          ack_status: msg.ack_status ?? 0,
         }));
 
         // Merge with existing messages, removing optimistic (temp-) messages that now have real IDs
