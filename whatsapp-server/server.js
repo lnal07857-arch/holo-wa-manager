@@ -364,9 +364,11 @@ async function connectWhatsApp(accountId) {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
     connectionStatus = 'qr_required';
+
+    // DB supports 'pending' (not 'qr_required') - keep runtime status separate.
     await updateAccount(accountId, {
       qr_code: qr,
-      status: 'qr_required',
+      status: 'pending',
       worker_id: WORKER_ID
     });
   });
