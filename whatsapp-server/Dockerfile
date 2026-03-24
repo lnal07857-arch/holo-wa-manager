@@ -1,5 +1,5 @@
 # Reliable Puppeteer + Node base image
-FROM ghcr.io/puppeteer/puppeteer:22
+FROM ghcr.io/puppeteer/puppeteer:23
 
 # Environment variables - NO SECRETS HERE!
 ENV NODE_ENV=production
