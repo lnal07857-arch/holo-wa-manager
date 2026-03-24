@@ -284,7 +284,7 @@ async function connectWhatsApp(accountId) {
     const phoneNumber = waClient?.info?.wid?.user || null;
     const pushName = waClient?.info?.pushname || null;
     
-    const updateData: any = {
+    const updateData = {
       status: 'connected',
       qr_code: null,
       worker_id: WORKER_ID,
