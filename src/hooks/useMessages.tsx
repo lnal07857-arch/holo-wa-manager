@@ -15,6 +15,7 @@ export interface Message {
   media_url?: string | null;
   media_type?: string | null;
   media_mimetype?: string | null;
+  ack_status?: number;
 }
 
 export interface ChatGroup {
