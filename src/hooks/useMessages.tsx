@@ -15,6 +15,7 @@ export interface Message {
   media_url?: string | null;
   media_type?: string | null;
   media_mimetype?: string | null;
+  ack_status?: number;
 }
 
 export interface ChatGroup {
@@ -137,6 +138,7 @@ export const useMessages = () => {
           media_url: msg.media_url,
           media_type: msg.media_type,
           media_mimetype: msg.media_mimetype,
+          ack_status: msg.ack_status ?? 0,
         }));
 
         // Merge with existing messages, removing optimistic (temp-) messages that now have real IDs
@@ -283,6 +285,7 @@ export const useMessages = () => {
             media_url: msg.media_url,
             media_type: msg.media_type,
             media_mimetype: msg.media_mimetype,
+            ack_status: msg.ack_status ?? 0,
           };
 
           // Update messages state
@@ -327,14 +330,14 @@ export const useMessages = () => {
           const msg = payload.new as any;
           if (!msg) return;
 
-          // Update is_read status inline
+          // Update is_read and ack_status inline
           setChatGroups(prev => prev.map(group => {
             if (group.account_id !== msg.account_id) return group;
             const hasMsg = group.messages.some(m => m.id === msg.id);
             if (!hasMsg) return group;
             return {
               ...group,
-              messages: group.messages.map(m => m.id === msg.id ? { ...m, is_read: msg.is_read } : m),
+              messages: group.messages.map(m => m.id === msg.id ? { ...m, is_read: msg.is_read, ack_status: msg.ack_status ?? m.ack_status } : m),
               unread_count: group.messages.filter(m => m.id !== msg.id && m.direction === "incoming" && !m.is_read).length + (msg.direction === "incoming" && !msg.is_read ? 1 : 0),
             };
           }));

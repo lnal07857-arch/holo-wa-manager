@@ -191,6 +191,7 @@ export type Database = {
       messages: {
         Row: {
           account_id: string
+          ack_status: number | null
           contact_name: string | null
           contact_phone: string
           created_at: string
@@ -206,6 +207,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          ack_status?: number | null
           contact_name?: string | null
           contact_phone: string
           created_at?: string
@@ -221,6 +223,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          ack_status?: number | null
           contact_name?: string | null
           contact_phone?: string
           created_at?: string
