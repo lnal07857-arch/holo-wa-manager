@@ -23,6 +23,18 @@ function buildBaseUrlCandidates(primary: string): string[] {
   return [...new Set(candidates)];
 }
 
+function buildWorkerAwareBaseUrlCandidates(primary: string, workerId?: string | null): string[] {
+  const defaults = buildBaseUrlCandidates(primary);
+  if (!workerId) return defaults;
+
+  // In worker mode, prefer Nginx routing (:3000) first to ensure X-Worker-ID is respected.
+  const nginxFirst = defaults.find((url) => url.includes(':3000'))
+    ?? (primary.includes(':3001') ? primary.replace(':3001', ':3000') : null);
+
+  if (!nginxFirst) return defaults;
+  return [...new Set([nginxFirst, ...defaults])];
+}
+
 const BASE_URL_CANDIDATES = buildBaseUrlCandidates(BASE_URL);
 
 // Helper: Build headers with worker routing
@@ -396,10 +408,11 @@ serve(async (req) => {
           const supa = createClient(supabaseUrl || '', supabaseKey || '');
           const workerId = await getWorkerIdForAccount(supa, accountId);
           
+          const baseCandidates = buildWorkerAwareBaseUrlCandidates(BASE_URL, workerId);
           let lastError = '';
-          for (let i = 0; i < BASE_URL_CANDIDATES.length; i++) {
-            const base = BASE_URL_CANDIDATES[i];
-            const isLastCandidate = i === BASE_URL_CANDIDATES.length - 1;
+          for (let i = 0; i < baseCandidates.length; i++) {
+            const base = baseCandidates[i];
+            const isLastCandidate = i === baseCandidates.length - 1;
             console.log(`[Account Status] Calling server at: ${base}/api/status/${accountId} (worker: ${workerId || 'any'})`);
 
             const response = await fetch(`${base}/api/status/${accountId}`, {
@@ -414,8 +427,19 @@ serve(async (req) => {
             }
 
             const data = await response.json();
+            const returnedWorkerId = data?.workerId || null;
+            const workerMismatch = !!workerId && !!returnedWorkerId && returnedWorkerId !== workerId;
+            if (workerMismatch) {
+              lastError = `Worker mismatch: expected ${workerId}, got ${returnedWorkerId}`;
+              if (!isLastCandidate) {
+                console.warn(`[Account Status] ${base} returned mismatched worker (${returnedWorkerId}), trying fallback...`);
+                continue;
+              }
+              throw new Error(lastError);
+            }
+
             const isNotFound = data?.status === 'not_found' || data?.error === 'Client not found';
-            if (isNotFound && !isLastCandidate) {
+            if (!workerId && isNotFound && !isLastCandidate) {
               console.warn(`[Account Status] ${base} returned not_found, trying fallback endpoint...`);
               continue;
             }
@@ -589,9 +613,10 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         const supa = createClient(supabaseUrl || '', supabaseKey || '');
         const workerId = await getWorkerIdForAccount(supa, accountId);
+        const baseCandidates = buildWorkerAwareBaseUrlCandidates(BASE_URL, workerId);
 
         // Try multiple base URLs + endpoint variants for backward compatibility
-        const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = BASE_URL_CANDIDATES.flatMap((base) => [
+        const candidates: Array<{ method: 'POST' | 'GET'; url: string; body?: any }> = baseCandidates.flatMap((base) => [
           { method: 'POST' as const, url: `${base}/api/sync-messages`, body: { accountId, supabaseUrl, supabaseKey } },
           { method: 'POST' as const, url: `${base}/api/syncMessages`, body: { accountId, supabaseUrl, supabaseKey } },
           { method: 'GET' as const,  url: `${base}/api/sync-messages?accountId=${accountId}` },
@@ -611,7 +636,20 @@ serve(async (req) => {
             console.log(`[Sync Messages] Candidate response status: ${response.status}`);
             if (response.ok) {
               const data = await response.json();
+              const returnedWorkerId = data?.workerId || null;
+              const workerMismatch = !!workerId && !!returnedWorkerId && returnedWorkerId !== workerId;
+              if (workerMismatch) {
+                console.warn(`[Sync Messages] Candidate returned mismatched worker (${returnedWorkerId}), trying next...`);
+                continue;
+              }
+
               const isNotFound = data?.status === 'not_found' || data?.error === 'Client not found';
+              if (workerId && isNotFound) {
+                return new Response(JSON.stringify(data), {
+                  status: 503,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+              }
               if (isNotFound) {
                 console.warn(`[Sync Messages] Candidate returned not_found via ${c.url}, trying next...`);
                 continue;
@@ -624,6 +662,15 @@ serve(async (req) => {
 
             const text = await response.text();
             lastErrorText = text;
+
+            // In worker mode, never hop to potentially wrong backends on worker-state errors.
+            if (workerId && (response.status === 503 || response.status === 409)) {
+              return new Response(text || JSON.stringify({ error: 'WORKER_NOT_READY' }), {
+                status: response.status,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
             // Continue trying next candidate on 404 or generic Cannot POST
             if (response.status === 404 || /Cannot\s+POST/i.test(text)) {
               continue;
