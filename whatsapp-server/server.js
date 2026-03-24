@@ -395,7 +395,34 @@ async function connectWhatsApp(accountId) {
 
   // Ready
   client.on('ready', async () => {
-    console.log(`✅ WhatsApp connected [${accountId}]`);
+    console.log(`✅ WhatsApp ready event [${accountId}] — validating session...`);
+
+    // ── Post-ready validation: prove session is real ──
+    await sleep(2000); // Give WA web time to fully hydrate
+    try {
+      const state = await client.getState();
+      const wid = client.info?.wid?.user;
+      console.log(`[ReadyCheck] state=${state}, wid=${wid}`);
+
+      if (String(state || '').toUpperCase() !== 'CONNECTED' || !wid) {
+        console.warn(`⚠️ [ReadyCheck] Ghost session detected (state=${state}, wid=${wid}). Destroying...`);
+        connectionStatus = 'disconnected';
+        await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+        try { await client.destroy(); } catch (_) {}
+        waClient = null;
+        return;
+      }
+    } catch (validationErr) {
+      console.warn(`⚠️ [ReadyCheck] Validation error: ${validationErr.message}. Destroying...`);
+      connectionStatus = 'disconnected';
+      await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+      try { await client.destroy(); } catch (_) {}
+      waClient = null;
+      return;
+    }
+
+    // ── Session is real ──
+    console.log(`✅ WhatsApp VERIFIED connected [${accountId}]`);
     connectionStatus = 'connected';
     
     // Auto-detect phone number and push name
@@ -414,7 +441,6 @@ async function connectWhatsApp(accountId) {
       console.log(`📱 Auto-detected phone: +${phoneNumber}`);
     }
     if (pushName) {
-      // Only update account_name if it's still the default placeholder
       const { data: currentAccount } = await supabase
         .from('whatsapp_accounts')
         .select('account_name')
