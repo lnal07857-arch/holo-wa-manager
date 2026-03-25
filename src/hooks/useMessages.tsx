@@ -123,9 +123,13 @@ export const useMessages = () => {
           .gte("sent_at", thirtyDaysAgo.toISOString())
           .order("sent_at", { ascending: false });
 
-        if (messagesError) throw messagesError;
+        if (messagesError) {
+          console.error('[Messages] Query error:', messagesError);
+          throw messagesError;
+        }
 
-        console.log(`[Messages] Fetched ${messagesData?.length || 0} messages from DB`);
+        console.log(`[Messages] Fetched ${messagesData?.length || 0} messages from DB`, 
+          messagesData?.length ? `First: ${messagesData[0].contact_phone}` : 'EMPTY');
 
         const typedMessages: Message[] = (messagesData || []).map((msg: any) => ({
           id: msg.id,
@@ -199,11 +203,12 @@ export const useMessages = () => {
             return;
           }
           
-          // ADDITIONAL: Skip if contact_name matches any account name (case-insensitive)
+          // ADDITIONAL: Skip if contact_name matches any account phone number (case-insensitive)
           const contactNameLower = (msg.contact_name || '').toLowerCase();
-          const isOwnAccountByName = (userAccounts || []).some(acc => 
-            acc.phone_number && contactNameLower.includes(acc.phone_number.toLowerCase().replace(/\D/g, ''))
-          );
+          const isOwnAccountByName = (userAccounts || []).some(acc => {
+            const cleanAccPhone = (acc.phone_number || '').replace(/\D/g, '');
+            return cleanAccPhone.length > 3 && contactNameLower.includes(cleanAccPhone);
+          });
           
           if (isOwnAccountByName) {
             return;
