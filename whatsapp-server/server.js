@@ -5,6 +5,7 @@ import cors from 'cors';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
+import puppeteer from 'puppeteer';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import 'dotenv/config';
@@ -408,11 +409,14 @@ async function connectWhatsApp(accountId) {
   connectionStatus = 'initializing';
   currentAccountId = accountId;
 
+  const resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath();
+  console.log(`[Browser] Using executablePath: ${resolvedExecutablePath}`);
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId, dataPath: WA_DATA_DIR }),
     puppeteer: {
       headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
+      executablePath: resolvedExecutablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -724,9 +728,11 @@ app.post('/connect', async (req, res) => {
     // Start connection in background
     await cleanupOldAccounts(accountId);
 
-    connectWhatsApp(accountId).catch(err => {
+    connectWhatsApp(accountId).catch(async (err) => {
       console.error('❌ Connection error:', err.message);
       connectionStatus = 'disconnected';
+      await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+      destroyClient();
     });
 
     await updateAccount(accountId, { status: 'initializing', worker_id: WORKER_ID });
