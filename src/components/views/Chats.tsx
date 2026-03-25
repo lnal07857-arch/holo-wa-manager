@@ -232,21 +232,6 @@ const Chats = () => {
   const filteredChats = chatGroups.filter(chat => {
     const chatKey = `${chat.contact_phone}_${chat.account_id}`;
     
-    
-    // Exclude chats between own WhatsApp accounts (warm-up chats)
-    const cleanContactPhone = chat.contact_phone.replace(/\D/g, '');
-    
-    // Check if the contact_phone belongs to any of the user's WhatsApp accounts
-    const isOwnAccount = accounts.some(acc => {
-      const cleanAccPhone = acc.phone_number.replace(/\D/g, '');
-      return cleanAccPhone === cleanContactPhone;
-    });
-    
-    if (isOwnAccount) {
-      return false;
-    }
-    
-    
     // Apply filter tabs
     let matchesFilter = true;
     switch (chatFilter) {
