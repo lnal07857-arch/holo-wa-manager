@@ -1,5 +1,6 @@
 # Dockerfile with WireGuard support for VPS deployment
-FROM ghcr.io/puppeteer/puppeteer:24.40.0
+# Use Puppeteer 19 base image (Chrome ~109) - compatible with whatsapp-web.js 1.26.x
+FROM ghcr.io/puppeteer/puppeteer:19.11.1
 
 # Install WireGuard and networking tools
 USER root
