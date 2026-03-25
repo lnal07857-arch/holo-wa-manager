@@ -198,7 +198,6 @@ async function syncMessages(client, accountId) {
     console.log(`[Sync] ${chats.length} chats found`);
 
     let synced = 0, skipped = 0;
-    const thirtyDaysAgo = Date.now() / 1000 - 30 * 86400;
 
     for (const chat of chats) {
       try {
@@ -220,8 +219,7 @@ async function syncMessages(client, accountId) {
         if (!chatPhone) continue;
 
         const messages = await chat.fetchMessages({ limit: SYNC_MESSAGE_LIMIT });
-        const recent = messages.filter(m => m.timestamp >= thirtyDaysAgo);
-        if (recent.length === 0) continue;
+        if (messages.length === 0) continue;
 
         let chatContactName = chat.name || null;
         if (!chatContactName) {
@@ -234,7 +232,7 @@ async function syncMessages(client, accountId) {
         }
 
         // Determine unread messages
-        const incoming = recent.filter(m => !m.fromMe);
+        const incoming = messages.filter(m => !m.fromMe);
         const unreadCount = chat.unreadCount || 0;
         const unreadIds = new Set();
         if (unreadCount > 0 && incoming.length > 0) {
@@ -243,7 +241,7 @@ async function syncMessages(client, accountId) {
           });
         }
 
-        for (const msg of [...recent].reverse()) {
+        for (const msg of [...messages].reverse()) {
           try {
             const peerJid = msg.fromMe ? msg.to : msg.from;
             const direction = msg.fromMe ? 'outgoing' : 'incoming';
