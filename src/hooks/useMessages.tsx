@@ -125,6 +125,8 @@ export const useMessages = () => {
 
         if (messagesError) throw messagesError;
 
+        console.log(`[Messages] Fetched ${messagesData?.length || 0} messages from DB`);
+
         const typedMessages: Message[] = (messagesData || []).map((msg: any) => ({
           id: msg.id,
           account_id: msg.account_id,
