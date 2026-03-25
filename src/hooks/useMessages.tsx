@@ -123,9 +123,13 @@ export const useMessages = () => {
           .gte("sent_at", thirtyDaysAgo.toISOString())
           .order("sent_at", { ascending: false });
 
-        if (messagesError) throw messagesError;
+        if (messagesError) {
+          console.error('[Messages] Query error:', messagesError);
+          throw messagesError;
+        }
 
-        console.log(`[Messages] Fetched ${messagesData?.length || 0} messages from DB`);
+        console.log(`[Messages] Fetched ${messagesData?.length || 0} messages from DB`, 
+          messagesData?.length ? `First: ${messagesData[0].contact_phone}` : 'EMPTY');
 
         const typedMessages: Message[] = (messagesData || []).map((msg: any) => ({
           id: msg.id,
