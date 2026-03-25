@@ -475,9 +475,18 @@ async function connectWhatsApp(accountId) {
     console.log(`✅ WhatsApp VERIFIED connected [${accountId}]`);
     connectionStatus = 'connected';
     
-    // Auto-detect phone number and push name
-    const phoneNumber = waClient?.info?.wid?.user || null;
-    const pushName = waClient?.info?.pushname || null;
+    // Auto-detect phone number and push name (use closure `client` + retry)
+    let phoneNumber = client?.info?.wid?.user || waClient?.info?.wid?.user || null;
+    let pushName = client?.info?.pushname || waClient?.info?.pushname || null;
+    
+    // Retry once after short delay if info not yet populated
+    if (!phoneNumber) {
+      console.log(`[ReadyCheck] wid not available yet, retrying in 3s...`);
+      await sleep(3000);
+      phoneNumber = client?.info?.wid?.user || waClient?.info?.wid?.user || null;
+      pushName = client?.info?.pushname || waClient?.info?.pushname || null;
+      console.log(`[ReadyCheck] Retry result: wid=${phoneNumber}, pushname=${pushName}`);
+    }
     
     const updateData = {
       status: 'connected',
