@@ -1,5 +1,5 @@
 # Dockerfile with WireGuard support for VPS deployment
-FROM ghcr.io/puppeteer/puppeteer:23
+FROM ghcr.io/puppeteer/puppeteer:24.40.0
 
 # Install WireGuard and networking tools
 USER root
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 
 # Environment variables
 ENV NODE_ENV=production
-ENV PUPPETEER_SKIP_DOWNLOAD=false
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
 
 # Set working directory
@@ -23,9 +23,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY server.js ./
 
-# Install dependencies
-RUN npm install --omit=dev --force && \
-    npx puppeteer browsers install chrome && \
+# Install dependencies (Chrome is already included in the Puppeteer base image)
+RUN npm install --omit=dev --no-audit --no-fund && \
     chown -R pptruser:pptruser /app
 
 # Create WireGuard config directory
