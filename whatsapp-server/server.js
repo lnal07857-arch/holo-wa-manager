@@ -412,6 +412,7 @@ async function connectWhatsApp(accountId) {
     authStrategy: new LocalAuth({ clientId: accountId, dataPath: WA_DATA_DIR }),
     puppeteer: {
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
