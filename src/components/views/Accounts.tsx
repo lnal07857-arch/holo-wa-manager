@@ -118,17 +118,22 @@ const Accounts = () => {
           }
           
           // Update DB based on actual server status (map runtime-only states to DB-safe states)
+          // Never promote to connected from UI-side validation (prevents false positives).
           const runtimeStatus = normalizeGatewayAccountStatus(data as any, account.status || 'disconnected');
-          const dbStatus = runtimeStatus === 'not_found'
+          const mappedStatus = runtimeStatus === 'not_found'
             ? 'disconnected'
             : (runtimeStatus === 'qr_required' || runtimeStatus === 'qr_generated'
               ? 'pending'
               : runtimeStatus);
 
+          const dbStatus = mappedStatus === 'connected' && account.status !== 'connected'
+            ? (account.qr_code ? 'pending' : account.status)
+            : mappedStatus;
+
           if (account.status !== dbStatus) {
             const { error: updateError } = await supabase
               .from('whatsapp_accounts')
-              .update({ 
+              .update({
                 status: dbStatus,
                 qr_code: dbStatus === 'disconnected' ? null : account.qr_code
               })
