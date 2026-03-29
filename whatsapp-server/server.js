@@ -11,6 +11,17 @@ import path from 'node:path';
 import 'dotenv/config';
 
 // ═══════════════════════════════════════════════════════════════
+// GLOBAL ERROR HANDLERS — catch silent Puppeteer crashes
+// ═══════════════════════════════════════════════════════════════
+process.on('unhandledRejection', (reason) => {
+  console.error('🔥 Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Uncaught exception:', err.message, err.stack);
+  // Don't exit — keep the server alive
+});
+
+// ═══════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════
 const app = express();
