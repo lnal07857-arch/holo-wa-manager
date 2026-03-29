@@ -9,6 +9,7 @@ interface AccountForPolling {
   account_name: string;
   status: string;
   worker_slot: number | null;
+  qr_code?: string | null;
 }
 
 /**
