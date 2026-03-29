@@ -470,8 +470,26 @@ async function connectWhatsApp(accountId) {
     });
   });
 
+  // Authenticated (fires AFTER QR scan, BEFORE ready)
+  client.on('authenticated', () => {
+    console.log(`🔑 Authenticated [${accountId}] — QR scan successful, loading session...`);
+    clearQrTimeout();
+    connectionStatus = 'initializing';
+  });
+
+  // Loading screen (shows WhatsApp web loading progress)
+  client.on('loading_screen', (percent, message) => {
+    console.log(`⏳ Loading [${accountId}]: ${percent}% — ${message}`);
+  });
+
+  // Capture puppeteer page errors
+  client.on('change_state', (state) => {
+    console.log(`🔄 State change [${accountId}]: ${state}`);
+  });
+
   // Ready
   client.on('ready', async () => {
+    clearQrTimeout();
     console.log(`✅ WhatsApp ready event [${accountId}] — validating session...`);
 
     // ── Post-ready validation: prove session is real ──
