@@ -11,6 +11,17 @@ import path from 'node:path';
 import 'dotenv/config';
 
 // ═══════════════════════════════════════════════════════════════
+// GLOBAL ERROR HANDLERS — catch silent Puppeteer crashes
+// ═══════════════════════════════════════════════════════════════
+process.on('unhandledRejection', (reason) => {
+  console.error('🔥 Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Uncaught exception:', err.message, err.stack);
+  // Don't exit — keep the server alive
+});
+
+// ═══════════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════════
 const app = express();
@@ -723,7 +734,48 @@ async function connectWhatsApp(accountId) {
   });
 
   waClient = client;
-  await client.initialize();
+
+  try {
+    await client.initialize();
+
+    // Attach page-level crash detection AFTER initialize (pupPage exists now)
+    if (client.pupPage) {
+      client.pupPage.on('error', (err) => {
+        console.error(`💥 [PupPage] Page crashed [${accountId}]: ${err.message}`);
+        connectionStatus = 'disconnected';
+        updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID }).catch(() => {});
+        destroyClient();
+      });
+      client.pupPage.on('close', () => {
+        console.error(`💥 [PupPage] Page closed unexpectedly [${accountId}]`);
+        if (connectionStatus !== 'connected') {
+          connectionStatus = 'disconnected';
+          updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID }).catch(() => {});
+          if (waClient === client) waClient = null;
+        }
+      });
+      console.log(`[PupPage] Error handlers attached for ${accountId}`);
+    }
+
+    if (client.pupBrowser) {
+      client.pupBrowser.on('disconnected', () => {
+        console.error(`💥 [PupBrowser] Browser process disconnected [${accountId}]`);
+        connectionStatus = 'disconnected';
+        updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID }).catch(() => {});
+        if (waClient === client) {
+          waClient = null;
+          currentAccountId = null;
+        }
+        stopRuntimeHealthWatchdog();
+      });
+    }
+  } catch (initErr) {
+    console.error(`❌ client.initialize() failed [${accountId}]: ${initErr.message}`);
+    connectionStatus = 'disconnected';
+    await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+    waClient = null;
+    currentAccountId = null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
