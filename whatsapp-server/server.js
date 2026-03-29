@@ -438,10 +438,12 @@ async function connectWhatsApp(accountId) {
 
   // QR scan timeout: if no 'authenticated' event within 90s after QR, clean up
   let qrScanTimeout = null;
-  let qrReceived = false;
 
   function clearQrTimeout() {
-    if (qrScanTimeout) { clearTimeout(qrScanTimeout); qrScanTimeout = null; }
+    if (qrScanTimeout) {
+      clearTimeout(qrScanTimeout);
+      qrScanTimeout = null;
+    }
   }
 
   // QR Code
@@ -449,13 +451,12 @@ async function connectWhatsApp(accountId) {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
     connectionStatus = 'qr_required';
-    qrReceived = true;
 
     // Reset timeout every time a new QR is generated
     clearQrTimeout();
     qrScanTimeout = setTimeout(async () => {
-      if (connectionStatus !== 'connected' && connectionStatus !== 'initializing') {
-        return; // Already cleaned up
+      if (connectionStatus === 'connected' || connectionStatus === 'disconnected') {
+        return;
       }
       console.warn(`⏰ [QR Timeout] No auth event after 90s for ${accountId}. Cleaning up.`);
       connectionStatus = 'disconnected';
@@ -471,10 +472,15 @@ async function connectWhatsApp(accountId) {
   });
 
   // Authenticated (fires AFTER QR scan, BEFORE ready)
-  client.on('authenticated', () => {
+  client.on('authenticated', async () => {
     console.log(`🔑 Authenticated [${accountId}] — QR scan successful, loading session...`);
     clearQrTimeout();
     connectionStatus = 'initializing';
+    await updateAccount(accountId, {
+      status: 'initializing',
+      qr_code: null,
+      worker_id: WORKER_ID,
+    });
   });
 
   // Loading screen (shows WhatsApp web loading progress)
