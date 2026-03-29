@@ -436,13 +436,33 @@ async function connectWhatsApp(accountId) {
     }
   });
 
+  // QR scan timeout: if no 'authenticated' event within 90s after QR, clean up
+  let qrScanTimeout = null;
+  let qrReceived = false;
+
+  function clearQrTimeout() {
+    if (qrScanTimeout) { clearTimeout(qrScanTimeout); qrScanTimeout = null; }
+  }
+
   // QR Code
   client.on('qr', async (qr) => {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
     connectionStatus = 'qr_required';
+    qrReceived = true;
 
-    // DB supports 'pending' (not 'qr_required') - keep runtime status separate.
+    // Reset timeout every time a new QR is generated
+    clearQrTimeout();
+    qrScanTimeout = setTimeout(async () => {
+      if (connectionStatus !== 'connected' && connectionStatus !== 'initializing') {
+        return; // Already cleaned up
+      }
+      console.warn(`⏰ [QR Timeout] No auth event after 90s for ${accountId}. Cleaning up.`);
+      connectionStatus = 'disconnected';
+      await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+      destroyClient();
+    }, 90000);
+
     await updateAccount(accountId, {
       qr_code: qr,
       status: 'pending',
