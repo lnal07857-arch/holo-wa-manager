@@ -418,7 +418,10 @@ async function connectWhatsApp(accountId) {
   connectionStatus = 'initializing';
   currentAccountId = accountId;
 
-  const resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath();
+  // Puppeteer 19 base image bundles Chrome at a known path
+  const resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH
+    || '/usr/bin/google-chrome-stable'
+    || puppeteer.executablePath();
   console.log(`[Browser] Using executablePath: ${resolvedExecutablePath}`);
 
   const client = new Client({
