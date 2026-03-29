@@ -708,6 +708,7 @@ async function connectWhatsApp(accountId) {
   // Auth failure
   client.on('auth_failure', async (msg) => {
     console.error(`🔒 Auth failure [${accountId}]: ${msg}`);
+    clearQrTimeout();
     stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
     currentAccountId = null;
