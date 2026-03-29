@@ -9,6 +9,7 @@ interface AccountForPolling {
   account_name: string;
   status: string;
   worker_slot: number | null;
+  qr_code?: string | null;
 }
 
 /**
@@ -62,12 +63,25 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
 
         const dbStatus = account.status;
         const prevNotified = previousStatuses.current.get(account.id);
+        const hasQr = Boolean(account.qr_code);
+
+        // Hard guard: connected + QR is impossible → keep as pending
+        if (realStatus === "connected" && hasQr) {
+          console.warn(
+            `[StatusPoll] ${account.account_name}: VPS=connected but QR exists → force pending`
+          );
+
+          await supabase
+            .from("whatsapp_accounts")
+            .update({ status: "pending" })
+            .eq("id", account.id);
+
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
+          continue;
+        }
 
         // DB says connected but VPS says otherwise → session expired
-        if (
-          dbStatus === "connected" &&
-          realStatus !== "connected"
-        ) {
+        if (dbStatus === "connected" && realStatus !== "connected") {
           console.log(
             `[StatusPoll] ${account.account_name}: DB=${dbStatus}, VPS=${realStatus} → updating`
           );
@@ -83,41 +97,21 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
             .eq("id", account.id);
 
           if (prevNotified !== newStatus) {
-            toast.error(
-              `Session abgelaufen: ${account.account_name}`,
-              {
-                description: "Bitte verbinden Sie den Account erneut (QR-Scan).",
-              }
-            );
+            toast.error(`Session abgelaufen: ${account.account_name}`, {
+              description: "Bitte verbinden Sie den Account erneut (QR-Scan).",
+            });
             previousStatuses.current.set(account.id, newStatus);
           }
 
           queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
         }
 
-        // DB says disconnected but VPS says connected → auto-heal
-        if (
-          dbStatus !== "connected" &&
-          realStatus === "connected"
-        ) {
+        // IMPORTANT: never auto-promote to connected from frontend polling.
+        // Only worker 'ready' event is allowed to write connected in DB.
+        if (dbStatus !== "connected" && realStatus === "connected") {
           console.log(
-            `[StatusPoll] ${account.account_name}: DB=${dbStatus}, VPS=connected → healing`
+            `[StatusPoll] ${account.account_name}: VPS=connected ignored (waiting for worker ready confirmation)`
           );
-
-          await supabase
-            .from("whatsapp_accounts")
-            .update({
-              status: "connected",
-              last_connected_at: new Date().toISOString(),
-            })
-            .eq("id", account.id);
-
-          if (prevNotified !== "connected") {
-            toast.success(`${account.account_name} ist wieder verbunden`);
-            previousStatuses.current.set(account.id, "connected");
-          }
-
-          queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
         }
       } catch (err) {
         // Silently skip network errors
