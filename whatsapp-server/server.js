@@ -697,6 +697,7 @@ async function connectWhatsApp(accountId) {
   // Disconnected
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
+    clearQrTimeout();
     stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
     currentAccountId = null;
