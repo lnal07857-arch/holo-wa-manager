@@ -421,19 +421,48 @@ async function connectWhatsApp(accountId) {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--safebrowsing-disable-auto-update',
       ]
     }
   });
+
+  // QR scan timeout: if no 'authenticated' event within 90s after QR, clean up
+  let qrScanTimeout = null;
+  let qrReceived = false;
+
+  function clearQrTimeout() {
+    if (qrScanTimeout) { clearTimeout(qrScanTimeout); qrScanTimeout = null; }
+  }
 
   // QR Code
   client.on('qr', async (qr) => {
     console.log(`📱 QR received [${accountId}]`);
     qrcode.generate(qr, { small: true });
     connectionStatus = 'qr_required';
+    qrReceived = true;
 
-    // DB supports 'pending' (not 'qr_required') - keep runtime status separate.
+    // Reset timeout every time a new QR is generated
+    clearQrTimeout();
+    qrScanTimeout = setTimeout(async () => {
+      if (connectionStatus !== 'connected' && connectionStatus !== 'initializing') {
+        return; // Already cleaned up
+      }
+      console.warn(`⏰ [QR Timeout] No auth event after 90s for ${accountId}. Cleaning up.`);
+      connectionStatus = 'disconnected';
+      await updateAccount(accountId, { status: 'disconnected', qr_code: null, worker_id: WORKER_ID });
+      destroyClient();
+    }, 90000);
+
     await updateAccount(accountId, {
       qr_code: qr,
       status: 'pending',
@@ -441,8 +470,26 @@ async function connectWhatsApp(accountId) {
     });
   });
 
+  // Authenticated (fires AFTER QR scan, BEFORE ready)
+  client.on('authenticated', () => {
+    console.log(`🔑 Authenticated [${accountId}] — QR scan successful, loading session...`);
+    clearQrTimeout();
+    connectionStatus = 'initializing';
+  });
+
+  // Loading screen (shows WhatsApp web loading progress)
+  client.on('loading_screen', (percent, message) => {
+    console.log(`⏳ Loading [${accountId}]: ${percent}% — ${message}`);
+  });
+
+  // Capture puppeteer page errors
+  client.on('change_state', (state) => {
+    console.log(`🔄 State change [${accountId}]: ${state}`);
+  });
+
   // Ready
   client.on('ready', async () => {
+    clearQrTimeout();
     console.log(`✅ WhatsApp ready event [${accountId}] — validating session...`);
 
     // ── Post-ready validation: prove session is real ──
@@ -650,6 +697,7 @@ async function connectWhatsApp(accountId) {
   // Disconnected
   client.on('disconnected', async (reason) => {
     console.log(`❌ Disconnected [${accountId}]: ${reason}`);
+    clearQrTimeout();
     stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
     currentAccountId = null;
@@ -660,6 +708,7 @@ async function connectWhatsApp(accountId) {
   // Auth failure
   client.on('auth_failure', async (msg) => {
     console.error(`🔒 Auth failure [${accountId}]: ${msg}`);
+    clearQrTimeout();
     stopRuntimeHealthWatchdog();
     connectionStatus = 'disconnected';
     currentAccountId = null;
