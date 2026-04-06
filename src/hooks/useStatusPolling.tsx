@@ -25,7 +25,15 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
 
     for (const account of accounts) {
       try {
-        // Skip accounts without a slot — try slot recovery first
+        const isTransientInitState =
+          account.status === "initializing" ||
+          account.status === "qr_generated" ||
+          (account.status === "pending" && Boolean(account.qr_code));
+
+        if (isTransientInitState) {
+          continue;
+        }
+
         if (!account.worker_slot) {
           console.log(`[StatusPoll] ${account.account_name}: No slot assigned. Attempting recovery...`);
           await recoverSlot(account);
@@ -43,7 +51,6 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
           "disconnected"
         );
 
-        // Recover workerSlot from gateway response if missing in DB
         const gatewaySlot = (data as any)?.workerSlot;
         if (gatewaySlot && !account.worker_slot) {
           console.log(`[StatusPoll] Recovering slot ${gatewaySlot} for ${account.account_name}`);
@@ -52,7 +59,6 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
             .update({ worker_slot: gatewaySlot, worker_id: `worker-${String(gatewaySlot).padStart(2, '0')}` })
             .eq("id", account.id);
 
-          // Mark slot as occupied
           await supabase
             .from("worker_slots" as any)
             .update({ is_occupied: true, account_id: account.id, last_used_at: new Date().toISOString() } as any)
@@ -65,7 +71,6 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
         const prevNotified = previousStatuses.current.get(account.id);
         const hasQr = Boolean(account.qr_code);
 
-        // Hard guard: connected + QR is impossible → keep as pending
         if (realStatus === "connected" && hasQr) {
           console.warn(
             `[StatusPoll] ${account.account_name}: VPS=connected but QR exists → force pending`
@@ -80,7 +85,6 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
           continue;
         }
 
-        // DB says connected but VPS says otherwise → session expired
         if (dbStatus === "connected" && realStatus !== "connected") {
           console.log(
             `[StatusPoll] ${account.account_name}: DB=${dbStatus}, VPS=${realStatus} → updating`
@@ -106,8 +110,6 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
           queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts"] });
         }
 
-        // IMPORTANT: never auto-promote to connected from frontend polling.
-        // Only worker 'ready' event is allowed to write connected in DB.
         if (dbStatus !== "connected" && realStatus === "connected") {
           console.log(
             `[StatusPoll] ${account.account_name}: VPS=connected ignored (waiting for worker ready confirmation)`
@@ -117,7 +119,7 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
         // Silently skip network errors
       }
     }
-  }, [accounts, queryClient]);
+  }, [accounts, queryClient, recoverSlot]);
 
   /**
    * Tries to find the account on any worker (slots 1-10) and assigns the slot.
