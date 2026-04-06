@@ -8,7 +8,7 @@ export interface WhatsAppAccount {
   user_id: string;
   account_name: string;
   phone_number: string;
-  status: "connected" | "disconnected" | "connecting" | "pending" | "qr_generated";
+  status: "connected" | "disconnected" | "connecting" | "initializing" | "pending" | "qr_generated" | "qr_required" | "blocked";
   qr_code: string | null;
   session_data: any;
   last_connected_at: string | null;
@@ -150,6 +150,16 @@ export const useWhatsAppAccounts = () => {
               description: status === 'pending'
                 ? 'Bitte erneut verbinden, es wird ein neuer QR-Code angezeigt.'
                 : 'Bitte verbinden Sie den Account erneut.',
+            });
+          }
+
+          if (
+            payload.new.status === 'initializing' &&
+            payload.old.status !== 'initializing' &&
+            payload.old.qr_code
+          ) {
+            toast.info(`QR-Code gescannt: ${payload.new.account_name}`, {
+              description: 'WhatsApp übernimmt jetzt die Verbindung im Hintergrund.',
             });
           }
 
