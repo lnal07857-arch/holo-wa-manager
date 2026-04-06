@@ -119,7 +119,7 @@ export const useStatusPolling = (accounts: AccountForPolling[], enabled = true) 
         // Silently skip network errors
       }
     }
-  }, [accounts, queryClient, recoverSlot]);
+  }, [accounts, queryClient]);
 
   /**
    * Tries to find the account on any worker (slots 1-10) and assigns the slot.
