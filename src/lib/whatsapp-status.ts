@@ -1,6 +1,8 @@
 type GatewayStatusPayload = {
   connected?: boolean;
   status?: string | null;
+  is_connected?: boolean;
+  is_logged_in?: boolean;
 };
 
 const KNOWN_STATUSES = new Set([
@@ -15,7 +17,10 @@ const KNOWN_STATUSES = new Set([
 
 export function isConnectedStatus(payload: GatewayStatusPayload | null | undefined): boolean {
   if (!payload) return false;
-  return payload.connected === true || payload.status === "connected";
+  if (payload.connected === true) return true;
+  if (payload.status === "connected") return true;
+  if (payload.is_connected === true && payload.is_logged_in === true) return true;
+  return false;
 }
 
 export function normalizeGatewayAccountStatus(
@@ -28,6 +33,10 @@ export function normalizeGatewayAccountStatus(
   if (rawStatus && KNOWN_STATUSES.has(rawStatus)) {
     return rawStatus;
   }
+
+  // go-whatsapp style: is_connected + is_logged_in
+  if (payload.is_connected === true && payload.is_logged_in === true) return "connected";
+  if (payload.is_connected === false) return "disconnected";
 
   if (payload.connected === true) return "connected";
   if (payload.connected === false) return "disconnected";
