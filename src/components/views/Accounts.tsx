@@ -722,7 +722,11 @@ const Accounts = () => {
                         <p className="text-sm text-muted-foreground">QR-Code wird generiert...</p>
                       </div>
                     ) : qrCode ? (
-                      <QRCodeSVG value={qrCode} size={224} level="M" />
+                      qrCode.startsWith('http') ? (
+                        <img src={qrCode} alt="WhatsApp QR Code" className="w-56 h-56 object-contain" />
+                      ) : (
+                        <QRCodeSVG value={qrCode} size={224} level="M" />
+                      )
                     ) : (
                       <p className="text-sm text-muted-foreground">Kein QR-Code verfügbar</p>
                     )}
