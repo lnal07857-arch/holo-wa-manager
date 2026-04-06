@@ -328,22 +328,31 @@ function destroyClient() {
   connectionStatus = 'disconnected';
 }
 
+async function clearChromiumSingletonLocks(accountId) {
+  const sessionDir = path.join(WA_DATA_DIR, `session-${String(accountId || '')}`);
+  const singletonFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
+
+  try {
+    for (const fileName of singletonFiles) {
+      await fs.rm(path.join(sessionDir, fileName), { force: true });
+    }
+  } catch (e) {
+    console.warn(`[Browser] Failed to clear singleton locks for ${accountId}: ${e.message}`);
+  }
+}
+
 async function isClientActuallyConnected(client) {
   if (!client) return false;
   try {
-    // Check 1: Runtime state from WhatsApp
-    const state = await client.getState();
-    if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
-
-    // Check 2: Verify WID exists (proves phone is actually linked)
-    if (!client.info || !client.info.wid || !client.info.wid.user) {
-      console.warn('[StatusCheck] getState()=CONNECTED but no WID → ghost session');
+    if (!client.pupPage || client.pupPage?.isClosed?.()) {
       return false;
     }
 
-    // Check 3: Browser page must still be alive
-    if (client.pupPage?.isClosed?.()) {
-      console.warn('[StatusCheck] Puppeteer page is closed → disconnected');
+    const state = await client.getState();
+    if (String(state || '').toUpperCase() !== 'CONNECTED') return false;
+
+    if (!client.info || !client.info.wid || !client.info.wid.user) {
+      console.warn('[StatusCheck] getState()=CONNECTED but no WID → ghost session');
       return false;
     }
 
@@ -390,7 +399,6 @@ async function getRuntimeStatus() {
     return 'connected';
   }
 
-  // Ghost session detected: client exists but not truly connected
   if (connectionStatus === 'connected') {
     console.warn('[getRuntimeStatus] Ghost session detected → setting qr_required');
     connectionStatus = 'qr_required';
@@ -412,13 +420,13 @@ async function getRuntimeStatus() {
 }
 
 async function connectWhatsApp(accountId) {
-  // Cleanup existing
   destroyClient();
 
   connectionStatus = 'initializing';
   currentAccountId = accountId;
 
-  // Puppeteer 19 base image bundles Chrome at a known path
+  await clearChromiumSingletonLocks(accountId);
+
   const resolvedExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH
     || '/usr/bin/google-chrome-stable'
     || puppeteer.executablePath();
@@ -426,6 +434,7 @@ async function connectWhatsApp(accountId) {
 
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: accountId, dataPath: WA_DATA_DIR }),
+    authTimeoutMs: 120000,
     puppeteer: {
       headless: true,
       executablePath: resolvedExecutablePath,
