@@ -201,6 +201,7 @@ const Accounts = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [initializingAccount, setInitializingAccount] = useState<string | null>(null);
   const [loadingQR, setLoadingQR] = useState(false);
+  const [connectionStage, setConnectionStage] = useState<"idle" | "requesting_qr" | "qr_ready" | "scan_detected">("idle");
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [disconnectingAll, setDisconnectingAll] = useState(false);
   const createDemoData = async () => {
@@ -331,13 +332,17 @@ const Accounts = () => {
     }
   };
   const initializeWhatsApp = async (accountId: string) => {
+    setQrCode(null);
     setLoadingQR(true);
+    setConnectionStage("requesting_qr");
     setInitializingAccount(accountId);
     
     // Timeout nach 2 Minuten (entspricht Server QR-Timeout)
     const timeoutId = setTimeout(() => {
       setLoadingQR(false);
       setInitializingAccount(null);
+      setQrCode(null);
+      setConnectionStage("idle");
       toast.error('QR-Code wurde nicht rechtzeitig gescannt. Die Session wurde automatisch beendet.');
     }, 120000);
     
@@ -400,6 +405,8 @@ const Accounts = () => {
               if (isConnectedStatus(statusData as any)) {
                 setInitializingAccount(null);
                 setLoadingQR(false);
+                setQrCode(null);
+                setConnectionStage("idle");
                 toast.success('Account ist bereits verbunden.');
                 return;
               }
@@ -438,6 +445,8 @@ const Accounts = () => {
       console.error('[WhatsApp Init Error]', error);
       setInitializingAccount(null);
       setLoadingQR(false);
+      setQrCode(null);
+      setConnectionStage("idle");
       toast.error(error.message || 'Fehler bei der Initialisierung');
     }
   };
